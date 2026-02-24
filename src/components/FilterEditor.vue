@@ -91,7 +91,7 @@ function deselectAll() { selectedBoardIds.value = [] }
 function save() {
   emit('save', {
     name: name.value.trim(),
-    boardIds: [...selectedBoardIds.value].sort((a, b) => a - b)
+    boardIds: [...selectedBoardIds.value].sort((a, b) => String(a).localeCompare(String(b)))
   })
 }
 </script>

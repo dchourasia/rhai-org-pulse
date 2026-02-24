@@ -66,6 +66,51 @@ export async function refreshData({ hardRefresh = false } = {}) {
   })
 }
 
+export async function refreshDataForeground({ hardRefresh = false, onProgress, onComplete, onError, signal } = {}) {
+  const token = await getAuthToken()
+  const params = hardRefresh ? '?hardRefresh=true' : ''
+
+  const response = await fetch(`${API_ENDPOINT}/refresh/stream${params}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+    signal
+  })
+
+  if (!response.ok) {
+    const msg = `HTTP ${response.status}`
+    if (onError) onError(new Error(msg))
+    throw new Error(msg)
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop()
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      try {
+        const event = JSON.parse(line.slice(6))
+        if (event.type === 'complete') {
+          if (onComplete) onComplete(event)
+        } else if (event.type === 'error') {
+          if (onError) onError(new Error(event.message))
+        } else {
+          if (onProgress) onProgress(event)
+        }
+      } catch {
+        // skip malformed lines
+      }
+    }
+  }
+}
+
 export async function discoverBoards() {
   return apiRequest('/discover-boards', {
     method: 'POST',

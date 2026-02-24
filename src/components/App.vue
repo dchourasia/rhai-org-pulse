@@ -48,7 +48,7 @@
               </div>
               <div
                 v-if="showRefreshMenu"
-                class="absolute right-0 mt-1 w-44 bg-white rounded-md shadow-lg py-1 z-10"
+                class="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg py-1 z-10"
               >
                 <button
                   @click="refreshData(false); showRefreshMenu = false"
@@ -62,6 +62,16 @@
                 >
                   Full Refresh
                 </button>
+                <div class="border-t border-gray-100 my-1"></div>
+                <label class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    :checked="refreshMode === 'foreground'"
+                    @change="refreshMode = $event.target.checked ? 'foreground' : 'background'"
+                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  Show progress
+                </label>
               </div>
             </div>
 
@@ -108,6 +118,16 @@
           </div>
         </div>
       </header>
+
+      <RefreshProgressBar
+        :visible="isRefreshing && refreshMode === 'foreground'"
+        :totalBoards="refreshProgress.totalBoards"
+        :completedBoards="refreshProgress.completedBoards"
+        :currentBoard="refreshProgress.currentBoard"
+        :totalSprints="refreshProgress.totalSprints"
+        :completedSprints="refreshProgress.completedSprints"
+        :currentSprint="refreshProgress.currentSprint"
+      />
 
       <!-- Dashboard View -->
       <main v-if="currentView === 'dashboard'" class="relative">
@@ -175,12 +195,14 @@ import BoardSettings from './BoardSettings.vue'
 import Dashboard from './Dashboard.vue'
 import FilterEditor from './FilterEditor.vue'
 import LoadingOverlay from './LoadingOverlay.vue'
+import RefreshProgressBar from './RefreshProgressBar.vue'
 import TeamDetail from './TeamDetail.vue'
 import Toast from './Toast.vue'
 import { useAuth } from '../composables/useAuth'
 import { useSavedFilters } from '../composables/useSavedFilters'
 import {
   refreshData as apiRefreshData,
+  refreshDataForeground,
   getBoards,
   getSprintsForBoard,
   getSprintData,
@@ -196,6 +218,7 @@ export default {
     Dashboard,
     FilterEditor,
     LoadingOverlay,
+    RefreshProgressBar,
     TeamDetail,
     Toast
   },
@@ -233,7 +256,17 @@ export default {
       avatarLoadError: false,
       toasts: [],
       showFilterEditor: false,
-      editingFilter: null
+      editingFilter: null,
+      refreshMode: 'foreground',
+      refreshProgress: {
+        totalBoards: 0,
+        completedBoards: 0,
+        currentBoard: '',
+        totalSprints: 0,
+        completedSprints: 0,
+        currentSprint: ''
+      },
+      refreshAbortController: null
     }
   },
   computed: {
@@ -259,6 +292,10 @@ export default {
   },
   beforeUnmount() {
     document.removeEventListener('click', this.handleClickOutside)
+    if (this.refreshAbortController) {
+      this.refreshAbortController.abort()
+      this.refreshAbortController = null
+    }
   },
   methods: {
     async loadInitialData() {
@@ -349,18 +386,75 @@ export default {
 
     async refreshData(hardRefresh) {
       this.isRefreshing = true
+
+      if (this.refreshMode === 'background') {
+        try {
+          await apiRefreshData({ hardRefresh })
+          this.showToast(
+            hardRefresh
+              ? 'Full refresh started — data will update in the background'
+              : 'Refresh started — data will update in the background'
+          )
+        } catch (error) {
+          console.error('Refresh error:', error)
+          this.showToast(`Failed to start refresh: ${error.message}`, 'error')
+        } finally {
+          this.isRefreshing = false
+        }
+        return
+      }
+
+      // Foreground mode with progress
+      this.refreshProgress = {
+        totalBoards: 0,
+        completedBoards: 0,
+        currentBoard: '',
+        totalSprints: 0,
+        completedSprints: 0,
+        currentSprint: ''
+      }
+      this.refreshAbortController = new AbortController()
+
       try {
-        await apiRefreshData({ hardRefresh })
-        this.showToast(
-          hardRefresh
-            ? 'Full refresh started — data will update in the background'
-            : 'Refresh started — data will update in the background'
-        )
+        await refreshDataForeground({
+          hardRefresh,
+          signal: this.refreshAbortController.signal,
+          onProgress: (event) => {
+            if (event.type === 'refresh-start') {
+              this.refreshProgress.totalBoards = event.totalBoards
+            } else if (event.type === 'board-start') {
+              this.refreshProgress.currentBoard = event.board
+              this.refreshProgress.totalSprints = 0
+              this.refreshProgress.completedSprints = 0
+              this.refreshProgress.currentSprint = ''
+            } else if (event.type === 'sprint') {
+              this.refreshProgress.currentBoard = event.board
+              this.refreshProgress.totalSprints = event.totalSprints
+              this.refreshProgress.completedSprints = event.sprintIndex + 1
+              this.refreshProgress.currentSprint = event.sprint
+            } else if (event.type === 'board-complete') {
+              this.refreshProgress.completedBoards += 1
+            }
+          },
+          onComplete: () => {
+            this.isRefreshing = false
+            this.refreshAbortController = null
+            this.loadInitialData()
+          },
+          onError: (error) => {
+            console.error('Foreground refresh error:', error)
+            this.showToast(`Refresh failed: ${error.message}`, 'error')
+            this.isRefreshing = false
+            this.refreshAbortController = null
+          }
+        })
       } catch (error) {
-        console.error('Refresh error:', error)
-        this.showToast(`Failed to start refresh: ${error.message}`, 'error')
-      } finally {
+        if (error.name !== 'AbortError') {
+          console.error('Refresh error:', error)
+          this.showToast(`Failed to start refresh: ${error.message}`, 'error')
+        }
         this.isRefreshing = false
+        this.refreshAbortController = null
       }
     },
 

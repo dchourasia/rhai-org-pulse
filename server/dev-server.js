@@ -128,32 +128,58 @@ app.post('/api/refresh', function(req, res) {
   });
 });
 
+app.get('/api/refresh/stream', function(req, res) {
+  const hardRefresh = req.query.hardRefresh === 'true';
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+
+  let clientDisconnected = false;
+  req.on('close', () => { clientDisconnected = true; });
+
+  function sendEvent(data) {
+    if (!clientDisconnected) {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    }
+  }
+
+  performRefresh({
+    ...orchestrationDeps,
+    hardRefresh,
+    onProgress: sendEvent
+  }).then(() => {
+    if (!clientDisconnected) res.end();
+  }).catch((error) => {
+    console.error('SSE refresh error:', error);
+    sendEvent({ type: 'error', message: error.message });
+    if (!clientDisconnected) res.end();
+  });
+});
+
 // ─── Routes: Reader ───
 
 app.get('/api/boards', function(req, res) {
   try {
-    const data = readFromStorage('boards.json');
-    if (!data) {
+    const teamsData = readFromStorage('teams.json');
+    if (!teamsData || !teamsData.teams) {
       return res.json({ boards: [], lastUpdated: null });
     }
 
-    // Merge with team config
-    const teamsData = readFromStorage('teams.json');
-    if (teamsData && teamsData.teams) {
-      const teamMap = new Map(teamsData.teams.map(t => [t.boardId, t]));
-      data.boards = data.boards
-        .map(board => {
-          const teamConfig = teamMap.get(board.id);
-          return {
-            ...board,
-            displayName: teamConfig?.displayName || board.name,
-            enabled: teamConfig?.enabled !== false
-          };
-        })
-        .filter(board => board.enabled);
-    }
+    const boards = teamsData.teams
+      .filter(t => t.enabled !== false)
+      .map(t => ({
+        id: t.teamId || t.boardId,
+        boardId: t.boardId,
+        name: t.boardName || t.displayName,
+        displayName: t.displayName || t.boardName,
+        sprintFilter: t.sprintFilter || undefined
+      }));
 
-    res.json(data);
+    const boardsData = readFromStorage('boards.json');
+    res.json({ boards, lastUpdated: boardsData?.lastUpdated || null });
   } catch (error) {
     console.error('Read boards error:', error);
     res.status(500).json({ error: error.message });
@@ -163,7 +189,8 @@ app.get('/api/boards', function(req, res) {
 app.get('/api/boards/:boardId/sprints', function(req, res) {
   try {
     const { boardId } = req.params;
-    const data = readFromStorage(`sprints/board-${boardId}.json`);
+    const data = readFromStorage(`sprints/team-${boardId}.json`)
+      || readFromStorage(`sprints/board-${boardId}.json`);
     if (!data) {
       return res.json({ sprints: [] });
     }
@@ -177,7 +204,8 @@ app.get('/api/boards/:boardId/sprints', function(req, res) {
 app.get('/api/boards/:boardId/trend', function(req, res) {
   try {
     const { boardId } = req.params;
-    const sprintIndex = readFromStorage(`sprints/board-${boardId}.json`);
+    const sprintIndex = readFromStorage(`sprints/team-${boardId}.json`)
+      || readFromStorage(`sprints/board-${boardId}.json`);
     if (!sprintIndex?.sprints?.length) {
       return res.json({ sprints: [] });
     }
@@ -256,23 +284,20 @@ app.get('/api/dashboard-summary', function(req, res) {
     }
 
     // Build on-the-fly from existing sprint data
-    const boardsData = readFromStorage('boards.json');
-    if (!boardsData || !boardsData.boards) {
+    const teamsData = readFromStorage('teams.json');
+    const enabledTeams = teamsData?.teams?.filter(t => t.enabled !== false) || [];
+    if (enabledTeams.length === 0) {
       return res.json({ lastUpdated: null, boards: {} });
     }
 
-    const teamsData = readFromStorage('teams.json');
-    const enabledBoardIds = new Set(
-      teamsData?.teams?.filter(t => t.enabled !== false).map(t => t.boardId) || boardsData.boards.map(b => b.id)
-    );
-
+    const boardsData = readFromStorage('boards.json');
     const ROLLING_SPRINT_COUNT = 6;
-    const summary = { lastUpdated: boardsData.lastUpdated, boards: {} };
+    const summary = { lastUpdated: boardsData?.lastUpdated || null, boards: {} };
 
-    for (const board of boardsData.boards) {
-      if (!enabledBoardIds.has(board.id)) continue;
-
-      const boardSprints = readFromStorage(`sprints/board-${board.id}.json`);
+    for (const team of enabledTeams) {
+      const teamId = team.teamId || String(team.boardId);
+      const boardSprints = readFromStorage(`sprints/team-${teamId}.json`)
+        || readFromStorage(`sprints/board-${team.boardId}.json`);
       if (!boardSprints?.sprints?.length) continue;
 
       const closedSprints = [...boardSprints.sprints]
@@ -298,8 +323,8 @@ app.get('/api/dashboard-summary', function(req, res) {
         sprintsUsed++;
       }
 
-      summary.boards[board.id] = {
-        boardName: board.name,
+      summary.boards[teamId] = {
+        boardName: team.displayName || team.boardName,
         sprint: {
           id: latestClosed.id,
           name: latestClosed.name,
@@ -327,14 +352,15 @@ app.get('/api/dashboard-summary', function(req, res) {
 
 app.get('/api/trend', function(req, res) {
   try {
-    const boardIds = (req.query.boardIds || '').split(',').filter(Boolean).map(Number);
+    const boardIds = (req.query.boardIds || '').split(',').filter(Boolean);
     if (boardIds.length === 0) {
       return res.json({ months: [] });
     }
 
     const allSprintData = [];
     for (const boardId of boardIds) {
-      const sprintIndex = readFromStorage(`sprints/board-${boardId}.json`);
+      const sprintIndex = readFromStorage(`sprints/team-${boardId}.json`)
+        || readFromStorage(`sprints/board-${boardId}.json`);
       if (!sprintIndex?.sprints?.length) continue;
 
       for (const sprint of sprintIndex.sprints) {

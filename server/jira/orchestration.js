@@ -64,39 +64,46 @@ async function discoverBoards({ fetchBoards, fetchSprints, readStorage, writeSto
   const staleCount = [...boardStaleness.values()].filter(s => s.stale).length;
   console.log(`Staleness check: ${staleCount} of ${boards.length} boards are stale`);
 
-  // Merge with existing teams config
+  // Merge with existing teams config (preserving sub-team entries)
   const existingTeams = readStorage('teams.json');
-  const existingMap = existingTeams?.teams
-    ? new Map(existingTeams.teams.map(t => [t.boardId, t]))
-    : new Map();
-
-  const mergedTeams = boards.map(b => {
-    const staleness = boardStaleness.get(b.id) || { stale: false, lastSprintEndDate: null };
-    const existing = existingMap.get(b.id);
-
-    if (existing) {
-      const updated = {
-        ...existing,
-        boardName: b.name,
-        stale: staleness.stale,
-        lastSprintEndDate: staleness.lastSprintEndDate
-      };
-      if (staleness.stale && !existing.manuallyConfigured) {
-        updated.enabled = false;
-      }
-      return updated;
+  const existingByBoard = new Map(); // boardId -> array of team entries
+  if (existingTeams?.teams) {
+    for (const t of existingTeams.teams) {
+      if (!existingByBoard.has(t.boardId)) existingByBoard.set(t.boardId, []);
+      existingByBoard.get(t.boardId).push(t);
     }
+  }
 
-    return {
-      boardId: b.id,
-      boardName: b.name,
-      displayName: b.name.replace(/^RHOAIENG\s*[-–]\s*/, ''),
-      enabled: !staleness.stale,
-      stale: staleness.stale,
-      lastSprintEndDate: staleness.lastSprintEndDate,
-      manuallyConfigured: false
-    };
-  });
+  const mergedTeams = [];
+  for (const b of boards) {
+    const staleness = boardStaleness.get(b.id) || { stale: false, lastSprintEndDate: null };
+    const existingEntries = existingByBoard.get(b.id);
+
+    if (existingEntries) {
+      for (const existing of existingEntries) {
+        const updated = {
+          ...existing,
+          boardName: b.name,
+          stale: staleness.stale,
+          lastSprintEndDate: staleness.lastSprintEndDate
+        };
+        if (staleness.stale && !existing.manuallyConfigured) {
+          updated.enabled = false;
+        }
+        mergedTeams.push(updated);
+      }
+    } else {
+      mergedTeams.push({
+        boardId: b.id,
+        boardName: b.name,
+        displayName: b.name.replace(/^RHOAIENG\s*[-–]\s*/, ''),
+        enabled: !staleness.stale,
+        stale: staleness.stale,
+        lastSprintEndDate: staleness.lastSprintEndDate,
+        manuallyConfigured: false
+      });
+    }
+  }
 
   writeStorage('teams.json', { teams: mergedTeams });
 
@@ -106,18 +113,30 @@ async function discoverBoards({ fetchBoards, fetchSprints, readStorage, writeSto
 /**
  * Process a single board: fetch sprints, fetch sprint reports, transform, cache.
  */
-async function processBoard({ board, hardRefresh, fetchSprints, fetchSprintReport, readStorage, writeStorage, jiraHost }) {
-  console.log(`Processing board: ${board.name} (${board.id})`);
+async function processBoard({ board, hardRefresh, sprintFilter, teamId, fetchSprints, fetchSprintReport, readStorage, writeStorage, jiraHost, onProgress }) {
+  const effectiveTeamId = teamId || String(board.id);
+  const emit = onProgress || (() => {});
+  const displayName = sprintFilter ? `${board.name} [${sprintFilter}]` : board.name;
+  console.log(`Processing board: ${displayName} (${board.id}, team: ${effectiveTeamId})`);
+  emit({ type: 'board-start', board: displayName });
 
   const sprints = await fetchSprints(board.id);
-  console.log(`  [${board.name}] Found ${sprints.length} sprints`);
+  console.log(`  [${displayName}] Found ${sprints.length} sprints`);
+
+  // Apply sprint name filter if set
+  let filteredSprints = sprints;
+  if (sprintFilter?.trim()) {
+    const filterLower = sprintFilter.trim().toLowerCase();
+    filteredSprints = sprints.filter(s => s.name.toLowerCase().includes(filterLower));
+    console.log(`  [${displayName}] After filter "${sprintFilter}": ${filteredSprints.length} sprints`);
+  }
 
   // Get closed sprints from last 12 months + active sprints
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
-  const activeSprints = sprints.filter(s => s.state === 'active');
-  const closedSprints = sprints
+  const activeSprints = filteredSprints.filter(s => s.state === 'active');
+  const closedSprints = filteredSprints
     .filter(s => s.state === 'closed')
     .filter(s => {
       const endDate = new Date(s.endDate || s.completeDate || 0);
@@ -128,18 +147,21 @@ async function processBoard({ board, hardRefresh, fetchSprints, fetchSprintRepor
   const sprintsToProcess = [...activeSprints, ...closedSprints];
   const sprintResults = [];
 
-  for (const sprint of sprintsToProcess) {
+  for (let si = 0; si < sprintsToProcess.length; si++) {
+    const sprint = sprintsToProcess[si];
     // Closed-sprint caching: skip if cached and not hard refresh
     if (!hardRefresh && sprint.state === 'closed') {
       const cached = readStorage(`sprints/${sprint.id}.json`);
       if (cached) {
-        console.log(`  [${board.name}] Using cached: ${sprint.name}`);
+        console.log(`  [${displayName}] Using cached: ${sprint.name}`);
+        emit({ type: 'sprint', board: displayName, sprint: sprint.name, sprintIndex: si, totalSprints: sprintsToProcess.length, cached: true });
         sprintResults.push(cached);
         continue;
       }
     }
 
-    console.log(`  [${board.name}] Fetching sprint report: ${sprint.name} (${sprint.state})`);
+    console.log(`  [${displayName}] Fetching sprint report: ${sprint.name} (${sprint.state})`);
+    emit({ type: 'sprint', board: displayName, sprint: sprint.name, sprintIndex: si, totalSprints: sprintsToProcess.length, cached: false });
 
     try {
       const rawReport = await fetchSprintReport(board.id, sprint.id);
@@ -155,9 +177,12 @@ async function processBoard({ board, hardRefresh, fetchSprints, fetchSprintRepor
     }
   }
 
-  // Write sprint index for this board
-  writeStorage(`sprints/board-${board.id}.json`, {
+  emit({ type: 'board-complete', board: displayName, sprintCount: sprintResults.length });
+
+  // Write sprint index keyed by team ID
+  writeStorage(`sprints/team-${effectiveTeamId}.json`, {
     boardId: board.id,
+    teamId: effectiveTeamId,
     boardName: board.name,
     lastUpdated: new Date().toISOString(),
     sprints: sprintsToProcess.map(s => ({
@@ -178,6 +203,7 @@ async function processBoard({ board, hardRefresh, fetchSprints, fetchSprintRepor
 
   return {
     board,
+    teamId: effectiveTeamId,
     sprintResults,
     dashboardSprint,
     dashboardResult
@@ -221,7 +247,7 @@ function computeRollingMetrics(sprintResults, count = ROLLING_SPRINT_COUNT) {
 /**
  * Full refresh: process all enabled boards and generate dashboard summary.
  */
-async function performRefresh({ hardRefresh, fetchBoards, fetchSprints, fetchSprintReport, readStorage, writeStorage, jiraHost }) {
+async function performRefresh({ hardRefresh, fetchBoards, fetchSprints, fetchSprintReport, readStorage, writeStorage, jiraHost, onProgress }) {
   console.log(`Starting refresh (hardRefresh: ${hardRefresh})`);
   const refreshStart = Date.now();
 
@@ -231,8 +257,12 @@ async function performRefresh({ hardRefresh, fetchBoards, fetchSprints, fetchSpr
 
   if (enabledTeams.length === 0) {
     console.log('No enabled boards to refresh');
+    if (onProgress) onProgress({ type: 'complete', boardCount: 0, sprintCount: 0 });
     return { success: true, boardCount: 0, sprintCount: 0 };
   }
+
+  const totalBoards = enabledTeams.length;
+  if (onProgress) onProgress({ type: 'refresh-start', totalBoards });
 
   // Also update boards list
   const boardsData = readStorage('boards.json');
@@ -241,20 +271,38 @@ async function performRefresh({ hardRefresh, fetchBoards, fetchSprints, fetchSpr
   // Process boards with concurrency limit of 2
   const CONCURRENCY = 2;
   const boardResults = [];
+  let completedBoards = 0;
 
   for (let i = 0; i < enabledTeams.length; i += CONCURRENCY) {
     const chunk = enabledTeams.slice(i, i + CONCURRENCY);
-    const chunkResults = await Promise.all(chunk.map(team =>
-      processBoard({
+    const chunkResults = await Promise.all(chunk.map(team => {
+      // Compute effective team ID
+      const filter = team.sprintFilter?.trim();
+      let effectiveTeamId = team.teamId;
+      if (!effectiveTeamId && filter) {
+        effectiveTeamId = `${team.boardId}_${filter.toLowerCase().replace(/\s+/g, '-')}`;
+      }
+      if (!effectiveTeamId) {
+        effectiveTeamId = String(team.boardId);
+      }
+
+      const boardOnProgress = onProgress
+        ? (event) => onProgress({ ...event, boardIndex: completedBoards + (chunk.indexOf(team)), totalBoards })
+        : undefined;
+      return processBoard({
         board: { id: team.boardId, name: team.boardName || team.displayName },
         hardRefresh,
+        sprintFilter: team.sprintFilter,
+        teamId: effectiveTeamId,
         fetchSprints,
         fetchSprintReport,
         readStorage,
         writeStorage,
-        jiraHost
-      })
-    ));
+        jiraHost,
+        onProgress: boardOnProgress
+      });
+    }));
+    completedBoards += chunkResults.length;
     boardResults.push(...chunkResults);
   }
 
@@ -264,7 +312,7 @@ async function performRefresh({ hardRefresh, fetchBoards, fetchSprints, fetchSpr
     boards: {}
   };
 
-  for (const { board, sprintResults } of boardResults) {
+  for (const { board, teamId: resultTeamId, sprintResults } of boardResults) {
     if (sprintResults.length === 0) continue;
 
     const latestClosed = sprintResults
@@ -275,7 +323,7 @@ async function performRefresh({ hardRefresh, fetchBoards, fetchSprints, fetchSpr
 
     const rolling = computeRollingMetrics(sprintResults);
 
-    dashboardSummary.boards[board.id] = {
+    dashboardSummary.boards[resultTeamId] = {
       boardName: board.name,
       sprint: {
         id: latestClosed.sprint.id,
@@ -293,6 +341,8 @@ async function performRefresh({ hardRefresh, fetchBoards, fetchSprints, fetchSpr
   const totalSprints = boardResults.reduce((sum, r) => sum + r.sprintResults.length, 0);
   const elapsed = ((Date.now() - refreshStart) / 1000).toFixed(1);
   console.log(`Refresh complete: ${boardResults.length} boards, ${totalSprints} sprints (${elapsed}s)`);
+
+  if (onProgress) onProgress({ type: 'complete', boardCount: boardResults.length, sprintCount: totalSprints });
 
   return {
     success: true,
