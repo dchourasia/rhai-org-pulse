@@ -156,7 +156,9 @@
           :sprintData="teamSprintData"
           :trendData="teamTrendData"
           :isLoading="isTeamDetailLoading"
+          :viewMode="teamViewMode"
           @select-sprint="handleSelectSprint"
+          @switch-mode="handleSwitchMode"
           @back="navigateToDashboard"
         />
       </main>
@@ -247,6 +249,7 @@ export default {
       selectedSprint: null,
       teamSprintData: null,
       teamTrendData: null,
+      teamViewMode: 'overview',
       isTeamDetailLoading: false,
       lastUpdated: null,
       isRefreshing: false,
@@ -323,6 +326,7 @@ export default {
       this.teamSprints = []
       this.teamSprintData = null
       this.teamTrendData = null
+      this.teamViewMode = 'overview'
       this.loadInitialData()
     },
 
@@ -332,6 +336,7 @@ export default {
       this.selectedSprint = null
       this.teamSprintData = null
       this.teamTrendData = null
+      this.teamViewMode = 'overview'
       this.currentView = 'team-detail'
       this.loadTeamData(board.id)
     },
@@ -346,15 +351,14 @@ export default {
         this.teamSprints = sprintsData.sprints || []
         this.teamTrendData = trendData.sprints || []
 
-        // Default to active sprint or most recent closed
+        // Pre-select default sprint but don't load data unless in sprint-detail mode
         const activeSprint = this.teamSprints.find(s => s.state === 'active')
-        const selectedSprint = activeSprint || [...this.teamSprints]
+        this.selectedSprint = activeSprint || [...this.teamSprints]
           .filter(s => s.state === 'closed')
           .sort((a, b) => new Date(b.startDate) - new Date(a.startDate))[0] || null
 
-        if (selectedSprint) {
-          this.selectedSprint = selectedSprint
-          await this.loadSprintData(selectedSprint.id)
+        if (this.teamViewMode === 'sprint-detail' && this.selectedSprint) {
+          await this.loadSprintData(this.selectedSprint.id)
         }
       } catch (error) {
         console.error('Failed to load team data:', error)
@@ -376,11 +380,24 @@ export default {
     async handleSelectSprint(sprintId) {
       this.selectedSprint = this.teamSprints.find(s => s.id === sprintId) || null
       this.teamSprintData = null
+      this.teamViewMode = 'sprint-detail'
       this.isTeamDetailLoading = true
       try {
         await this.loadSprintData(sprintId)
       } finally {
         this.isTeamDetailLoading = false
+      }
+    },
+
+    async handleSwitchMode(mode) {
+      this.teamViewMode = mode
+      if (mode === 'sprint-detail' && !this.teamSprintData && this.selectedSprint) {
+        this.isTeamDetailLoading = true
+        try {
+          await this.loadSprintData(this.selectedSprint.id)
+        } finally {
+          this.isTeamDetailLoading = false
+        }
       }
     },
 

@@ -154,3 +154,21 @@ export async function saveTeams(teams) {
     body: JSON.stringify({ teams })
   })
 }
+
+export async function getSprintAnnotations(sprintId) {
+  return apiRequest(`/sprints/${sprintId}/annotations`)
+}
+
+export async function saveAnnotation(sprintId, { assignee, text }) {
+  return apiRequest(`/sprints/${sprintId}/annotations`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ assignee, text })
+  })
+}
+
+export async function deleteAnnotation(sprintId, assignee, annotationId) {
+  return apiRequest(`/sprints/${sprintId}/annotations/${encodeURIComponent(assignee)}/${annotationId}`, {
+    method: 'DELETE'
+  })
+}

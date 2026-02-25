@@ -215,12 +215,26 @@ app.get('/api/boards/:boardId/trend', function(req, res) {
       if (sprint.state !== 'closed') continue;
       const sprintData = readFromStorage(`sprints/${sprint.id}.json`);
       if (!sprintData?.metrics) continue;
+
+      const byAssignee = {};
+      if (sprintData.byAssignee) {
+        for (const [name, data] of Object.entries(sprintData.byAssignee)) {
+          byAssignee[name] = {
+            pointsCompleted: data.pointsCompleted,
+            issuesCompleted: data.issuesCompleted,
+            pointsAssigned: data.pointsAssigned,
+            completionRate: data.completionRate
+          };
+        }
+      }
+
       trendData.push({
         sprintId: sprint.id,
         sprintName: sprint.name,
         startDate: sprint.startDate,
         endDate: sprint.endDate || sprint.completeDate,
-        ...sprintData.metrics
+        ...sprintData.metrics,
+        byAssignee
       });
     }
 
@@ -398,6 +412,75 @@ app.get('/api/trend', function(req, res) {
     res.json({ months });
   } catch (error) {
     console.error('Read aggregate trend error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── Routes: Annotations ───
+
+app.get('/api/sprints/:sprintId/annotations', function(req, res) {
+  try {
+    const { sprintId } = req.params;
+    const data = readFromStorage(`annotations/${sprintId}.json`);
+    res.json(data || { annotations: {} });
+  } catch (error) {
+    console.error('Read annotations error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/sprints/:sprintId/annotations', function(req, res) {
+  try {
+    const { sprintId } = req.params;
+    const { assignee, text } = req.body;
+    if (!assignee || !text) {
+      return res.status(400).json({ error: 'assignee and text are required' });
+    }
+
+    const data = readFromStorage(`annotations/${sprintId}.json`) || { annotations: {} };
+    if (!data.annotations[assignee]) {
+      data.annotations[assignee] = [];
+    }
+
+    const annotation = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      text,
+      author: req.userEmail,
+      createdAt: new Date().toISOString()
+    };
+
+    data.annotations[assignee].push(annotation);
+    writeToStorage(`annotations/${sprintId}.json`, data);
+    res.json(annotation);
+  } catch (error) {
+    console.error('Save annotation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/sprints/:sprintId/annotations/:assignee/:annotationId', function(req, res) {
+  try {
+    const { sprintId, assignee, annotationId } = req.params;
+    const data = readFromStorage(`annotations/${sprintId}.json`);
+    if (!data?.annotations?.[assignee]) {
+      return res.status(404).json({ error: 'Annotation not found' });
+    }
+
+    const before = data.annotations[assignee].length;
+    data.annotations[assignee] = data.annotations[assignee].filter(a => a.id !== annotationId);
+
+    if (data.annotations[assignee].length === before) {
+      return res.status(404).json({ error: 'Annotation not found' });
+    }
+
+    if (data.annotations[assignee].length === 0) {
+      delete data.annotations[assignee];
+    }
+
+    writeToStorage(`annotations/${sprintId}.json`, data);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete annotation error:', error);
     res.status(500).json({ error: error.message });
   }
 });

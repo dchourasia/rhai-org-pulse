@@ -1,7 +1,7 @@
 <template>
   <div class="container mx-auto px-6 py-6">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-3">
         <button
           @click="$emit('back')"
@@ -14,7 +14,7 @@
         </button>
         <h2 class="text-xl font-bold text-gray-900">{{ board?.displayName || board?.name }}</h2>
       </div>
-      <div class="flex items-center gap-3">
+      <div v-if="viewMode === 'sprint-detail'" class="flex items-center gap-3">
         <SprintSelector
           v-if="sprints.length > 0"
           :sprints="sprints"
@@ -28,64 +28,56 @@
       </div>
     </div>
 
+    <!-- Tab bar -->
+    <div class="border-b border-gray-200 mb-6">
+      <nav class="flex gap-6">
+        <button
+          @click="$emit('switch-mode', 'overview')"
+          class="pb-3 text-sm font-medium border-b-2 transition-colors"
+          :class="viewMode === 'overview'
+            ? 'border-primary-600 text-primary-600'
+            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+        >
+          Team Overview
+        </button>
+        <button
+          @click="$emit('switch-mode', 'sprint-detail')"
+          class="pb-3 text-sm font-medium border-b-2 transition-colors"
+          :class="viewMode === 'sprint-detail'
+            ? 'border-primary-600 text-primary-600'
+            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+        >
+          Sprint Detail
+        </button>
+      </nav>
+    </div>
+
     <!-- Loading state -->
-    <div v-if="isLoading && !sprintData" class="flex justify-center py-12">
+    <div v-if="isLoading && viewMode === 'sprint-detail' && !sprintData" class="flex justify-center py-12">
       <svg class="animate-spin h-8 w-8 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
       </svg>
     </div>
 
-    <template v-else-if="sprintData">
-      <!-- Sprint Overview -->
-      <SprintOverview
-        :sprintData="sprintData"
-        @drill-down="openDrillDown"
-      />
+    <!-- Team Overview mode -->
+    <TeamOverview
+      v-else-if="viewMode === 'overview'"
+      :board="board"
+      :trendData="trendData"
+      :sprints="sprints"
+      @select-sprint="$emit('select-sprint', $event)"
+    />
 
-      <!-- Trend Charts (2-up) -->
-      <div v-if="trendData && trendData.length > 1" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
-          <h3 class="text-sm font-semibold text-gray-700 mb-3">Velocity Trend</h3>
-          <TrendChart
-            :labels="trendLabels"
-            :datasets="[{
-              label: 'Velocity (pts)',
-              data: trendData.map(d => d.velocityPoints),
-              borderColor: '#2563eb',
-              backgroundColor: 'rgba(37, 99, 235, 0.1)'
-            }]"
-          />
-        </div>
-        <div class="bg-white rounded-lg border border-gray-200 p-5">
-          <h3 class="text-sm font-semibold text-gray-700 mb-3">Commitment Reliability Trend</h3>
-          <TrendChart
-            :labels="trendLabels"
-            :datasets="[{
-              label: 'Reliability (%)',
-              data: trendData.map(d => d.commitmentReliabilityPoints),
-              borderColor: '#16a34a',
-              backgroundColor: 'rgba(22, 163, 74, 0.1)'
-            }]"
-            :suggestedMin="0"
-            :suggestedMax="120"
-          />
-        </div>
-      </div>
-
-      <!-- Assignee Breakdown -->
-      <div class="mt-6">
-        <AssigneeBreakdown
-          :byAssignee="sprintData.byAssignee"
-          :trendData="trendData"
-          @drill-down="openAssigneeDrillDown"
-        />
-      </div>
-    </template>
-
-    <div v-else-if="!isLoading" class="text-center py-12 text-gray-500">
-      <p>No sprint data available. Try refreshing from Jira.</p>
-    </div>
+    <!-- Sprint Detail mode -->
+    <SprintDetailView
+      v-else-if="viewMode === 'sprint-detail'"
+      :sprintData="sprintData"
+      :trendData="trendData"
+      :trendLabels="trendLabels"
+      @drill-down="openDrillDown"
+      @assignee-drill-down="openAssigneeDrillDown"
+    />
 
     <!-- Issue drill-down modal -->
     <IssueList
@@ -101,9 +93,8 @@
 import { ref, computed } from 'vue'
 import SprintSelector from './SprintSelector.vue'
 import SprintStatusBadge from './SprintStatusBadge.vue'
-import SprintOverview from './SprintOverview.vue'
-import TrendChart from './TrendChart.vue'
-import AssigneeBreakdown from './AssigneeBreakdown.vue'
+import TeamOverview from './TeamOverview.vue'
+import SprintDetailView from './SprintDetail.vue'
 import IssueList from './IssueList.vue'
 import { formatDate } from '../utils/metrics'
 
@@ -113,10 +104,11 @@ const props = defineProps({
   selectedSprint: { type: Object, default: null },
   sprintData: { type: Object, default: null },
   trendData: { type: Array, default: null },
-  isLoading: { type: Boolean, default: false }
+  isLoading: { type: Boolean, default: false },
+  viewMode: { type: String, default: 'overview' }
 })
 
-defineEmits(['select-sprint', 'back'])
+defineEmits(['select-sprint', 'back', 'switch-mode'])
 
 const drillDownVisible = ref(false)
 const drillDownTitle = ref('')
@@ -126,7 +118,6 @@ const trendLabels = computed(() => {
   if (!props.trendData) return []
   return props.trendData.map(d => {
     const name = d.sprintName || ''
-    // Shorten long sprint names
     const match = name.match(/Sprint\s*(\d+)/i)
     return match ? `S${match[1]}` : name.slice(0, 15)
   })
