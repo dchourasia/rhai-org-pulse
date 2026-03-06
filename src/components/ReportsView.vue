@@ -101,6 +101,15 @@ const METRIC_DEFS = {
     label: 'In Progress',
     unit: '',
     extract: (d) => d.aggregate?.inProgressCount ?? 0
+  },
+  resolvedPerMember: {
+    label: 'Issues Resolved per Member (90d)',
+    unit: '',
+    extract: (d) => {
+      const count = d.aggregate?.resolvedCount ?? 0
+      const members = d.memberCount ?? 0
+      return members > 0 ? Math.round((count / members) * 10) / 10 : 0
+    }
   }
 }
 
