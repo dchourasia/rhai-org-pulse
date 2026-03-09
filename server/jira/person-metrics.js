@@ -115,7 +115,7 @@ async function resolveJiraDisplayName(jiraRequest, rosterName, nameCache) {
 
   // Step 1: check if the roster name works directly
   const checkParams = new URLSearchParams({
-    jql: `project = RHOAIENG AND assignee = "${escaped}" AND updated >= -365d`,
+    jql: `assignee = "${escaped}" AND updated >= -365d`,
     fields: 'summary',
     maxResults: '1'
   });
@@ -189,8 +189,8 @@ async function fetchPersonMetrics(jiraRequest, jiraDisplayName, options = {}) {
   // Escape the name for JQL (double-quote wrapping handles apostrophes)
   const escapedName = resolvedName.replace(/"/g, '\\"');
 
-  const resolvedJql = `project = RHOAIENG AND assignee = "${escapedName}" AND resolved >= -${lookbackDays}d AND issuetype in (Story, Bug, Task, Vulnerability, Weakness)`;
-  const inProgressJql = `project = RHOAIENG AND assignee = "${escapedName}" AND status in ("In Progress", "Code Review", "Review", "Coding In Progress", "Testing", "Refinement", "Planning") AND issuetype in (Story, Bug, Task, Vulnerability, Weakness)`;
+  const resolvedJql = `assignee = "${escapedName}" AND resolved >= -${lookbackDays}d AND issuetype in (Story, Bug, Task, Vulnerability, Weakness)`;
+  const inProgressJql = `assignee = "${escapedName}" AND status in ("In Progress", "Code Review", "Review", "Coding In Progress", "Testing", "Refinement", "Planning") AND issuetype in (Story, Bug, Task, Vulnerability, Weakness)`;
 
   const [resolvedIssues, inProgressIssues] = await Promise.all([
     fetchAllJqlResults(jiraRequest, resolvedJql, FIELDS, { expand: 'changelog' }),
