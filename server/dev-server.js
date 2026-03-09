@@ -979,6 +979,239 @@ app.post('/api/github/refresh', function(req, res) {
   }
 });
 
+// ─── Routes: Trends ───
+
+const { fetchContributionHistory } = require('./github/contributions');
+
+const GITHUB_HISTORY_CACHE_PATH = 'github-history.json';
+
+function readGithubHistoryCache() {
+  return readFromStorage(GITHUB_HISTORY_CACHE_PATH) || { users: {}, fetchedAt: null };
+}
+
+/**
+ * Build Jira trends from cached person metrics files.
+ * Returns monthly buckets with resolved counts, points, and cycle times.
+ */
+function buildJiraTrends() {
+  const fs = require('fs');
+  const peoplePath = path.join(__dirname, '..', 'data', 'people');
+  if (!fs.existsSync(peoplePath)) return {};
+
+  const roster = deriveRoster();
+
+  // Build person -> org/team lookup
+  const personLookup = {};
+  for (const org of roster.orgs) {
+    for (const [teamName, team] of Object.entries(org.teams)) {
+      for (const member of team.members) {
+        const name = member.jiraDisplayName || member.name;
+        if (!personLookup[name]) {
+          personLookup[name] = { orgKey: org.key, teamKey: `${org.key}::${teamName}` };
+        }
+      }
+    }
+  }
+
+  // Read all person metrics and extract resolved issues
+  const monthlyData = {}; // "YYYY-MM" -> { resolved, points, cycleTimes, byOrg, byTeam, byPerson }
+  const files = fs.readdirSync(peoplePath).filter(f => f.endsWith('.json'));
+
+  for (const file of files) {
+    try {
+      const data = JSON.parse(fs.readFileSync(path.join(peoplePath, file), 'utf8'));
+      if (!data.resolved?.issues) continue;
+
+      const personName = data.jiraDisplayName;
+      const lookup = personLookup[personName];
+
+      for (const issue of data.resolved.issues) {
+        if (!issue.resolutionDate) continue;
+        const monthKey = issue.resolutionDate.slice(0, 7);
+
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = {
+            resolved: 0, points: 0, cycleTimes: [],
+            byOrg: {}, byTeam: {}, byPerson: {}
+          };
+        }
+        const bucket = monthlyData[monthKey];
+        bucket.resolved++;
+        bucket.points += issue.storyPoints || 0;
+        if (issue.cycleTimeDays != null && issue.cycleTimeDays >= 0) {
+          bucket.cycleTimes.push(issue.cycleTimeDays);
+        }
+
+        if (lookup) {
+          // By org
+          if (!bucket.byOrg[lookup.orgKey]) {
+            bucket.byOrg[lookup.orgKey] = { resolved: 0, points: 0, cycleTimes: [] };
+          }
+          bucket.byOrg[lookup.orgKey].resolved++;
+          bucket.byOrg[lookup.orgKey].points += issue.storyPoints || 0;
+          if (issue.cycleTimeDays != null && issue.cycleTimeDays >= 0) {
+            bucket.byOrg[lookup.orgKey].cycleTimes.push(issue.cycleTimeDays);
+          }
+
+          // By team
+          if (!bucket.byTeam[lookup.teamKey]) {
+            bucket.byTeam[lookup.teamKey] = { resolved: 0, points: 0, cycleTimes: [] };
+          }
+          bucket.byTeam[lookup.teamKey].resolved++;
+          bucket.byTeam[lookup.teamKey].points += issue.storyPoints || 0;
+          if (issue.cycleTimeDays != null && issue.cycleTimeDays >= 0) {
+            bucket.byTeam[lookup.teamKey].cycleTimes.push(issue.cycleTimeDays);
+          }
+        }
+
+        // By person
+        if (!bucket.byPerson[personName]) {
+          bucket.byPerson[personName] = { resolved: 0, points: 0, cycleTimes: [] };
+        }
+        bucket.byPerson[personName].resolved++;
+        bucket.byPerson[personName].points += issue.storyPoints || 0;
+        if (issue.cycleTimeDays != null && issue.cycleTimeDays >= 0) {
+          bucket.byPerson[personName].cycleTimes.push(issue.cycleTimeDays);
+        }
+      }
+    } catch (e) {
+      // skip malformed files
+    }
+  }
+
+  // Compute avg cycle times
+  function avgCycleTime(times) {
+    if (times.length === 0) return null;
+    return +(times.reduce((a, b) => a + b, 0) / times.length).toFixed(1);
+  }
+
+  const result = {};
+  for (const [month, data] of Object.entries(monthlyData)) {
+    result[month] = {
+      resolved: data.resolved,
+      points: data.points,
+      avgCycleTimeDays: avgCycleTime(data.cycleTimes),
+      byOrg: {},
+      byTeam: {},
+      byPerson: {}
+    };
+    for (const [key, d] of Object.entries(data.byOrg)) {
+      result[month].byOrg[key] = { resolved: d.resolved, points: d.points, avgCycleTimeDays: avgCycleTime(d.cycleTimes) };
+    }
+    for (const [key, d] of Object.entries(data.byTeam)) {
+      result[month].byTeam[key] = { resolved: d.resolved, points: d.points, avgCycleTimeDays: avgCycleTime(d.cycleTimes) };
+    }
+    for (const [key, d] of Object.entries(data.byPerson)) {
+      result[month].byPerson[key] = { resolved: d.resolved, points: d.points, avgCycleTimeDays: avgCycleTime(d.cycleTimes) };
+    }
+  }
+
+  return result;
+}
+
+app.get('/api/trends', function(req, res) {
+  try {
+    const jira = buildJiraTrends();
+    const github = readGithubHistoryCache();
+    res.json({ jira, github });
+  } catch (error) {
+    console.error('Trends error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/trends/jira/refresh', async function(req, res) {
+  try {
+    const roster = deriveRoster();
+    const seen = new Set();
+    const uniqueMembers = [];
+    for (const org of roster.orgs) {
+      for (const team of Object.values(org.teams)) {
+        for (const member of team.members) {
+          const name = member.jiraDisplayName || member.name;
+          if (!seen.has(name)) {
+            seen.add(name);
+            uniqueMembers.push(member);
+          }
+        }
+      }
+    }
+
+    res.json({ status: 'started', memberCount: uniqueMembers.length });
+
+    // Background: fetch 365-day metrics for each person
+    setImmediate(async () => {
+      console.log(`[trends] Starting Jira 365-day refresh for ${uniqueMembers.length} members...`);
+      let completed = 0;
+      let failed = 0;
+
+      for (const member of uniqueMembers) {
+        const name = member.jiraDisplayName || member.name;
+        try {
+          const metrics = await fetchPersonMetrics(jiraRequest, name, {
+            lookbackDays: 365,
+            nameCache: jiraNameCache
+          });
+          if (metrics._resolvedName) delete metrics._resolvedName;
+          const key = sanitizeFilename(name);
+          writeToStorage(`people/${key}.json`, metrics);
+          completed++;
+          if (completed % 25 === 0) {
+            console.log(`[trends] Jira refresh progress: ${completed}/${uniqueMembers.length}`);
+          }
+        } catch (error) {
+          failed++;
+          console.error(`[trends] Failed for ${name}:`, error.message);
+        }
+      }
+
+      persistNameCache();
+      console.log(`[trends] Jira refresh complete. ${completed} succeeded, ${failed} failed.`);
+    });
+  } catch (error) {
+    console.error('Trends Jira refresh error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/trends/github/refresh', function(req, res) {
+  try {
+    const roster = deriveRoster();
+    const usernames = [];
+    for (const org of roster.orgs) {
+      for (const team of Object.values(org.teams)) {
+        for (const member of team.members) {
+          if (member.githubUsername && !usernames.includes(member.githubUsername)) {
+            usernames.push(member.githubUsername);
+          }
+        }
+      }
+    }
+
+    res.json({ status: 'started', usernameCount: usernames.length });
+
+    setImmediate(() => {
+      try {
+        const results = fetchContributionHistory(usernames);
+        const cache = readGithubHistoryCache();
+        for (const [username, data] of Object.entries(results)) {
+          if (data) {
+            cache.users[username] = data;
+          }
+        }
+        cache.fetchedAt = new Date().toISOString();
+        writeToStorage(GITHUB_HISTORY_CACHE_PATH, cache);
+        console.log(`[github] History refresh complete. ${Object.keys(results).length} users processed.`);
+      } catch (err) {
+        console.error('[github] History refresh failed:', err.message);
+      }
+    });
+  } catch (error) {
+    console.error('GitHub history refresh error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ─── Routes: Annotations ───
 
 app.get('/api/sprints/:sprintId/annotations', function(req, res) {

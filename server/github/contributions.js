@@ -84,4 +84,84 @@ function fetchContributions(usernames) {
   return results;
 }
 
-module.exports = { fetchContributions };
+/**
+ * Fetch weekly contribution breakdown for a list of GitHub usernames.
+ * Returns daily counts that can be bucketed into months.
+ * @param {string[]} usernames - GitHub usernames to query
+ * @returns {Object} Map of username -> { months: { "YYYY-MM": count }, fetchedAt } or null
+ */
+function fetchContributionHistory(usernames) {
+  const results = {};
+  const HISTORY_BATCH = 5; // smaller batches since weekly data is much larger
+  const batches = [];
+
+  for (let i = 0; i < usernames.length; i += HISTORY_BATCH) {
+    batches.push(usernames.slice(i, i + HISTORY_BATCH));
+  }
+
+  console.log(`[github] Fetching contribution history for ${usernames.length} users in ${batches.length} batch(es)`);
+
+  for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+    const batch = batches[batchIdx];
+    const aliases = batch.map((username, i) => {
+      const safeAlias = `u${i}`;
+      return `${safeAlias}: user(login: ${JSON.stringify(username)}) { contributionsCollection { contributionCalendar { weeks { contributionDays { date contributionCount } } } } }`;
+    });
+
+    const query = `query { ${aliases.join(' ')} }`;
+
+    try {
+      const raw = execSync(
+        `gh api graphql -f query=${JSON.stringify(query)}`,
+        { encoding: 'utf8', timeout: 60000, stdio: ['pipe', 'pipe', 'pipe'] }
+      );
+
+      const response = JSON.parse(raw);
+      const now = new Date().toISOString();
+
+      for (let i = 0; i < batch.length; i++) {
+        const alias = `u${i}`;
+        const userData = response.data?.[alias];
+        if (userData) {
+          const months = {};
+          const weeks = userData.contributionsCollection.contributionCalendar.weeks || [];
+          for (const week of weeks) {
+            for (const day of week.contributionDays || []) {
+              const monthKey = day.date.slice(0, 7); // "YYYY-MM"
+              months[monthKey] = (months[monthKey] || 0) + day.contributionCount;
+            }
+          }
+          results[batch[i]] = { months, fetchedAt: now };
+        } else {
+          results[batch[i]] = null;
+        }
+      }
+
+      if (response.errors) {
+        for (const err of response.errors) {
+          const match = err.path?.[0]?.match(/^u(\d+)$/);
+          if (match) {
+            const idx = parseInt(match[1]);
+            if (idx < batch.length) {
+              console.log(`[github] History - User error: ${batch[idx]} - ${err.message}`);
+              results[batch[idx]] = null;
+            }
+          }
+        }
+      }
+
+      console.log(`[github] History batch ${batchIdx + 1}/${batches.length} complete (${batch.length} users)`);
+    } catch (err) {
+      console.error(`[github] History batch ${batchIdx + 1} failed:`, err.message);
+      for (const username of batch) {
+        if (!(username in results)) {
+          results[username] = null;
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
+module.exports = { fetchContributions, fetchContributionHistory };

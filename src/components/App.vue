@@ -99,6 +99,11 @@
         <PeopleView />
       </main>
 
+      <!-- Trends View -->
+      <main v-else-if="currentView === 'trends'">
+        <TrendsView />
+      </main>
+
       <!-- Reports View -->
       <main v-else-if="currentView === 'reports'">
         <ReportsView @back="navigateToDashboard" />
@@ -133,6 +138,7 @@ import TeamRosterView from './TeamRosterView.vue'
 import Toast from './Toast.vue'
 import PeopleView from './PeopleView.vue'
 import ReportsView from './ReportsView.vue'
+import TrendsView from './TrendsView.vue'
 import UserManagement from './UserManagement.vue'
 import { useAuth } from '../composables/useAuth'
 import { useRoster } from '../composables/useRoster'
@@ -147,6 +153,7 @@ export default {
     PeopleView,
     PersonDetail,
     ReportsView,
+    TrendsView,
     TeamRosterView,
     Toast,
     UserManagement
@@ -178,6 +185,7 @@ export default {
       navTabs: [
         { view: 'dashboard', label: 'Teams' },
         { view: 'people', label: 'People' },
+        { view: 'trends', label: 'Trends' },
         { view: 'reports', label: 'Reports' },
         { view: 'user-management', label: 'Users' }
       ]
@@ -226,6 +234,8 @@ export default {
         hash = `#/team/${encodeURIComponent(this.selectedTeam.key)}/person/${encodeURIComponent(this.selectedPerson.jiraDisplayName || this.selectedPerson.name)}`
       } else if (this.currentView === 'people') {
         hash = '#/people'
+      } else if (this.currentView === 'trends') {
+        hash = '#/trends'
       } else if (this.currentView === 'reports') {
         hash = '#/reports'
       } else if (this.currentView === 'user-management') {
@@ -265,6 +275,9 @@ export default {
         }
       } else if (parts[0] === 'people') {
         this.currentView = 'people'
+        return
+      } else if (parts[0] === 'trends') {
+        this.currentView = 'trends'
         return
       } else if (parts[0] === 'reports') {
         this.currentView = 'reports'

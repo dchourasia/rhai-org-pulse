@@ -118,6 +118,26 @@ export async function refreshGithubContributions() {
   })
 }
 
+// ─── Trends ───
+
+export async function getTrends() {
+  return apiRequest('/trends')
+}
+
+export async function refreshTrendsJira() {
+  return apiRequest('/trends/jira/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  })
+}
+
+export async function refreshTrendsGithub() {
+  return apiRequest('/trends/github/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  })
+}
+
 // ─── Annotations ───
 
 export async function getSprintAnnotations(sprintId) {
