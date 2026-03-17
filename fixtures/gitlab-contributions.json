@@ -1,0 +1,45 @@
+{
+  "users": {
+    "bobsmith": {
+      "username": "bobsmith",
+      "totalContributions": 198,
+      "fetchedAt": "2026-03-10T12:00:00.000Z"
+    },
+    "carolw": {
+      "username": "carolw",
+      "totalContributions": 143,
+      "fetchedAt": "2026-03-10T12:00:00.000Z"
+    },
+    "davidlee": {
+      "username": "davidlee",
+      "totalContributions": 267,
+      "fetchedAt": "2026-03-10T12:00:00.000Z"
+    },
+    "emmagarcia": {
+      "username": "emmagarcia",
+      "totalContributions": 112,
+      "fetchedAt": "2026-03-10T12:00:00.000Z"
+    },
+    "gracekim": {
+      "username": "gracekim",
+      "totalContributions": 231,
+      "fetchedAt": "2026-03-10T12:00:00.000Z"
+    },
+    "henryw": {
+      "username": "henryw",
+      "totalContributions": 98,
+      "fetchedAt": "2026-03-10T12:00:00.000Z"
+    },
+    "alicechen": {
+      "username": "alicechen",
+      "totalContributions": 67,
+      "fetchedAt": "2026-03-10T12:00:00.000Z"
+    },
+    "frankj": {
+      "username": "frankj",
+      "totalContributions": 55,
+      "fetchedAt": "2026-03-10T12:00:00.000Z"
+    }
+  },
+  "fetchedAt": "2026-03-10T12:00:00.000Z"
+}
