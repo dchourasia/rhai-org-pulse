@@ -117,7 +117,7 @@ async function fetchGithubOrgMembers(orgName) {
         members[i].name = profile.name || null;
         members[i].email = profile.email || null;
       }
-    } catch (err) {
+    } catch {
       // Skip profile fetch failures
     }
     if (i > 0 && i % 50 === 0) {

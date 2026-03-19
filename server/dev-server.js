@@ -19,7 +19,6 @@ const DEMO_MODE = process.env.DEMO_MODE === 'true';
 const storageModule = DEMO_MODE ? require('./demo-storage') : require('./storage');
 const { readFromStorage, writeToStorage, listStorageFiles } = storageModule;
 
-const { createJiraClient } = require('./jira/jira-client');
 const { fetchPersonMetrics } = require('./jira/person-metrics');
 const { fetchGithubData } = require('./github/contributions');
 const { fetchGitlabData } = require('./gitlab/contributions');
@@ -201,9 +200,6 @@ async function jiraRequest(path, { method = 'GET', body } = {}) {
     return response.json();
   }
 }
-
-// Create Jira client
-const jiraClient = createJiraClient({ jiraRequest, jiraHost: JIRA_HOST });
 
 // ─── Cache paths ───
 
