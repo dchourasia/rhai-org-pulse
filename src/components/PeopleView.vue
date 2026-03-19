@@ -6,6 +6,14 @@
         <h2 class="text-xl font-bold text-gray-900">People</h2>
         <p class="text-sm text-gray-500">{{ filteredPeople.length }} people</p>
       </div>
+      <div class="w-72">
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Search by name..."
+          class="w-full text-sm border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+        />
+      </div>
     </div>
 
     <!-- Filters -->
@@ -79,16 +87,6 @@
         </div>
       </div>
 
-      <!-- Search -->
-      <div class="flex-1 min-w-[200px] self-end">
-        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Search</label>
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Filter by name..."
-          class="w-full text-sm border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-        />
-      </div>
     </div>
 
     <!-- Loading -->
@@ -122,7 +120,12 @@
             :key="person.uid"
             class="hover:bg-gray-50"
           >
-            <td class="px-4 py-2 text-sm text-gray-900 whitespace-nowrap">{{ person.name }}</td>
+            <td class="px-4 py-2 text-sm whitespace-nowrap">
+              <a
+                :href="`#/team/${encodeURIComponent(person.teamKey)}/person/${encodeURIComponent(person.jiraDisplayName || person.name)}`"
+                class="text-primary-600 hover:text-primary-800 font-medium hover:underline"
+              >{{ person.name }}</a>
+            </td>
             <td class="px-4 py-2 text-sm text-gray-500 whitespace-nowrap">{{ person.orgName }}</td>
             <td class="px-4 py-2 text-sm text-gray-500 whitespace-nowrap">{{ person.teamName || '—' }}</td>
             <td class="px-4 py-2 text-sm whitespace-nowrap">
