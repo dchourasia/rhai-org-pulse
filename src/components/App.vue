@@ -1,128 +1,142 @@
 <template>
-    <div id="app" class="min-h-screen bg-gray-50">
-      <header class="bg-primary-700 text-white shadow-lg">
-        <div class="container mx-auto px-6 py-2 flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <img src="/redhat-logo.svg" alt="Red Hat" class="h-8" />
-            <h1 class="text-xl font-bold cursor-pointer" @click="navigateToDashboard">AI Engineering Team Tracker</h1>
-          </div>
+  <div id="app" class="min-h-screen bg-gray-50">
+    <!-- Sidebar -->
+    <AppSidebar
+      :collapsed="sidebarCollapsed"
+      :mobile-open="mobileMenuOpen"
+      :active-module="activeModule"
+      :user="authUser"
+      :is-admin="authIsAdmin"
+      @navigate="navigateToModule"
+      @toggle-collapse="sidebarCollapsed = !sidebarCollapsed"
+      @close-mobile="mobileMenuOpen = false"
+    />
+
+    <!-- Main content area -->
+    <div
+      class="min-h-screen transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]"
+      :class="sidebarCollapsed ? 'pl-[72px]' : 'pl-[260px]'"
+    >
+      <!-- Top bar -->
+      <header class="sticky top-0 z-10 bg-white/80 backdrop-blur-xl border-b border-gray-200/60">
+        <div class="flex items-center justify-between px-6 lg:px-8 h-16">
           <div class="flex items-center gap-4">
-            <!-- Refresh All (admin only) -->
+            <!-- Mobile menu button -->
+            <button
+              class="lg:hidden p-2 -ml-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+              @click="mobileMenuOpen = !mobileMenuOpen"
+            >
+              <MenuIcon :size="20" />
+            </button>
+            <!-- Page title & sub-nav -->
+            <div>
+              <h2 class="text-lg font-semibold text-gray-900">{{ currentPageTitle }}</h2>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <!-- Sub-navigation tabs (for dashboard drill-down views) -->
+            <nav
+              v-if="activeModule === 'dashboard' && hasSubViews"
+              class="hidden sm:flex items-center gap-1 bg-gray-100 rounded-lg p-1"
+            >
+              <button
+                v-for="tab in subTabs"
+                :key="tab.view"
+                @click="navigateToSubView(tab.view)"
+                class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors duration-200"
+                :class="isSubViewActive(tab.view)
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'"
+              >{{ tab.label }}</button>
+            </nav>
+            <!-- Refresh All -->
             <button
               v-if="authUser && authIsAdmin"
               @click="handleRefreshAll($event)"
               :disabled="isRefreshing"
               title="Refresh all metrics (Shift+click for hard refresh)"
-              class="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-md font-medium hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 border border-primary-400"
+              class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm"
             >
-              <svg class="h-4 w-4" :class="{ 'animate-spin': isRefreshing }" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              {{ isRefreshing ? 'Refreshing...' : 'Refresh All' }}
+              <RefreshCw :size="16" :class="{ 'animate-spin': isRefreshing }" />
+              <span class="hidden sm:inline">{{ isRefreshing ? 'Refreshing...' : 'Refresh' }}</span>
             </button>
-            <!-- User Info -->
-            <div v-if="authUser" class="flex items-center gap-2">
-              <div
-                class="h-8 w-8 rounded-full border-2 border-white bg-white text-primary-700 flex items-center justify-center font-bold text-xs"
-              >
-                {{ getUserInitials(authUser) }}
-              </div>
-              <span class="text-sm text-primary-100 hidden sm:inline">{{ authUser.displayName || authUser.email }}</span>
-            </div>
           </div>
         </div>
-        <nav class="bg-primary-800">
-          <div class="container mx-auto px-6 flex gap-1">
-            <button
-              v-for="tab in navTabs"
-              :key="tab.view"
-              @click="navigateToTab(tab.view)"
-              class="px-4 py-2 text-sm font-medium transition-colors border-b-2"
-              :class="isTabActive(tab.view)
-                ? 'text-white border-white'
-                : 'text-primary-200 border-transparent hover:text-white hover:border-primary-400'"
-            >
-              {{ tab.label }}
-            </button>
-          </div>
-        </nav>
       </header>
 
       <!-- Setup Banner -->
       <SetupBanner
         v-if="authUser && currentView === 'dashboard'"
-        @go-settings="navigateToTab('settings')"
+        @go-settings="navigateToModule('settings')"
       />
 
-      <!-- Dashboard View -->
-      <main v-if="currentView === 'dashboard'" class="relative">
-        <Dashboard
-          @select-team="handleSelectTeam"
-        />
-        <LoadingOverlay v-if="isLoading" />
-      </main>
+      <!-- Page content -->
+      <main class="px-6 lg:px-8 py-6">
+        <!-- Dashboard View -->
+        <template v-if="currentView === 'dashboard'">
+          <Dashboard
+            @select-team="handleSelectTeam"
+          />
+          <LoadingOverlay v-if="isLoading" />
+        </template>
 
-      <!-- Team Roster View -->
-      <main v-else-if="currentView === 'team-roster'">
+        <!-- Team Roster View -->
         <TeamRosterView
+          v-else-if="currentView === 'team-roster'"
           :team="selectedTeam"
           @select-person="handleSelectPerson"
           @back="navigateToDashboard"
         />
-      </main>
 
-      <!-- Person Detail View -->
-      <main v-else-if="currentView === 'person-detail'">
+        <!-- Person Detail View -->
         <PersonDetail
+          v-else-if="currentView === 'person-detail'"
           :person="selectedPerson"
           :teamName="selectedTeam?.displayName || ''"
           @back="handleBackFromPerson"
           @go-dashboard="navigateToDashboard"
         />
-      </main>
 
-      <!-- People View -->
-      <main v-else-if="currentView === 'people'">
-        <PeopleView />
-      </main>
+        <!-- People View -->
+        <PeopleView v-else-if="currentView === 'people'" />
 
-      <!-- Trends View -->
-      <main v-else-if="currentView === 'trends'">
-        <TrendsView />
-      </main>
+        <!-- Trends View -->
+        <TrendsView v-else-if="currentView === 'trends'" />
 
-      <!-- Reports View -->
-      <main v-else-if="currentView === 'reports'">
-        <ReportsView @back="navigateToDashboard" />
-      </main>
+        <!-- Reports View -->
+        <ReportsView
+          v-else-if="currentView === 'reports'"
+          @back="navigateToDashboard"
+        />
 
-      <!-- User Management View -->
-      <main v-else-if="currentView === 'user-management'">
+        <!-- User Management View -->
         <UserManagement
+          v-else-if="currentView === 'user-management'"
           @back="navigateToDashboard"
           @toast="({ message, type }) => showToast(message, type)"
         />
-      </main>
 
-      <!-- Settings View -->
-      <main v-else-if="currentView === 'settings'">
+        <!-- Settings View -->
         <SettingsView
+          v-else-if="currentView === 'settings'"
           @toast="({ message, type }) => showToast(message, type)"
         />
       </main>
-
-      <Toast
-        v-for="toast in toasts"
-        :key="toast.id"
-        :message="toast.message"
-        :type="toast.type"
-        :duration="toast.duration"
-        @close="removeToast(toast.id)"
-      />
     </div>
+
+    <Toast
+      v-for="toast in toasts"
+      :key="toast.id"
+      :message="toast.message"
+      :type="toast.type"
+      :duration="toast.duration"
+      @close="removeToast(toast.id)"
+    />
+  </div>
 </template>
 
 <script>
+import { Menu as MenuIcon, RefreshCw } from 'lucide-vue-next'
 import Dashboard from './Dashboard.vue'
 import LoadingOverlay from './LoadingOverlay.vue'
 import PersonDetail from './PersonDetail.vue'
@@ -134,6 +148,7 @@ import TrendsView from './TrendsView.vue'
 import UserManagement from './UserManagement.vue'
 import SettingsView from './SettingsView.vue'
 import SetupBanner from './SetupBanner.vue'
+import AppSidebar from './AppSidebar.vue'
 import { useAuth } from '../composables/useAuth'
 import { useRoster } from '../composables/useRoster'
 import { useGithubStats } from '../composables/useGithubStats'
@@ -142,6 +157,8 @@ import { refreshAllMetrics, refreshTrendsGithub } from '../services/api'
 export default {
   name: 'App',
   components: {
+    MenuIcon,
+    RefreshCw,
     Dashboard,
     LoadingOverlay,
     PeopleView,
@@ -152,7 +169,8 @@ export default {
     Toast,
     UserManagement,
     SettingsView,
-    SetupBanner
+    SetupBanner,
+    AppSidebar
   },
   setup() {
     const { user: authUser, isAdmin: authIsAdmin } = useAuth()
@@ -177,20 +195,38 @@ export default {
       selectedPerson: null,
       isLoading: false,
       isRefreshing: false,
+      sidebarCollapsed: false,
+      mobileMenuOpen: false,
       toasts: [],
-      allNavTabs: [
+      subTabs: [
         { view: 'dashboard', label: 'Teams' },
-        { view: 'people', label: 'People' },
-        { view: 'trends', label: 'Trends' },
-        { view: 'reports', label: 'Reports' },
-        { view: 'user-management', label: 'Admins', adminOnly: true },
-        { view: 'settings', label: 'Settings', adminOnly: true }
+        { view: 'team-roster', label: 'Roster' },
+        { view: 'person-detail', label: 'Person' },
       ]
     }
   },
   computed: {
-    navTabs() {
-      return this.allNavTabs.filter(tab => !tab.adminOnly || this.authIsAdmin)
+    activeModule() {
+      if (['dashboard', 'team-roster', 'person-detail'].includes(this.currentView)) {
+        return 'dashboard'
+      }
+      return this.currentView
+    },
+    currentPageTitle() {
+      const titles = {
+        'dashboard': 'Dashboard',
+        'team-roster': this.selectedTeam?.displayName || 'Team Roster',
+        'person-detail': this.selectedPerson?.name || 'Person Detail',
+        'people': 'People',
+        'trends': 'Trends',
+        'reports': 'Reports',
+        'user-management': 'Users',
+        'settings': 'Settings'
+      }
+      return titles[this.currentView] || 'Dashboard'
+    },
+    hasSubViews() {
+      return this.selectedTeam != null
     }
   },
   watch: {
@@ -202,14 +238,23 @@ export default {
   },
   mounted() {
     window.addEventListener('hashchange', this.onHashChange)
+    window.addEventListener('keydown', this.onKeyDown)
     if (this.authUser) {
       this.loadInitialData()
     }
   },
   beforeUnmount() {
     window.removeEventListener('hashchange', this.onHashChange)
+    window.removeEventListener('keydown', this.onKeyDown)
   },
   methods: {
+    onKeyDown(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+        e.preventDefault()
+        this.sidebarCollapsed = !this.sidebarCollapsed
+      }
+    },
+
     async loadInitialData() {
       this.isLoading = true
       try {
@@ -253,7 +298,6 @@ export default {
 
       if (parts[0] === 'team' && parts[1]) {
         const teamKey = parts[1]
-        // Select the right org
         const orgKey = teamKey.split('::')[0]
         if (orgKey && this.selectedOrgKey !== orgKey) {
           this.selectOrg(orgKey)
@@ -307,7 +351,19 @@ export default {
       this.updateHash()
     },
 
-    navigateToTab(view) {
+    navigateToModule(moduleId) {
+      this.mobileMenuOpen = false
+      if (moduleId === 'dashboard') {
+        this.navigateToDashboard()
+      } else {
+        this.currentView = moduleId
+        this.selectedTeam = null
+        this.selectedPerson = null
+        this.updateHash()
+      }
+    },
+
+    navigateToSubView(view) {
       if (view === 'dashboard') {
         this.navigateToDashboard()
       } else {
@@ -316,10 +372,7 @@ export default {
       }
     },
 
-    isTabActive(tabView) {
-      if (tabView === 'dashboard') {
-        return ['dashboard', 'team-roster', 'person-detail'].includes(this.currentView)
-      }
+    isSubViewActive(tabView) {
       return this.currentView === tabView
     },
 
@@ -346,7 +399,6 @@ export default {
       const force = event?.shiftKey || false
       this.isRefreshing = true
       try {
-        // Jira refresh is the primary action; GitHub refreshes are best-effort
         const results = await Promise.allSettled([
           refreshAllMetrics({ force }),
           this.refreshStats(),
@@ -374,21 +426,6 @@ export default {
 
     removeToast(id) {
       this.toasts = this.toasts.filter(t => t.id !== id)
-    },
-
-    getUserInitials(user) {
-      if (!user) return '?'
-      if (user.displayName) {
-        const parts = user.displayName.split(' ')
-        if (parts.length >= 2) {
-          return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-        }
-        return user.displayName.substring(0, 2).toUpperCase()
-      }
-      if (user.email) {
-        return user.email.substring(0, 2).toUpperCase()
-      }
-      return '??'
     }
   }
 }

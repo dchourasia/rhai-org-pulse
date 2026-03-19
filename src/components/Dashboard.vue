@@ -1,5 +1,5 @@
 <template>
-  <div class="container mx-auto px-6 py-6">
+  <div>
     <!-- Header -->
     <div class="mb-6">
       <h2 class="text-xl font-bold text-gray-900">Organization Teams</h2>

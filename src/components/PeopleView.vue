@@ -1,5 +1,5 @@
 <template>
-  <div class="container mx-auto px-6 py-6">
+  <div>
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
       <div>
