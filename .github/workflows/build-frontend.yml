@@ -101,7 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     concurrency:
-      group: update-prod-image
+      group: update-prod-image-frontend
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
