@@ -55,7 +55,7 @@ function generateMonthlyWindows() {
 }
 
 const CONTRIBUTIONS_QUERY = `
-  query($groupPath: ID!, $from: String!, $to: String!, $cursor: String) {
+  query($groupPath: ID!, $from: ISO8601Date!, $to: ISO8601Date!, $cursor: String) {
     group(fullPath: $groupPath) {
       contributions(from: $from, to: $to, after: $cursor) {
         nodes {
