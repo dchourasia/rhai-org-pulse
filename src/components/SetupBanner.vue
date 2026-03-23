@@ -23,14 +23,23 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
-import { useRosterSync } from '../composables/useRosterSync'
+import { ref, onMounted } from 'vue'
+import { isRosterSyncConfigured } from '../services/api'
 
 defineEmits(['go-settings'])
 
-const { isConfigured, loading, fetchConfig } = useRosterSync()
+const isConfigured = ref(true)
+const loading = ref(true)
 
-onMounted(() => {
-  fetchConfig()
+onMounted(async () => {
+  try {
+    const data = await isRosterSyncConfigured()
+    isConfigured.value = data.configured === true
+  } catch {
+    // If the check fails, don't show the banner
+    isConfigured.value = true
+  } finally {
+    loading.value = false
+  }
 })
 </script>

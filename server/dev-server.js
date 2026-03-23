@@ -93,7 +93,9 @@ function seedAdminList() {
 
 function isAdmin(email) {
   const adminList = readFromStorage('allowlist.json');
-  return adminList && adminList.emails && adminList.emails.includes(email);
+  const result = adminList && adminList.emails && adminList.emails.includes(email);
+  console.log(`[auth] isAdmin check: email="${email}" result=${result} allowlist=${JSON.stringify(adminList?.emails || [])}`);
+  return result;
 }
 
 // ─── Health check (before auth) ───
@@ -140,7 +142,10 @@ function requireAdmin(req, res, next) {
 // Whoami endpoint — returns current user info
 app.get('/api/whoami', function(req, res) {
   const email = req.headers['x-forwarded-email'];
-  const displayName = req.headers['x-forwarded-preferred-username'] || req.headers['x-forwarded-user'] || email;
+  const user = req.headers['x-forwarded-user'];
+  const preferred = req.headers['x-forwarded-preferred-username'];
+  const displayName = preferred || user || email;
+  console.log(`[auth] /api/whoami headers: x-forwarded-email="${email}" x-forwarded-user="${user}" x-forwarded-preferred-username="${preferred}"`);
   if (email) {
     res.json({ email, displayName, isAdmin: isAdmin(email.toLowerCase()) });
   } else {
@@ -1405,7 +1410,18 @@ app.delete('/api/allowlist/:email', requireAdmin, function(req, res) {
   }
 });
 
-// ─── Routes: Roster Sync Admin ───
+// ─── Routes: Roster Sync ───
+
+// Non-admin endpoint: just returns whether roster sync is configured
+app.get('/api/roster-sync/configured', function(req, res) {
+  try {
+    const config = rosterSyncConfig.loadConfig(storageModule);
+    res.json({ configured: !!config });
+  } catch (error) {
+    console.error('Check roster-sync configured error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.get('/api/admin/roster-sync/config', requireAdmin, function(req, res) {
   try {

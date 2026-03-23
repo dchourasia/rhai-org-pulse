@@ -185,7 +185,11 @@ export async function deleteAnnotation(sprintId, assignee, annotationId) {
   })
 }
 
-// ─── Roster Sync Admin ───
+// ─── Roster Sync ───
+
+export async function isRosterSyncConfigured() {
+  return apiRequest('/roster-sync/configured')
+}
 
 export async function getRosterSyncConfig() {
   return apiRequest('/admin/roster-sync/config')
