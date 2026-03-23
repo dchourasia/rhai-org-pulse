@@ -121,7 +121,7 @@ const currentUserEmail = computed(() => user.value?.email?.toLowerCase() || '')
 
 const canAdd = computed(() => {
   const val = newEmail.value.trim().toLowerCase()
-  return val.endsWith('@redhat.com') && val.length > '@redhat.com'.length
+  return val.includes('@') && val.indexOf('@') > 0 && val.indexOf('@') < val.length - 1
 })
 
 const sortedEmails = computed(() => {
