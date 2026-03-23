@@ -191,6 +191,18 @@ export async function isRosterSyncConfigured() {
   return apiRequest('/roster-sync/configured')
 }
 
+export async function getRosterSyncFieldDefinitions() {
+  return apiRequest('/admin/roster-sync/field-definitions')
+}
+
+export async function saveCustomFields(customFields) {
+  return apiRequest('/admin/roster-sync/custom-fields', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customFields })
+  })
+}
+
 export async function getRosterSyncConfig() {
   return apiRequest('/admin/roster-sync/config')
 }

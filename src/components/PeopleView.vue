@@ -67,22 +67,22 @@
         </div>
       </div>
 
-      <!-- Specialty -->
-      <div v-if="availableSpecialties.length > 0">
-        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">Specialty</label>
+      <!-- Primary display field filter -->
+      <div v-if="primaryDisplayField && availablePrimaryValues.length > 0">
+        <label class="block text-xs font-medium text-gray-500 uppercase mb-1">{{ primaryFieldLabel }}</label>
         <div class="space-y-1 max-h-48 overflow-y-auto">
           <label
-            v-for="s in availableSpecialties"
-            :key="s"
+            v-for="val in availablePrimaryValues"
+            :key="val"
             class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer"
           >
             <input
               type="checkbox"
-              :value="s"
-              v-model="selectedSpecialties"
+              :value="val"
+              v-model="selectedPrimaryValues"
               class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
             />
-            <span class="text-sm text-gray-700 whitespace-nowrap">{{ s }}</span>
+            <span class="text-sm text-gray-700 whitespace-nowrap">{{ val }}</span>
           </label>
         </div>
       </div>
@@ -128,8 +128,15 @@
             </td>
             <td class="px-4 py-2 text-sm text-gray-500 whitespace-nowrap">{{ person.orgName }}</td>
             <td class="px-4 py-2 text-sm text-gray-500 whitespace-nowrap">{{ person.teamName || '—' }}</td>
-            <td class="px-4 py-2 text-sm whitespace-nowrap">
-              <SpecialtyBadge :specialty="person.specialty" />
+            <td v-if="primaryDisplayField" class="px-4 py-2 text-sm whitespace-nowrap">
+              <DynamicFieldBadge :value="person.customFields?.[primaryDisplayField]" />
+            </td>
+            <td
+              v-for="field in nonPrimaryVisibleFields"
+              :key="'cf-' + field.key"
+              class="px-4 py-2 text-sm text-gray-500 whitespace-nowrap"
+            >
+              {{ person.customFields?.[field.key] || '—' }}
             </td>
             <td class="px-4 py-2 text-sm text-gray-500 whitespace-nowrap">
               {{ person.metrics?.resolvedCount ?? '—' }}
@@ -159,36 +166,56 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import SpecialtyBadge from './SpecialtyBadge.vue'
+import DynamicFieldBadge from './DynamicFieldBadge.vue'
 import { useRoster } from '../composables/useRoster'
 import { useGithubStats } from '../composables/useGithubStats'
 import { useGitlabStats } from '../composables/useGitlabStats'
 import { getAllPeopleMetrics } from '../services/api'
 
-const { orgs } = useRoster()
+const { orgs, visibleFields, primaryDisplayField } = useRoster()
 const { getContributions } = useGithubStats()
 const { getContributions: getGitlabContributions, loadGitlabStats } = useGitlabStats()
 
 const selectedOrgKeys = ref([])
 const selectedTeamKeys = ref([])
-const selectedSpecialties = ref([])
+const selectedPrimaryValues = ref([])
 const searchQuery = ref('')
 const sortKey = ref('resolvedCount')
 const sortAsc = ref(false)
 const loading = ref(false)
 const peopleMetrics = ref({})
 
-const columns = [
-  { key: 'name', label: 'Name' },
-  { key: 'orgName', label: 'Org' },
-  { key: 'teamName', label: 'Team' },
-  { key: 'specialty', label: 'Specialty' },
-  { key: 'resolvedCount', label: 'Resolved (90d)' },
-  { key: 'resolvedPoints', label: 'Points (90d)' },
-  { key: 'avgCycleTimeDays', label: 'Cycle Time' },
-  { key: 'githubContributions', label: 'GitHub (1yr)' },
-  { key: 'gitlabContributions', label: 'GitLab (1yr)' }
-]
+const primaryFieldLabel = computed(() => {
+  if (!primaryDisplayField.value) return ''
+  const f = visibleFields.value.find(vf => vf.key === primaryDisplayField.value)
+  return f?.label || primaryDisplayField.value
+})
+
+const nonPrimaryVisibleFields = computed(() => {
+  return visibleFields.value.filter(f => f.key !== primaryDisplayField.value)
+})
+
+const columns = computed(() => {
+  const cols = [
+    { key: 'name', label: 'Name' },
+    { key: 'orgName', label: 'Org' },
+    { key: 'teamName', label: 'Team' }
+  ]
+  if (primaryDisplayField.value) {
+    cols.push({ key: primaryDisplayField.value, label: primaryFieldLabel.value })
+  }
+  for (const field of nonPrimaryVisibleFields.value) {
+    cols.push({ key: field.key, label: field.label })
+  }
+  cols.push(
+    { key: 'resolvedCount', label: 'Resolved (90d)' },
+    { key: 'resolvedPoints', label: 'Points (90d)' },
+    { key: 'avgCycleTimeDays', label: 'Cycle Time' },
+    { key: 'githubContributions', label: 'GitHub (1yr)' },
+    { key: 'gitlabContributions', label: 'GitLab (1yr)' }
+  )
+  return cols
+})
 
 // Reset team filter when orgs change
 watch(selectedOrgKeys, () => {
@@ -214,10 +241,12 @@ const availableTeams = computed(() => {
   return teams.sort((a, b) => a.displayName.localeCompare(b.displayName))
 })
 
-const availableSpecialties = computed(() => {
+const availablePrimaryValues = computed(() => {
+  if (!primaryDisplayField.value) return []
   const set = new Set()
   for (const p of allPeople.value) {
-    if (p.specialty) set.add(p.specialty)
+    const val = p.customFields?.[primaryDisplayField.value]
+    if (val) set.add(val)
   }
   return [...set].sort()
 })
@@ -276,9 +305,9 @@ const filteredPeople = computed(() => {
     people = people.filter(p => teamSet.has(p.teamKey))
   }
 
-  if (selectedSpecialties.value.length > 0) {
-    const specSet = new Set(selectedSpecialties.value)
-    people = people.filter(p => specSet.has(p.specialty))
+  if (selectedPrimaryValues.value.length > 0 && primaryDisplayField.value) {
+    const valSet = new Set(selectedPrimaryValues.value)
+    people = people.filter(p => valSet.has(p.customFields?.[primaryDisplayField.value]))
   }
 
   if (searchQuery.value) {
@@ -300,7 +329,7 @@ function toggleSort(key) {
     sortAsc.value = !sortAsc.value
   } else {
     sortKey.value = key
-    sortAsc.value = key === 'name' || key === 'orgName' || key === 'teamName' || key === 'specialty'
+    sortAsc.value = key === 'name' || key === 'orgName' || key === 'teamName'
   }
 }
 
@@ -319,9 +348,13 @@ const sortedPeople = computed(() => {
     } else if (key === 'gitlabContributions') {
       va = a.gitlabContributions ?? -1
       vb = b.gitlabContributions ?? -1
-    } else {
+    } else if (key === 'name' || key === 'orgName' || key === 'teamName') {
       va = (a[key] || '').toLowerCase()
       vb = (b[key] || '').toLowerCase()
+    } else {
+      // Custom field sort
+      va = (a.customFields?.[key] || '').toLowerCase()
+      vb = (b.customFields?.[key] || '').toLowerCase()
     }
     if (va < vb) return -1 * asc
     if (va > vb) return 1 * asc

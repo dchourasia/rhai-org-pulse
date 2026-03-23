@@ -4,11 +4,14 @@ import {
   saveRosterSyncConfig,
   triggerRosterSync,
   getRosterSyncStatus,
+  getRosterSyncFieldDefinitions,
+  saveCustomFields as apiSaveCustomFields,
   clearApiCache
 } from '../services/api'
 import { useRoster } from './useRoster'
 
 const config = ref(null)
+const fieldDefinitions = ref(null)
 const syncStatus = ref(null)
 const loading = ref(false)
 const saving = ref(false)
@@ -17,6 +20,26 @@ const syncing = ref(false)
 const isConfigured = computed(() => {
   return config.value && config.value.configured === true
 })
+
+async function fetchFieldDefinitions() {
+  try {
+    const result = await getRosterSyncFieldDefinitions()
+    fieldDefinitions.value = result.customFields || []
+  } catch (err) {
+    console.error('Failed to fetch field definitions:', err)
+  }
+}
+
+async function saveCustomFields(customFields) {
+  saving.value = true
+  try {
+    const result = await apiSaveCustomFields(customFields)
+    fieldDefinitions.value = result.customFields || []
+    return result
+  } finally {
+    saving.value = false
+  }
+}
 
 async function fetchConfig() {
   loading.value = true
@@ -76,14 +99,17 @@ async function triggerSync() {
 export function useRosterSync() {
   return {
     config,
+    fieldDefinitions,
     syncStatus,
     loading,
     saving,
     syncing,
     isConfigured,
     fetchConfig,
+    fetchFieldDefinitions,
     fetchStatus,
     saveConfig,
+    saveCustomFields,
     triggerSync
   }
 }

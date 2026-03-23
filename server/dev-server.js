@@ -867,15 +867,34 @@ function deriveRoster() {
   const full = readRosterFull();
   const orgs = [];
 
+  // Read teamStructure from live config (not roster file) — constraint #7
+  const liveConfig = rosterSyncConfig.loadConfig(storageModule);
+  const teamStructure = liveConfig?.teamStructure || null;
+
+  // Build visible fields and primary display field from teamStructure
+  let visibleFields = [];
+  let primaryDisplayField = null;
+  if (teamStructure && Array.isArray(teamStructure.customFields)) {
+    visibleFields = teamStructure.customFields
+      .filter(f => f.visible)
+      .map(f => ({ key: f.key, label: f.displayLabel || f.key }));
+    const primary = teamStructure.customFields.find(f => f.primaryDisplay);
+    if (primary) primaryDisplayField = primary.key;
+  }
+
   for (const [orgKey, orgData] of Object.entries(full.orgs)) {
     const teamMap = {};
     const allMembers = [orgData.leader, ...orgData.members]
       .filter(p => !EXCLUDED_TITLES.includes(p.title));
 
     for (const person of allMembers) {
-      // Split comma-separated team names so multi-team people appear in each team
-      const teamNames = person.miroTeam
-        ? person.miroTeam.split(',').map(t => t.trim()).filter(Boolean)
+      // Determine team grouping — use _teamGrouping if teamStructure configured,
+      // with defensive fallback to miroTeam for config-ahead-of-data scenarios
+      const groupingValue = teamStructure
+        ? (person._teamGrouping || person.miroTeam || null)
+        : (person.miroTeam || null);
+      const teamNames = groupingValue
+        ? groupingValue.split(',').map(t => t.trim()).filter(Boolean)
         : ['_unassigned'];
 
       const memberEntry = {
@@ -884,19 +903,26 @@ function deriveRoster() {
         uid: person.uid,
         email: person.email,
         title: person.title,
-        specialty: person.specialty || null,
         manager: person.managerUid || null,
-        miroTeam: person.miroTeam || null,
-        jiraComponent: person.jiraComponent || null,
-        jiraTeam: person.jiraTeam || null,
-        status: person.status || null,
         githubUsername: person.githubUsername || null,
         gitlabUsername: person.gitlabUsername || null,
         geo: person.geo || null,
         location: person.location || null,
         country: person.country || null,
-        city: person.city || null
+        city: person.city || null,
+        customFields: {}
       };
+
+      // Build customFields dynamically from teamStructure
+      if (teamStructure && Array.isArray(teamStructure.customFields)) {
+        for (const field of teamStructure.customFields) {
+          memberEntry.customFields[field.key] = person[field.key] || null;
+        }
+      } else {
+        // Legacy fallback: hardcode specialty and jiraComponent
+        memberEntry.customFields.specialty = person.specialty || null;
+        memberEntry.customFields.jiraComponent = person.jiraComponent || null;
+      }
 
       for (const teamName of teamNames) {
         if (!teamMap[teamName]) {
@@ -921,7 +947,7 @@ function deriveRoster() {
     });
   }
 
-  return { vp: full.vp, orgs };
+  return { vp: full.vp, orgs, visibleFields, primaryDisplayField };
 }
 
 app.get('/api/last-refreshed', function(req, res) {
@@ -1423,6 +1449,17 @@ app.get('/api/roster-sync/configured', function(req, res) {
   }
 });
 
+app.get('/api/admin/roster-sync/field-definitions', requireAdmin, function(req, res) {
+  try {
+    // Return custom fields from the saved config (dynamic, user-defined)
+    const config = rosterSyncConfig.loadConfig(storageModule);
+    res.json({ customFields: (config && config.customFields) || [] });
+  } catch (error) {
+    console.error('Read field definitions error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/admin/roster-sync/config', requireAdmin, function(req, res) {
   try {
     const config = rosterSyncConfig.loadConfig(storageModule);
@@ -1438,30 +1475,128 @@ app.get('/api/admin/roster-sync/config', requireAdmin, function(req, res) {
 
 app.post('/api/admin/roster-sync/config', requireAdmin, function(req, res) {
   try {
-    const { orgRoots, googleSheetId, sheetNames, githubOrgs, gitlabGroups } = req.body;
+    const { orgRoots, googleSheetId, sheetNames, githubOrgs, gitlabGroups, teamStructure } = req.body;
 
-    if (!orgRoots || !Array.isArray(orgRoots) || orgRoots.length === 0) {
-      return res.status(400).json({ error: 'At least one org root is required' });
-    }
-
-    for (const root of orgRoots) {
-      if (!root.uid || !root.displayName) {
-        return res.status(400).json({ error: 'Each org root must have uid and displayName' });
+    // orgRoots validation (required when provided)
+    if (orgRoots !== undefined) {
+      if (!Array.isArray(orgRoots) || orgRoots.length === 0) {
+        return res.status(400).json({ error: 'At least one org root is required' });
+      }
+      for (const root of orgRoots) {
+        if (!root.uid || !root.displayName) {
+          return res.status(400).json({ error: 'Each org root must have uid and displayName' });
+        }
       }
     }
 
-    // Preserve sync metadata from existing config
+    // Validate teamStructure if provided
+    const PROTO_KEYS = new Set(['__proto__', 'constructor', 'prototype', 'toString', 'valueOf', 'hasOwnProperty']);
+    const { RESERVED_KEYS } = require('./roster-sync/constants');
+    let validatedTeamStructure = undefined; // undefined = not provided, null = explicitly cleared
+    if (teamStructure !== undefined) {
+      if (teamStructure === null) {
+        validatedTeamStructure = null;
+      } else {
+        if (!teamStructure.nameColumn || typeof teamStructure.nameColumn !== 'string' || !teamStructure.nameColumn.trim()) {
+          return res.status(400).json({ error: 'teamStructure.nameColumn is required' });
+        }
+        if (!teamStructure.teamGroupingColumn || typeof teamStructure.teamGroupingColumn !== 'string' || !teamStructure.teamGroupingColumn.trim()) {
+          return res.status(400).json({ error: 'teamStructure.teamGroupingColumn is required' });
+        }
+
+        const validatedCustomFields = [];
+        if (teamStructure.customFields && Array.isArray(teamStructure.customFields)) {
+          if (teamStructure.customFields.length > 20) {
+            return res.status(400).json({ error: 'Maximum of 20 custom fields allowed' });
+          }
+
+          const seenKeys = new Set();
+          const seenLabels = new Set();
+          let primaryCount = 0;
+
+          for (const field of teamStructure.customFields) {
+            if (!field.key || typeof field.key !== 'string') {
+              return res.status(400).json({ error: 'Each custom field must have a "key"' });
+            }
+            const key = field.key.trim();
+            if (!key) {
+              return res.status(400).json({ error: 'Custom field key cannot be empty' });
+            }
+            if (PROTO_KEYS.has(key)) {
+              return res.status(400).json({ error: `Reserved field key "${key}" is not allowed` });
+            }
+            if (RESERVED_KEYS.includes(key)) {
+              return res.status(400).json({ error: `Reserved field key "${key}" is not allowed` });
+            }
+            if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(key)) {
+              return res.status(400).json({ error: `Invalid field key "${key}" — use only letters, numbers, and underscores` });
+            }
+            if (seenKeys.has(key)) {
+              return res.status(400).json({ error: `Duplicate field key "${key}"` });
+            }
+            seenKeys.add(key);
+
+            const columnLabel = (field.columnLabel || '').trim();
+            if (!columnLabel) {
+              return res.status(400).json({ error: `Custom field "${key}" must have a "columnLabel"` });
+            }
+            if (seenLabels.has(columnLabel)) {
+              return res.status(400).json({ error: `Duplicate column label "${columnLabel}"` });
+            }
+            seenLabels.add(columnLabel);
+
+            if (field.primaryDisplay) primaryCount++;
+
+            validatedCustomFields.push({
+              key,
+              columnLabel,
+              displayLabel: (field.displayLabel || key).trim(),
+              visible: !!field.visible,
+              primaryDisplay: !!field.primaryDisplay
+            });
+          }
+
+          if (primaryCount > 1) {
+            return res.status(400).json({ error: 'At most one custom field can have primaryDisplay' });
+          }
+        }
+
+        validatedTeamStructure = {
+          nameColumn: teamStructure.nameColumn.trim(),
+          teamGroupingColumn: teamStructure.teamGroupingColumn.trim(),
+          customFields: validatedCustomFields
+        };
+      }
+    }
+
+    // Merge semantics: read existing config, merge submitted fields, write back
     const existing = rosterSyncConfig.loadConfig(storageModule) || {};
+
     const config = {
-      orgRoots,
-      googleSheetId: googleSheetId || null,
-      sheetNames: sheetNames || [],
-      githubOrgs: githubOrgs || [],
-      gitlabGroups: gitlabGroups || [],
+      orgRoots: orgRoots !== undefined ? orgRoots : existing.orgRoots || [],
+      googleSheetId: googleSheetId !== undefined ? (googleSheetId || null) : (existing.googleSheetId || null),
+      sheetNames: sheetNames !== undefined ? (sheetNames || []) : (existing.sheetNames || []),
+      githubOrgs: githubOrgs !== undefined ? (githubOrgs || []) : (existing.githubOrgs || []),
+      gitlabGroups: gitlabGroups !== undefined ? (gitlabGroups || []) : (existing.gitlabGroups || []),
+      teamStructure: validatedTeamStructure !== undefined ? validatedTeamStructure : (existing.teamStructure || null),
+      customFields: existing.customFields || null,
       lastSyncAt: existing.lastSyncAt || null,
       lastSyncStatus: existing.lastSyncStatus || null,
       lastSyncError: existing.lastSyncError || null
     };
+
+    // Auto-generate backward-compatible fieldMapping from teamStructure
+    if (config.teamStructure) {
+      const fm = {};
+      fm.name = config.teamStructure.nameColumn;
+      fm.miroTeam = config.teamStructure.teamGroupingColumn;
+      for (const f of (config.teamStructure.customFields || [])) {
+        fm[f.key] = f.columnLabel;
+      }
+      config.fieldMapping = fm;
+    } else if (existing.fieldMapping) {
+      config.fieldMapping = existing.fieldMapping;
+    }
 
     rosterSyncConfig.saveConfig(storageModule, config);
 
@@ -1473,6 +1608,71 @@ app.post('/api/admin/roster-sync/config', requireAdmin, function(req, res) {
     res.json({ configured: true, ...config });
   } catch (error) {
     console.error('Save roster-sync config error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/roster-sync/custom-fields', requireAdmin, function(req, res) {
+  try {
+    const { customFields } = req.body;
+
+    if (!Array.isArray(customFields)) {
+      return res.status(400).json({ error: 'customFields must be an array' });
+    }
+
+    if (customFields.length > 20) {
+      return res.status(400).json({ error: 'Maximum of 20 custom fields allowed' });
+    }
+
+    const PROTO_BLOCKLIST = new Set(['__proto__', 'constructor', 'prototype', 'toString', 'valueOf', 'hasOwnProperty']);
+    const { RESERVED_KEYS: STRUCT_RESERVED } = require('./roster-sync/constants');
+    const validatedFields = [];
+    const seenKeys = new Set();
+    const seenColumns = new Set();
+    let hasNameField = false;
+
+    for (const field of customFields) {
+      if (!field.key || typeof field.key !== 'string') {
+        return res.status(400).json({ error: 'Each custom field must have a "key"' });
+      }
+      if (!field.columnName || typeof field.columnName !== 'string') {
+        return res.status(400).json({ error: `Custom field "${field.key}" must have a "columnName"` });
+      }
+      const key = field.key.trim();
+      const columnName = field.columnName.trim();
+      if (!key || !columnName) {
+        return res.status(400).json({ error: 'Field key and column name cannot be empty' });
+      }
+      if (PROTO_BLOCKLIST.has(key) || STRUCT_RESERVED.includes(key)) {
+        return res.status(400).json({ error: `Reserved field key "${key}" is not allowed` });
+      }
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+        return res.status(400).json({ error: `Invalid field key "${key}" — use only letters, numbers, and underscores` });
+      }
+      if (seenKeys.has(key)) {
+        return res.status(400).json({ error: `Duplicate field key "${key}"` });
+      }
+      if (seenColumns.has(columnName)) {
+        return res.status(400).json({ error: `Duplicate column name "${columnName}"` });
+      }
+      seenKeys.add(key);
+      seenColumns.add(columnName);
+      if (key === 'name') hasNameField = true;
+      validatedFields.push({ key, columnName });
+    }
+
+    if (validatedFields.length > 0 && !hasNameField) {
+      return res.status(400).json({ error: 'A "name" field is required for matching people from LDAP' });
+    }
+
+    // Update only customFields in existing config
+    const existing = rosterSyncConfig.loadConfig(storageModule) || {};
+    existing.customFields = validatedFields.length > 0 ? validatedFields : null;
+    rosterSyncConfig.saveConfig(storageModule, existing);
+
+    res.json({ customFields: existing.customFields || [] });
+  } catch (error) {
+    console.error('Save custom fields error:', error);
     res.status(500).json({ error: error.message });
   }
 });

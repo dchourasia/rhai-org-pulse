@@ -12,6 +12,14 @@ export function useRoster() {
     return rosterData.value.orgs
   })
 
+  const visibleFields = computed(() => {
+    return rosterData.value?.visibleFields || []
+  })
+
+  const primaryDisplayField = computed(() => {
+    return rosterData.value?.primaryDisplayField || null
+  })
+
   const selectedOrg = computed(() => {
     if (!selectedOrgKey.value) return null
     return orgs.value.find(o => o.key === selectedOrgKey.value) || null
@@ -99,6 +107,8 @@ export function useRoster() {
     multiTeamMembers,
     getTeamsForPerson,
     uniqueMemberCount,
+    visibleFields,
+    primaryDisplayField,
     loadRoster,
     reloadRoster
   }

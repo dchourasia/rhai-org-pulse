@@ -14,6 +14,15 @@
         Roster Sync
       </button>
       <button
+        @click="activeTab = 'teamStructure'"
+        class="px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px"
+        :class="activeTab === 'teamStructure'
+          ? 'border-primary-600 text-primary-600'
+          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+      >
+        Team Structure
+      </button>
+      <button
         @click="activeTab = 'jira'"
         class="px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px"
         :class="activeTab === 'jira'
@@ -25,6 +34,7 @@
     </div>
 
     <RosterSyncSettings v-if="activeTab === 'roster'" @toast="(t) => $emit('toast', t)" />
+    <TeamStructureSettings v-if="activeTab === 'teamStructure'" @toast="(t) => $emit('toast', t)" />
     <JiraSyncSettings v-if="activeTab === 'jira'" @toast="(t) => $emit('toast', t)" />
   </div>
 </template>
@@ -32,6 +42,7 @@
 <script setup>
 import { ref } from 'vue'
 import RosterSyncSettings from './RosterSyncSettings.vue'
+import TeamStructureSettings from './TeamStructureSettings.vue'
 import JiraSyncSettings from './JiraSyncSettings.vue'
 
 defineEmits(['toast'])

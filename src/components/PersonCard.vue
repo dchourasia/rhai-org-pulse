@@ -6,7 +6,11 @@
     <div class="flex items-start justify-between">
       <div class="min-w-0">
         <h4 class="text-sm font-semibold text-gray-900 truncate">{{ member.name }}</h4>
-        <SpecialtyBadge :specialty="member.specialty" class="mt-1" />
+        <DynamicFieldBadge
+          v-if="primaryDisplayField && member.customFields"
+          :value="member.customFields[primaryDisplayField]"
+          class="mt-1"
+        />
       </div>
       <span
         v-if="teamCount > 1"
@@ -20,9 +24,15 @@
       <p v-if="member.manager" class="truncate">
         <span class="text-gray-400">Mgr:</span> {{ member.manager }}
       </p>
-      <p v-if="member.jiraComponent" class="truncate">
-        <span class="text-gray-400">Component:</span> {{ member.jiraComponent }}
-      </p>
+      <template v-if="member.customFields">
+        <p
+          v-for="field in nonPrimaryVisibleFields"
+          :key="field.key"
+          class="truncate"
+        >
+          <span class="text-gray-400">{{ field.label }}:</span> {{ member.customFields[field.key] || '—' }}
+        </p>
+      </template>
       <p v-if="metrics" class="truncate">
         <span class="text-gray-400">Resolved (90d):</span> {{ metrics.resolvedCount ?? '--' }}
         <span class="mx-1 text-gray-300">·</span>
@@ -46,7 +56,8 @@
 
 <script setup>
 import { computed } from 'vue'
-import SpecialtyBadge from './SpecialtyBadge.vue'
+import DynamicFieldBadge from './DynamicFieldBadge.vue'
+import { useRoster } from '../composables/useRoster'
 import { useGithubStats } from '../composables/useGithubStats'
 import { useGitlabStats } from '../composables/useGitlabStats'
 
@@ -57,8 +68,13 @@ const props = defineProps({
 })
 defineEmits(['select'])
 
+const { visibleFields, primaryDisplayField } = useRoster()
 const { getContributions } = useGithubStats()
 const { getContributions: getGitlabContributionsFn } = useGitlabStats()
 const githubContributions = computed(() => getContributions(props.member.githubUsername))
 const gitlabContributions = computed(() => getGitlabContributionsFn(props.member.gitlabUsername))
+
+const nonPrimaryVisibleFields = computed(() => {
+  return visibleFields.value.filter(f => f.key !== primaryDisplayField.value)
+})
 </script>

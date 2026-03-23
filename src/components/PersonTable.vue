@@ -28,14 +28,18 @@
           <td class="px-4 py-2 text-sm text-gray-900 whitespace-nowrap">
             {{ member.name }}
           </td>
-          <td class="px-4 py-2 text-sm whitespace-nowrap">
-            <SpecialtyBadge :specialty="member.specialty" />
+          <td v-if="primaryDisplayField" class="px-4 py-2 text-sm whitespace-nowrap">
+            <DynamicFieldBadge :value="member.customFields?.[primaryDisplayField]" />
           </td>
           <td class="px-4 py-2 text-sm text-gray-500 whitespace-nowrap">
             {{ member.manager || '—' }}
           </td>
-          <td class="px-4 py-2 text-sm text-gray-500 whitespace-nowrap">
-            {{ member.jiraComponent || '—' }}
+          <td
+            v-for="field in nonPrimaryVisibleFields"
+            :key="'cf-' + field.key"
+            class="px-4 py-2 text-sm text-gray-500 whitespace-nowrap"
+          >
+            {{ member.customFields?.[field.key] || '—' }}
           </td>
           <td class="px-4 py-2 text-sm text-gray-500 whitespace-nowrap">
             {{ getMemberMetric(member, 'resolvedCount') ?? '—' }}
@@ -73,10 +77,12 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import SpecialtyBadge from './SpecialtyBadge.vue'
+import DynamicFieldBadge from './DynamicFieldBadge.vue'
+import { useRoster } from '../composables/useRoster'
 import { useGithubStats } from '../composables/useGithubStats'
 import { useGitlabStats } from '../composables/useGitlabStats'
 
+const { visibleFields, primaryDisplayField } = useRoster()
 const { getContributions } = useGithubStats()
 const { getContributions: getGitlabContributions } = useGitlabStats()
 
@@ -88,18 +94,30 @@ const props = defineProps({
 })
 defineEmits(['select'])
 
-const columns = [
-  { key: 'name', label: 'Name' },
-  { key: 'specialty', label: 'Specialty' },
-  { key: 'manager', label: 'Manager' },
-  { key: 'jiraComponent', label: 'Component' },
-  { key: 'resolved', label: 'Resolved (90d)' },
-  { key: 'points', label: 'Points (90d)' },
-  { key: 'cycleTime', label: 'Cycle Time' },
-  { key: 'github', label: 'GitHub (1yr)' },
-  { key: 'gitlab', label: 'GitLab (1yr)' },
-  { key: 'teams', label: 'Teams' }
-]
+const nonPrimaryVisibleFields = computed(() => {
+  return visibleFields.value.filter(f => f.key !== primaryDisplayField.value)
+})
+
+const columns = computed(() => {
+  const cols = [{ key: 'name', label: 'Name' }]
+  if (primaryDisplayField.value) {
+    const pf = visibleFields.value.find(f => f.key === primaryDisplayField.value)
+    cols.push({ key: primaryDisplayField.value, label: pf?.label || primaryDisplayField.value })
+  }
+  cols.push({ key: 'manager', label: 'Manager' })
+  for (const field of nonPrimaryVisibleFields.value) {
+    cols.push({ key: field.key, label: field.label })
+  }
+  cols.push(
+    { key: 'resolved', label: 'Resolved (90d)' },
+    { key: 'points', label: 'Points (90d)' },
+    { key: 'cycleTime', label: 'Cycle Time' },
+    { key: 'github', label: 'GitHub (1yr)' },
+    { key: 'gitlab', label: 'GitLab (1yr)' },
+    { key: 'teams', label: 'Teams' }
+  )
+  return cols
+})
 
 const sortKey = ref('name')
 const sortAsc = ref(true)
@@ -156,9 +174,13 @@ const sortedMembers = computed(() => {
     } else if (key === 'gitlab') {
       va = getGitlabContribCount(a) ?? -1
       vb = getGitlabContribCount(b) ?? -1
-    } else {
+    } else if (key === 'name' || key === 'manager') {
       va = (a[key] || '').toLowerCase()
       vb = (b[key] || '').toLowerCase()
+    } else {
+      // Custom field sort
+      va = (a.customFields?.[key] || '').toLowerCase()
+      vb = (b.customFields?.[key] || '').toLowerCase()
     }
     if (va < vb) return -1 * asc
     if (va > vb) return 1 * asc

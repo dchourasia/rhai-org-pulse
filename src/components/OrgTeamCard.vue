@@ -20,26 +20,27 @@
         <span class="text-sm text-gray-500">{{ uniqueCount }} members</span>
       </div>
     </div>
-    <div class="flex flex-wrap gap-1.5">
-      <span
-        v-for="(count, specialty) in specialtyBreakdown"
-        :key="specialty"
-        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs"
-        :class="specialtyClass(specialty)"
-      >
-        {{ count }} {{ specialty }}
-      </span>
+    <div v-if="primaryDisplayField && Object.keys(breakdown).length > 0" class="flex flex-wrap gap-1.5">
+      <DynamicFieldBadge
+        v-for="(count, value) in breakdown"
+        :key="value"
+        :value="`${count} ${value}`"
+      />
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import DynamicFieldBadge from './DynamicFieldBadge.vue'
+import { useRoster } from '../composables/useRoster'
 
 const props = defineProps({
   team: { type: Object, required: true }
 })
 defineEmits(['select'])
+
+const { primaryDisplayField } = useRoster()
 
 const uniqueMembers = computed(() => {
   const seen = new Set()
@@ -54,38 +55,13 @@ const uniqueCount = computed(() => uniqueMembers.value.length)
 
 const isUnassigned = computed(() => props.team.key.endsWith('::_unassigned'))
 
-const specialtyBreakdown = computed(() => {
+const breakdown = computed(() => {
+  if (!primaryDisplayField.value) return {}
   const counts = {}
   for (const m of uniqueMembers.value) {
-    const s = normalizeSpecialty(m.specialty)
-    counts[s] = (counts[s] || 0) + 1
+    const val = m.customFields?.[primaryDisplayField.value] || 'Other'
+    counts[val] = (counts[val] || 0) + 1
   }
   return counts
 })
-
-function normalizeSpecialty(s) {
-  if (!s) return 'Other'
-  const lower = s.toLowerCase()
-  if (lower.includes('backend') || (lower.includes('engineer') && !lower.includes('staff'))) return 'Backend'
-  if (lower.includes('staff')) return 'Staff'
-  if (lower === 'qe') return 'QE'
-  if (lower === 'ui' || lower === 'bff') return 'UI'
-  if (lower.includes('manager') || lower.includes('operations')) return 'Mgmt'
-  if (lower.includes('architect')) return 'Arch'
-  if (lower.includes('agilist')) return 'Agile'
-  return 'Other'
-}
-
-function specialtyClass(specialty) {
-  switch (specialty) {
-    case 'Backend': return 'bg-blue-50 text-blue-700'
-    case 'Staff': return 'bg-purple-50 text-purple-700'
-    case 'QE': return 'bg-teal-50 text-teal-700'
-    case 'UI': return 'bg-pink-50 text-pink-700'
-    case 'Mgmt': return 'bg-amber-50 text-amber-700'
-    case 'Arch': return 'bg-indigo-50 text-indigo-700'
-    case 'Agile': return 'bg-green-50 text-green-700'
-    default: return 'bg-gray-50 text-gray-700'
-  }
-}
 </script>

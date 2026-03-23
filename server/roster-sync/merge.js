@@ -7,6 +7,7 @@ const { normalizeNameForMatch } = require('./sheets');
 
 /**
  * Enrich a single person with Sheets data.
+ * Dynamically copies all fields from the sheets entry onto the person object.
  */
 function enrichPerson(person, sheetsMap) {
   const normalized = normalizeNameForMatch(person.name);
@@ -14,25 +15,21 @@ function enrichPerson(person, sheetsMap) {
   if (!ssData) return;
 
   const primary = Array.isArray(ssData) ? ssData[0] : ssData;
-  person.miroTeam = primary.miroTeam;
-  person.jiraComponent = primary.jiraComponent;
-  person.jiraTeam = primary.jiraTeam;
-  person.pm = primary.pm;
-  person.engLead = primary.engLead;
-  person.specialty = primary.specialty;
-  person.status = primary.status;
-  person.subcomponent = primary.subcomponent;
-  person.region = primary.region;
-  person.sourceSheet = primary.sourceSheet;
+
+  // Copy all fields from sheet data onto the person (except internal fields)
+  for (const [key, value] of Object.entries(primary)) {
+    if (key === 'originalName') continue;
+    person[key] = value;
+  }
 
   if (Array.isArray(ssData) && ssData.length > 1) {
     person.additionalAssignments = ssData.slice(1).map(function(e) {
-      return {
-        miroTeam: e.miroTeam,
-        jiraComponent: e.jiraComponent,
-        jiraTeam: e.jiraTeam,
-        specialty: e.specialty
-      };
+      const assignment = {};
+      for (const [key, value] of Object.entries(e)) {
+        if (key === 'originalName' || key === 'sourceSheet') continue;
+        assignment[key] = value;
+      }
+      return assignment;
     });
   }
 }

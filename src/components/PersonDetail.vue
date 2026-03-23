@@ -19,13 +19,22 @@
         <div>
           <h2 class="text-xl font-bold text-gray-900 mb-1">{{ person.name }}</h2>
           <div class="flex items-center gap-2 flex-wrap">
-            <SpecialtyBadge :specialty="person.specialty" />
+            <DynamicFieldBadge
+              v-if="primaryDisplayField && person.customFields"
+              :value="person.customFields[primaryDisplayField]"
+            />
             <span v-if="person.manager" class="text-sm text-gray-500">
               Mgr: {{ person.manager }}
             </span>
-            <span v-if="person.jiraComponent" class="text-sm text-gray-500">
-              | {{ person.jiraComponent }}
-            </span>
+            <template v-if="person.customFields">
+              <span
+                v-for="field in nonPrimaryVisibleFields"
+                :key="field.key"
+                class="text-sm text-gray-500"
+              >
+                | {{ person.customFields[field.key] || '—' }}
+              </span>
+            </template>
             <a
               v-if="githubProfileUrl"
               :href="githubProfileUrl"
@@ -234,7 +243,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import SpecialtyBadge from './SpecialtyBadge.vue'
+import DynamicFieldBadge from './DynamicFieldBadge.vue'
 import MetricCard from './MetricCard.vue'
 import RefreshModal from './RefreshModal.vue'
 import { useRoster } from '../composables/useRoster'
@@ -248,7 +257,7 @@ const props = defineProps({
 })
 defineEmits(['back', 'go-dashboard'])
 
-const { getTeamsForPerson } = useRoster()
+const { getTeamsForPerson, visibleFields, primaryDisplayField } = useRoster()
 const { getContributions: getGithubContributions, setUserContributions: setGithubUserData } = useGithubStats()
 const { getContributions: getGitlabContributionsFn, loadGitlabStats, setUserContributions: setGitlabUserData } = useGitlabStats()
 
@@ -261,6 +270,10 @@ const gitlabContributions = computed(() => getGitlabContributionsFn(props.person
 const gitlabProfileUrl = props.person.gitlabUsername
   ? `https://gitlab.com/${props.person.gitlabUsername}`
   : null
+
+const nonPrimaryVisibleFields = computed(() => {
+  return visibleFields.value.filter(f => f.key !== primaryDisplayField.value)
+})
 
 const metrics = ref(null)
 const isLoading = ref(false)

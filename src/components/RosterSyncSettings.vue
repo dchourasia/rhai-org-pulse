@@ -91,28 +91,6 @@
       </button>
     </div>
 
-    <!-- Google Sheets -->
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-      <h3 class="text-lg font-semibold text-gray-900 mb-3">Google Sheets Integration</h3>
-      <p class="text-sm text-gray-500 mb-4">
-        Optionally enrich LDAP data with team assignments from a Google Sheet.
-      </p>
-
-      <div class="space-y-3">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Spreadsheet ID</label>
-          <input
-            v-model="editSheetId"
-            placeholder="e.g. 1gQfxqHE5y9PIuW-pJONDITbeNA0Vg2x1pazywAcDHTg"
-            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-          />
-        </div>
-        <p class="text-xs text-gray-500">
-          All sheets in the spreadsheet are auto-discovered. Sheets without a recognized name column are automatically skipped.
-        </p>
-      </div>
-    </div>
-
     <!-- Username Inference -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
       <h3 class="text-lg font-semibold text-gray-900 mb-3">Username Inference</h3>
@@ -220,7 +198,6 @@ const {
 } = useRosterSync()
 
 const editRoots = ref([])
-const editSheetId = ref('')
 const editGithubOrgs = ref([])
 const editGitlabGroups = ref([])
 const saveMessage = ref(null)
@@ -233,12 +210,10 @@ const canSave = computed(() => {
 function populateForm() {
   if (config.value && config.value.configured) {
     editRoots.value = (config.value.orgRoots || []).map(r => ({ ...r }))
-    editSheetId.value = config.value.googleSheetId || ''
     editGithubOrgs.value = [...(config.value.githubOrgs || [])]
     editGitlabGroups.value = [...(config.value.gitlabGroups || [])]
   } else {
     editRoots.value = [{ uid: '', displayName: '' }]
-    editSheetId.value = ''
     editGithubOrgs.value = []
     editGitlabGroups.value = []
   }
@@ -285,7 +260,6 @@ async function handleSave() {
 
     await saveConfig({
       orgRoots,
-      googleSheetId: editSheetId.value.trim() || null,
       githubOrgs,
       gitlabGroups
     })

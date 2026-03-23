@@ -5,7 +5,7 @@
 
 const { google } = require('googleapis');
 const fs = require('fs');
-const { DEFAULT_SHEET_COLUMNS } = require('./constants');
+const { getEffectiveColumns, getEffectiveColumnsFromTeamStructure } = require('./constants');
 
 let cachedAuth = null;
 
@@ -54,14 +54,25 @@ async function discoverSheetNames(sheetId) {
 
 /**
  * Fetch team breakdown data from Google Sheets.
- * If sheetNames is empty/null, auto-discovers all sheets and uses those
- * that contain the expected name column.
+ * Uses customFields (array of { key, columnName }) to dynamically map columns.
+ * The first field with key "name" is used for person matching.
  * Returns a Map of normalized name -> enrichment data.
  */
-async function fetchSheetData(sheetId, sheetNames) {
+async function fetchSheetData(sheetId, sheetNames, customFields, teamStructure) {
   const auth = getAuth();
   const sheets = google.sheets({ version: 'v4', auth });
   const people = new Map();
+
+  // Prefer teamStructure if available, fall back to customFields
+  const columnLabels = getEffectiveColumnsFromTeamStructure(teamStructure) || getEffectiveColumns(customFields);
+
+  // Determine the name column label
+  const nameColumnLabel = columnLabels.name || null;
+
+  if (!nameColumnLabel) {
+    console.warn('[sheets] No "name" field configured in custom fields, skipping sheet data fetch');
+    return people;
+  }
 
   if (!sheetNames || sheetNames.length === 0) {
     sheetNames = await discoverSheetNames(sheetId);
@@ -87,16 +98,19 @@ async function fetchSheetData(sheetId, sheetNames) {
       continue;
     }
 
-    // First row is headers
-    const headers = rows[0];
+    // First row is headers — trim whitespace for reliable matching
+    const headers = rows[0].map(h => typeof h === 'string' ? h.trim() : h);
+
+    // Build column index dynamically from configured fields
     const colIndex = {};
-    for (const [field, colName] of Object.entries(DEFAULT_SHEET_COLUMNS)) {
-      const idx = headers.indexOf(colName);
+    for (const [field, colName] of Object.entries(columnLabels)) {
+      if (!colName) continue;
+      const idx = headers.indexOf(colName.trim());
       if (idx !== -1) colIndex[field] = idx;
     }
 
     if (colIndex.name === undefined) {
-      console.warn(`Sheet "${sheetName}" missing "${DEFAULT_SHEET_COLUMNS.name}" column, skipping`);
+      console.warn(`Sheet "${sheetName}" missing "${nameColumnLabel}" column, skipping`);
       continue;
     }
 
@@ -108,20 +122,13 @@ async function fetchSheetData(sheetId, sheetNames) {
       if (!name || typeof name !== 'string') continue;
 
       const normalized = normalizeNameForMatch(name);
-      const entry = {
-        originalName: name,
-        manager: colIndex.manager !== undefined ? (row[colIndex.manager] || null) : null,
-        miroTeam: colIndex.miroTeam !== undefined ? (row[colIndex.miroTeam] || null) : null,
-        jiraComponent: colIndex.jiraComponent !== undefined ? (row[colIndex.jiraComponent] || null) : null,
-        jiraTeam: colIndex.jiraTeam !== undefined ? (row[colIndex.jiraTeam] || null) : null,
-        pm: colIndex.pm !== undefined ? (row[colIndex.pm] || null) : null,
-        engLead: colIndex.engLead !== undefined ? (row[colIndex.engLead] || null) : null,
-        status: colIndex.status !== undefined ? (row[colIndex.status] || null) : null,
-        specialty: colIndex.specialty !== undefined ? (row[colIndex.specialty] || null) : null,
-        subcomponent: colIndex.subcomponent !== undefined ? (row[colIndex.subcomponent] || null) : null,
-        region: colIndex.region !== undefined ? (row[colIndex.region] || null) : null,
-        sourceSheet: sheetName
-      };
+      const entry = { originalName: name, sourceSheet: sheetName };
+
+      // Dynamically populate all configured fields (except name)
+      for (const [field, idx] of Object.entries(colIndex)) {
+        if (field === 'name') continue;
+        entry[field] = row[idx] || null;
+      }
 
       const existing = people.get(normalized);
       if (existing) {

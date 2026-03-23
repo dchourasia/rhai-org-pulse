@@ -143,7 +143,7 @@ const props = defineProps({
 defineEmits(['back', 'select-person'])
 
 const { viewPreference: viewPref } = useViewPreference()
-const { multiTeamMembers, getTeamsForPerson } = useRoster()
+const { multiTeamMembers, getTeamsForPerson, visibleFields } = useRoster()
 const { getContributions } = useGithubStats()
 const { getContributions: getGitlabContributions, loadGitlabStats } = useGitlabStats()
 const { isAdmin } = useAuth()
@@ -205,15 +205,17 @@ const teamGitlabTotal = computed(() => {
 })
 
 function exportCsv() {
-  const headers = ['Name', 'Specialty', 'Issues Resolved', 'Story Points', 'Avg Cycle Time (days)', 'In Progress', 'GitHub Contributions (1yr)', 'GitLab Contributions (1yr)', 'Teams']
+  const customFieldHeaders = visibleFields.value.map(f => f.label)
+  const headers = ['Name', ...customFieldHeaders, 'Issues Resolved', 'Story Points', 'Avg Cycle Time (days)', 'In Progress', 'GitHub Contributions (1yr)', 'GitLab Contributions (1yr)', 'Teams']
   const rows = uniqueMembers.value.map(member => {
     const metrics = memberMetricsMap.value.get(member.jiraDisplayName)
     const teamCount = getTeamsForPerson(member.jiraDisplayName).length
     const ghContribs = getContributions(member.githubUsername)
     const glContribs = getGitlabContributions(member.gitlabUsername)
+    const customFieldValues = visibleFields.value.map(f => member.customFields?.[f.key] || '')
     return [
       member.name,
-      member.specialty || '',
+      ...customFieldValues,
       metrics?.resolvedCount ?? '',
       metrics?.resolvedPoints ?? '',
       metrics?.avgCycleTimeDays ?? '',

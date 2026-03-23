@@ -70,7 +70,7 @@ async function runSync(storage) {
       if (config.googleSheetId) {
         try {
           console.log('[roster-sync] Fetching Google Sheets data...');
-          sheetsData = await fetchSheetData(config.googleSheetId, config.sheetNames);
+          sheetsData = await fetchSheetData(config.googleSheetId, config.sheetNames, config.customFields, config.teamStructure);
           console.log(`[roster-sync] Sheets: ${sheetsData.size} unique people found`);
         } catch (err) {
           console.warn(`[roster-sync] Google Sheets fetch failed (continuing without): ${err.message}`);
