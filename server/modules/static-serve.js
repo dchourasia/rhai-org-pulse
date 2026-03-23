@@ -82,16 +82,19 @@ function createModuleStaticMiddleware(storage) {
       return res.status(200).send(PLACEHOLDER_HTML);
     }
 
-    // Serve index.html with <base> tag injected so absolute paths resolve correctly
+    // Serve index.html with asset paths rewritten for the module prefix
     const requestPath = parts.slice(1).join('/');
     if (!requestPath || requestPath === 'index.html') {
       const indexPath = path.join(resolvedRoot, 'index.html');
       if (fs.existsSync(indexPath)) {
         let html = fs.readFileSync(indexPath, 'utf8');
-        const baseTag = `<base href="/modules/${slug}/">`;
-        if (!html.includes('<base ')) {
-          html = html.replace('<head>', `<head>\n    ${baseTag}`);
-        }
+        const basePrefix = `/modules/${slug}/`;
+
+        // Rewrite absolute src="/..." and href="/..." to go through the module prefix.
+        // This handles Vite-built apps that use absolute asset paths (e.g. src="/assets/index.js").
+        // Skip protocol-relative URLs (//), data: URIs, and anchors (#).
+        html = html.replace(/((?:src|href)\s*=\s*["'])\/(?!\/|#)(.*?["'])/gi, `$1${basePrefix}$2`);
+
         res.setHeader('Content-Type', 'text/html');
         return res.send(html);
       }
