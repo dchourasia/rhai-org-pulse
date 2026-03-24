@@ -73,7 +73,9 @@
                 class="hover:bg-gray-50 cursor-pointer"
                 @click="goToTeam(t)"
               >
-                <td class="px-4 py-3 text-gray-900">{{ t.name }}</td>
+                <td class="px-4 py-3">
+                  <span class="text-primary-600 hover:text-primary-800 hover:underline font-medium">{{ t.name }}</span>
+                </td>
                 <td v-if="isAllView" class="px-4 py-3 text-gray-500 text-sm">{{ t.org }}</td>
                 <td class="px-4 py-3 text-right text-gray-600">{{ t.memberCount }}</td>
                 <td class="px-4 py-3 text-right">
