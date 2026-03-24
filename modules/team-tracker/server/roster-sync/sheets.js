@@ -4,28 +4,8 @@
  */
 
 const { google } = require('googleapis');
-const fs = require('fs');
+const { getAuth, discoverSheetNames: sharedDiscoverSheetNames } = require('../../../../shared/server/google-sheets');
 const { getEffectiveColumns, getEffectiveColumnsFromTeamStructure } = require('./constants');
-
-let cachedAuth = null;
-
-function getAuth() {
-  if (cachedAuth) return cachedAuth;
-
-  const keyFile = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || '/etc/secrets/google-sa-key.json';
-  if (!fs.existsSync(keyFile)) {
-    throw new Error(
-      `Google service account key not found at ${keyFile}. ` +
-      'Set GOOGLE_SERVICE_ACCOUNT_KEY_FILE env var to the correct path.'
-    );
-  }
-
-  cachedAuth = new google.auth.GoogleAuth({
-    keyFile: keyFile,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
-  });
-  return cachedAuth;
-}
 
 function normalizeNameForMatch(name) {
   if (!name) return '';
@@ -40,16 +20,10 @@ function normalizeNameForMatch(name) {
 
 /**
  * Discover all sheet names in a spreadsheet.
- * Returns an array of sheet title strings.
+ * Delegates to shared google-sheets module.
  */
 async function discoverSheetNames(sheetId) {
-  const auth = getAuth();
-  const sheets = google.sheets({ version: 'v4', auth });
-  const response = await sheets.spreadsheets.get({
-    spreadsheetId: sheetId,
-    fields: 'sheets.properties.title'
-  });
-  return (response.data.sheets || []).map(s => s.properties.title);
+  return sharedDiscoverSheetNames(sheetId);
 }
 
 /**

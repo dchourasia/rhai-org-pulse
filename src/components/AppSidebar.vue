@@ -172,6 +172,7 @@ import {
   Shield,
   Settings,
   ExternalLink,
+  Network,
   ChevronDown,
   ChevronRight,
   ChevronsLeft,
@@ -188,7 +189,9 @@ const ICON_MAP = {
   Shield,
   Settings,
   ExternalLink,
-  'bar-chart': BarChart3
+  Network,
+  'bar-chart': BarChart3,
+  'network': Network
 }
 
 const props = defineProps({

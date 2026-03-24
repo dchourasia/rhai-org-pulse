@@ -23,6 +23,7 @@ Core team owns `shared/` via CODEOWNERS. Changes require core team review.
 | `useGithubStats()` | GitHub contribution data with fetch/refresh |
 | `useGitlabStats()` | GitLab contribution data with fetch/refresh |
 | `useAllowlist()` | Allowlist management (admin only) |
+| `useModuleLink()` | Cross-module hash navigation (`linkTo`, `navigateTo`) |
 
 ### Services
 
@@ -47,6 +48,8 @@ Core team owns `shared/` via CODEOWNERS. Changes require core team review.
 | `storage` | `{ readFromStorage, writeToStorage }` — filesystem-backed JSON storage |
 | `demoStorage` | `{ readFromStorage, writeToStorage }` — fixture-backed read-only storage for demo mode |
 | `createAuthMiddleware(readFromStorage, writeToStorage)` | Factory returning `{ authMiddleware, requireAdmin, isAdmin, seedAdminList }` |
+| `googleSheets` | `{ getAuth, discoverSheetNames, fetchRawSheet }` — Google Sheets auth and raw data fetching |
+| `roster` | `{ readRosterFull, getAllPeople, getPeopleByOrg, getOrgKeys }` — shared roster data access |
 
 ## Versioning
 

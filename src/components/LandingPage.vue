@@ -83,7 +83,8 @@ import {
   Globe,
   FileText,
   Zap,
-  Layout
+  Layout,
+  Network
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -106,7 +107,8 @@ const iconMap = {
   'file-text': FileText,
   'zap': Zap,
   'layout': Layout,
-  'box': Box
+  'box': Box,
+  'network': Network
 }
 
 function getIcon(iconName) {

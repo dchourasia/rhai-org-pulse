@@ -1,0 +1,18 @@
+{
+  "name": "Org Roster",
+  "slug": "org-roster",
+  "description": "Team composition, structure, and ownership across the org",
+  "icon": "network",
+  "order": 5,
+  "client": {
+    "entry": "./client/index.js",
+    "navItems": [
+      { "id": "home", "label": "Team Directory", "icon": "Users", "default": true },
+      { "id": "org-dashboard", "label": "Org Dashboard", "icon": "BarChart3" }
+    ],
+    "settingsComponent": "./client/components/OrgRosterSettings.vue"
+  },
+  "server": {
+    "entry": "./server/index.js"
+  }
+}

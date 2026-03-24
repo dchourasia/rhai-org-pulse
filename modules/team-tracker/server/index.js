@@ -13,6 +13,7 @@ module.exports = function registerRoutes(router, context) {
   const { fetchGitlabData } = require('./gitlab/contributions');
   const rosterSync = require('./roster-sync');
   const rosterSyncConfig = require('./roster-sync/config');
+  const { readRosterFull: sharedReadRosterFull } = require('../../../shared/server/roster');
   const jiraSyncConfig = require('./jira/config');
   const { RESERVED_KEYS } = require('./roster-sync/constants');
 
@@ -136,7 +137,7 @@ module.exports = function registerRoutes(router, context) {
   }
 
   function readRosterFull() {
-    return readFromStorage('org-roster-full.json');
+    return sharedReadRosterFull(storage);
   }
 
   function getOrgDisplayNames() {
