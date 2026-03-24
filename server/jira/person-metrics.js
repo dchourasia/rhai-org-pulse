@@ -386,6 +386,7 @@ async function fetchPersonMetrics(jiraRequest, jiraDisplayName, options = {}) {
       resolved: { count: 0, storyPoints: 0, issues: [] },
       inProgress: { count: 0, storyPoints: 0, issues: [] },
       cycleTime: { avgDays: null, medianDays: null },
+      _nameNotFound: true,
       _error: `Could not resolve Jira accountId for "${jiraDisplayName}"`
     };
   }

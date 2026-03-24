@@ -991,7 +991,8 @@ app.get('/api/people/metrics', function(req, res) {
             resolvedPoints: data.resolved?.storyPoints ?? 0,
             inProgressCount: data.inProgress?.count ?? 0,
             avgCycleTimeDays: data.cycleTime?.avgDays ?? null,
-            fetchedAt: data.fetchedAt
+            fetchedAt: data.fetchedAt,
+            nameNotFound: data._nameNotFound ?? false
           };
         }
       } catch {
@@ -1086,7 +1087,8 @@ app.get('/api/team/:teamKey/metrics', function(req, res) {
           resolvedCount: cached.resolved?.count || 0,
           resolvedPoints: cached.resolved?.storyPoints || 0,
           inProgressCount: cached.inProgress?.count || 0,
-          avgCycleTimeDays: cached.cycleTime?.avgDays
+          avgCycleTimeDays: cached.cycleTime?.avgDays,
+          nameNotFound: cached._nameNotFound ?? false
         };
         resolvedCount += cached.resolved?.count || 0;
         resolvedPoints += cached.resolved?.storyPoints || 0;
