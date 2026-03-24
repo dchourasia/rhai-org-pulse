@@ -115,6 +115,9 @@ function goToOrgDashboard() {
 }
 
 onMounted(async () => {
+  // Set org from nav params (e.g. from org dashboard), or clear if none
+  const orgParam = nav.params.value?.org || null
+  selectedOrg.value = orgParam
   await Promise.all([loadOrgs(), loadTeams(selectedOrg.value)])
 })
 </script>

@@ -29,16 +29,22 @@
 
       <!-- Stats cards -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <div class="bg-white border border-gray-200 rounded-lg p-4 text-center">
+        <button
+          @click="goToTeamDirectory"
+          class="bg-white border border-gray-200 rounded-lg p-4 text-center hover:border-primary-300 hover:shadow-sm transition-all"
+        >
           <p class="text-3xl font-bold text-primary-600">{{ summary.teamCount }}</p>
           <p class="text-sm text-gray-500">Teams</p>
-        </div>
-        <div class="bg-white border border-gray-200 rounded-lg p-4 text-center">
+        </button>
+        <button
+          @click="goToPeople"
+          class="bg-white border border-gray-200 rounded-lg p-4 text-center hover:border-primary-300 hover:shadow-sm transition-all"
+        >
           <p class="text-3xl font-bold text-primary-600">{{ summary.headcount }}</p>
           <p class="text-sm text-gray-500">People</p>
-        </div>
+        </button>
         <div class="bg-white border border-gray-200 rounded-lg p-4 text-center">
-          <p class="text-3xl font-bold text-primary-600">{{ summary.components?.length || 0 }}</p>
+          <p class="text-3xl font-bold text-gray-800">{{ summary.components?.length || 0 }}</p>
           <p class="text-sm text-gray-500">Components</p>
         </div>
         <div class="bg-white border border-gray-200 rounded-lg p-4 text-center">
@@ -136,8 +142,10 @@ import { ref, computed, onMounted, inject } from 'vue'
 import HeadcountChart from '../components/HeadcountChart.vue'
 import OrgSelector from '../components/OrgSelector.vue'
 import { useOrgRoster } from '../composables/useOrgRoster'
+import { useModuleLink } from '@shared/client/composables/useModuleLink'
 
 const nav = inject('moduleNav')
+const { navigateTo: crossNav } = useModuleLink()
 const { loadOrgSummary, loadOrgs, orgs } = useOrgRoster()
 
 const summary = ref(null)
@@ -174,6 +182,14 @@ const maxRfeCount = computed(() => {
 })
 
 const isAllView = computed(() => !selectedOrg.value)
+
+function goToTeamDirectory() {
+  nav.navigateTo('home', selectedOrg.value ? { org: selectedOrg.value } : {})
+}
+
+function goToPeople() {
+  crossNav('team-tracker', 'people', selectedOrg.value ? { org: selectedOrg.value } : {})
+}
 
 function goToTeam(team) {
   const org = team.org || summary.value.org

@@ -369,6 +369,16 @@ const sortedPeople = computed(() => {
 onMounted(async () => {
   loading.value = true
   loadGitlabStats()
+
+  // Pre-select org if passed via nav params (e.g. cross-module link)
+  const orgParam = nav.params.value?.org
+  if (orgParam) {
+    const matchingOrg = orgs.value.find(o => o.displayName === orgParam || o.key === orgParam)
+    if (matchingOrg) {
+      selectedOrgKeys.value = [matchingOrg.key]
+    }
+  }
+
   try {
     await getAllPeopleMetrics((data) => {
       peopleMetrics.value = data
