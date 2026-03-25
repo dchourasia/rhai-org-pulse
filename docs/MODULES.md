@@ -63,6 +63,8 @@ modules/your-module/
 | `description` | Yes | Short description for the landing page |
 | `icon` | Yes | Lucide icon name (e.g., `bar-chart`, `box`, `search`) |
 | `order` | No | Sort order on landing page (default: 100, lower = first) |
+| `defaultEnabled` | No | Whether the module is enabled by default (default: `true`) |
+| `requires` | No | Array of module slugs this module depends on (default: `[]`) |
 | `client.entry` | No | Path to frontend entry point |
 | `client.navItems` | No | Sidebar navigation items |
 | `client.settingsComponent` | No | Vue component for the Settings page |
@@ -173,6 +175,37 @@ Add your module to `.github/CODEOWNERS`:
 ```
 
 The `module.json` wildcard rule ensures core team review for manifest changes.
+
+## Module Enable/Disable
+
+Built-in modules can be enabled or disabled by admins via Settings > Modules. State is persisted in `data/modules-state.json`.
+
+### Dependencies (`requires`)
+
+If your module depends on another module, declare it in `module.json`:
+
+```json
+{
+  "requires": ["team-tracker"]
+}
+```
+
+- When enabling a module, all transitive dependencies are auto-enabled.
+- A module cannot be disabled while another enabled module depends on it.
+- At startup, if an enabled module's dependency is disabled, the dependency is auto-enabled.
+- The validation script (`npm run validate:modules`) checks for missing dependencies and circular dependency chains.
+
+### `defaultEnabled`
+
+Set `"defaultEnabled": false` if your module should be opt-in. New modules default to enabled (`true`) when no persisted state exists.
+
+### Restart behavior
+
+Disabling a module hides it from the UI immediately but its server routes remain mounted until the next restart. Enabling a previously-disabled module updates the state, but if its routes were not mounted at startup, the API returns `restartRequired: true` and the UI shows a banner.
+
+### CronJob behavior
+
+The daily CronJob (`deploy/openshift/overlays/prod/cronjob-sync-refresh.yaml`) calls the Team Tracker module's API endpoints directly. If Team Tracker is disabled, those endpoints will return 404 and the CronJob will fail silently. Re-enable Team Tracker and restart to restore automatic syncs.
 
 ## PR Checklist
 

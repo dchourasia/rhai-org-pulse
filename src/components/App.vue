@@ -173,7 +173,7 @@ export default {
     const { loadRoster, teams, selectedOrgKey, selectOrg } = useRoster()
     const { loadGithubStats } = useGithubStats()
     const { loadGitlabStats } = useGitlabStats()
-    const { modulesData, loadModules } = useModules()
+    const { modulesData, loadModules, enabledBuiltInSlugs, loadEnabledBuiltInSlugs } = useModules()
     const lastRefreshedAt = ref(null)
     const tick = ref(0)
     const tickTimer = setInterval(() => { tick.value++ }, 30000)
@@ -207,8 +207,12 @@ export default {
       return modulesData.value?.modules || []
     })
 
-    // Built-in module manifests (from import.meta.glob)
-    const builtInManifests = loadModuleManifests()
+    // Built-in module manifests (from import.meta.glob), filtered by enabled state
+    const allBuiltInManifests = loadModuleManifests()
+    const builtInManifests = computed(() => {
+      if (!enabledBuiltInSlugs.value) return allBuiltInManifests
+      return allBuiltInManifests.filter(m => enabledBuiltInSlugs.value.includes(m.slug))
+    })
 
     // Module client cache
     const moduleClients = ref({})
@@ -258,7 +262,10 @@ export default {
       loadGithubStats,
       loadGitlabStats,
       loadModules,
+      loadEnabledBuiltInSlugs,
+      enabledBuiltInSlugs,
       gitStaticModules,
+      allBuiltInManifests,
       builtInManifests,
       rosterTeams: teams,
       selectedOrgKey,
@@ -335,12 +342,14 @@ export default {
     async loadInitialData() {
       this.isLoading = true
       try {
+        const allSlugs = this.allBuiltInManifests.map(m => m.slug)
         await Promise.all([
           this.loadRoster(),
           this.loadGithubStats(),
           this.loadGitlabStats(),
           this.loadModules(),
-          this.fetchLastRefreshed()
+          this.fetchLastRefreshed(),
+          this.loadEnabledBuiltInSlugs(allSlugs)
         ])
         this.restoreFromHash()
       } catch (error) {
@@ -399,6 +408,13 @@ export default {
       }
 
       // Built-in module routing: #/<module-slug>/<view-id>?<params>
+      // Redirect to home if navigating to a disabled module
+      const isKnownBuiltIn = this.allBuiltInManifests.find(m => m.slug === parts[0])
+      if (isKnownBuiltIn && this.enabledBuiltInSlugs && !this.enabledBuiltInSlugs.includes(parts[0])) {
+        this.setShellView('home')
+        window.location.hash = '#/'
+        return
+      }
       const manifest = this.builtInManifests.find(m => m.slug === parts[0])
       if (manifest) {
         this.activeModuleSlugRef = manifest.slug

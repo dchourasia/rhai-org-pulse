@@ -113,6 +113,82 @@ function validate() {
     }
   }
 
+  // ─── Cross-module dependency validation ───
+  console.log('\nValidating cross-module dependencies...')
+
+  // Collect all manifests for dependency checks
+  const allManifests = {}
+  for (const dir of dirs) {
+    const manifestPath = path.join(MODULES_DIR, dir, 'module.json')
+    if (!fs.existsSync(manifestPath)) continue
+    try {
+      allManifests[dir] = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    } catch { continue }
+  }
+
+  for (const [slug, manifest] of Object.entries(allManifests)) {
+    // Type validation
+    if (manifest.defaultEnabled !== undefined && typeof manifest.defaultEnabled !== 'boolean') {
+      error(`Module "${slug}": defaultEnabled must be a boolean`)
+    }
+    if (manifest.requires !== undefined) {
+      if (!Array.isArray(manifest.requires)) {
+        error(`Module "${slug}": requires must be an array of strings`)
+      } else {
+        for (const req of manifest.requires) {
+          if (typeof req !== 'string') {
+            error(`Module "${slug}": requires entries must be strings`)
+          }
+        }
+      }
+    }
+
+    // Dependency existence
+    const requires = Array.isArray(manifest.requires) ? manifest.requires : []
+    for (const req of requires) {
+      if (!allManifests[req]) {
+        error(`Module "${slug}" requires non-existent module "${req}"`)
+      }
+    }
+
+    // Warning: defaultEnabled:true depends on defaultEnabled:false
+    const defaultEnabled = manifest.defaultEnabled !== undefined ? manifest.defaultEnabled : true
+    if (defaultEnabled) {
+      for (const req of requires) {
+        const reqManifest = allManifests[req]
+        if (reqManifest && reqManifest.defaultEnabled === false) {
+          warn(`Module "${slug}" (defaultEnabled: true) requires "${req}" (defaultEnabled: false)`)
+        }
+      }
+    }
+  }
+
+  // Circular dependency detection (DFS)
+  function detectCycle(slug, visited, stack) {
+    visited.add(slug)
+    stack.add(slug)
+    const requires = Array.isArray(allManifests[slug]?.requires) ? allManifests[slug].requires : []
+    for (const req of requires) {
+      if (!allManifests[req]) continue
+      if (stack.has(req)) {
+        error(`Circular dependency detected: ${slug} -> ${req}`)
+        return true
+      }
+      if (!visited.has(req)) {
+        if (detectCycle(req, visited, stack)) return true
+      }
+    }
+    stack.delete(slug)
+    return false
+  }
+
+  const visited = new Set()
+  for (const slug of Object.keys(allManifests)) {
+    if (!visited.has(slug)) {
+      detectCycle(slug, visited, new Set())
+    }
+  }
+
   console.log('')
   if (errors > 0) {
     console.error(`Validation failed with ${errors} error(s).`)

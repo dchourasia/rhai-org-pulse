@@ -37,13 +37,17 @@
       />
     </template>
 
-    <ModuleSettings v-if="activeTab === 'modules'" @toast="(t) => $emit('toast', t)" />
+    <div v-if="activeTab === 'modules'">
+      <BuiltInModuleSettings @toast="(t) => $emit('toast', t)" class="mb-8" />
+      <ModuleSettings @toast="(t) => $emit('toast', t)" />
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import ModuleSettings from './ModuleSettings.vue'
+import BuiltInModuleSettings from './BuiltInModuleSettings.vue'
 import { loadModuleSettingsComponent } from '../module-loader'
 
 const props = defineProps({

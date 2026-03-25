@@ -239,7 +239,7 @@ function startEdit(mod) {
 async function loadModuleList() {
   try {
     const data = await getAdminModules()
-    modules.value = data.modules || []
+    modules.value = (data.modules || []).filter(m => m.type !== 'built-in')
   } catch (err) {
     console.error('Failed to load modules:', err)
   }

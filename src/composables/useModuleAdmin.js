@@ -43,6 +43,22 @@ export function useModuleAdmin() {
     return apiAdmin('/admin/modules/sync/status')
   }
 
+  async function getBuiltInModuleState() {
+    return apiAdmin('/admin/modules/state')
+  }
+
+  async function enableModule(slug) {
+    return apiAdmin(`/admin/modules/${encodeURIComponent(slug)}/enable`, {
+      method: 'POST'
+    })
+  }
+
+  async function disableModule(slug) {
+    return apiAdmin(`/admin/modules/${encodeURIComponent(slug)}/disable`, {
+      method: 'POST'
+    })
+  }
+
   return {
     getAdminModules,
     addModule,
@@ -50,6 +66,9 @@ export function useModuleAdmin() {
     removeModule,
     triggerSync,
     triggerSyncAll,
-    getSyncStatus
+    getSyncStatus,
+    getBuiltInModuleState,
+    enableModule,
+    disableModule
   }
 }

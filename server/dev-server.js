@@ -281,17 +281,27 @@ app.get('/api/admin/modules/sync/status', requireAdmin, function(req, res) {
 
 // ─── Built-in Module Discovery ───
 
-const { discoverModules, createModuleRouters, mountModuleRouters } = require('./module-loader');
+const {
+  discoverModules, createModuleRouters, mountModuleRouters,
+  loadModuleState, saveModuleState, getEffectiveState, reconcileStartupState,
+  resolveEnableOrder, checkDisableAllowed, computeRequiredBy, wasMountedAtStartup
+} = require('./module-loader');
 const builtInModules = discoverModules();
 const moduleContext = { storage: storageModule, requireAuth: authMiddleware, requireAdmin };
 
-// Step 1: Create module routers (registers route handlers on each router)
-const moduleRouters = createModuleRouters(builtInModules, moduleContext);
+// Compute effective enabled state and reconcile dependencies at startup
+const persistedState = loadModuleState(storageModule);
+const effectiveState = getEffectiveState(builtInModules, persistedState);
+reconcileStartupState(builtInModules, effectiveState, storageModule);
+const enabledSlugs = new Set(Object.entries(effectiveState).filter(([, v]) => v).map(([k]) => k));
+
+// Step 1: Create module routers only for enabled modules
+const moduleRouters = createModuleRouters(builtInModules, moduleContext, enabledSlugs);
 
 // Step 2: Register legacy API route forwards BEFORE mounting module routers
-// This ensures backward compatibility with existing API consumers
+// Only register if team-tracker is enabled at startup
 const ttRouter = moduleRouters['team-tracker'];
-if (ttRouter) {
+if (ttRouter && enabledSlugs.has('team-tracker')) {
   const LEGACY_FORWARDS = {
     '/api/roster': '/roster',
     '/api/roster-sync': '/roster-sync',
@@ -323,6 +333,134 @@ if (ttRouter) {
 
 // Step 3: Mount module routers at /api/modules/<slug>/
 mountModuleRouters(app, builtInModules, moduleRouters);
+
+// ─── Built-in Module Admin Endpoints ───
+
+// Admin: get all built-in modules with state
+app.get('/api/admin/modules/state', requireAdmin, function(req, res) {
+  try {
+    const currentState = loadModuleState(storageModule);
+    const effective = getEffectiveState(builtInModules, currentState);
+    const requiredBy = computeRequiredBy(builtInModules);
+
+    const modules = builtInModules.map(function(mod) {
+      return {
+        slug: mod.slug,
+        name: mod.name,
+        description: mod.description,
+        icon: mod.icon,
+        order: mod.order,
+        requires: mod.requires,
+        defaultEnabled: mod.defaultEnabled,
+        enabled: effective[mod.slug],
+        requiredBy: requiredBy[mod.slug] || []
+      };
+    });
+
+    res.json({ modules });
+  } catch (error) {
+    console.error('Get built-in module state error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: enable a built-in module
+app.post('/api/admin/modules/:slug/enable', requireAdmin, function(req, res) {
+  try {
+    if (DEMO_MODE) {
+      return res.json({ status: 'skipped', message: 'Module state changes disabled in demo mode' });
+    }
+
+    const slug = req.params.slug;
+    const mod = builtInModules.find(function(m) { return m.slug === slug; });
+    if (!mod) {
+      return res.status(404).json({ error: `Module "${slug}" not found` });
+    }
+
+    const currentState = loadModuleState(storageModule);
+    const effective = getEffectiveState(builtInModules, currentState);
+
+    if (effective[slug]) {
+      return res.json({ enabled: [slug], autoEnabled: [], restartRequired: false });
+    }
+
+    const result = resolveEnableOrder(slug, builtInModules, effective);
+    if (result.error) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    // Enable all required modules
+    for (const s of result.toEnable) {
+      currentState[s] = true;
+    }
+    saveModuleState(storageModule, currentState);
+
+    const restartRequired = result.toEnable.some(function(s) { return !wasMountedAtStartup(s); });
+
+    res.json({
+      enabled: result.toEnable,
+      autoEnabled: result.autoEnabled,
+      restartRequired: restartRequired
+    });
+  } catch (error) {
+    console.error('Enable module error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: disable a built-in module
+app.post('/api/admin/modules/:slug/disable', requireAdmin, function(req, res) {
+  try {
+    if (DEMO_MODE) {
+      return res.json({ status: 'skipped', message: 'Module state changes disabled in demo mode' });
+    }
+
+    const slug = req.params.slug;
+    const mod = builtInModules.find(function(m) { return m.slug === slug; });
+    if (!mod) {
+      return res.status(404).json({ error: `Module "${slug}" not found` });
+    }
+
+    const currentState = loadModuleState(storageModule);
+    const effective = getEffectiveState(builtInModules, currentState);
+
+    if (!effective[slug]) {
+      return res.json({ disabled: slug });
+    }
+
+    const check = checkDisableAllowed(slug, builtInModules, effective);
+    if (!check.allowed) {
+      return res.status(400).json({
+        error: `Cannot disable "${slug}": required by ${check.blockedBy.join(', ')}`,
+        blockedBy: check.blockedBy
+      });
+    }
+
+    currentState[slug] = false;
+    saveModuleState(storageModule, currentState);
+
+    res.json({ disabled: slug });
+  } catch (error) {
+    console.error('Disable module error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Public (auth required): get enabled built-in module slugs
+app.get('/api/built-in-modules/state', function(req, res) {
+  try {
+    const currentState = loadModuleState(storageModule);
+    const effective = getEffectiveState(builtInModules, currentState);
+    const enabledList = Object.entries(effective)
+      .filter(function(entry) { return entry[1]; })
+      .map(function(entry) { return entry[0]; });
+
+    res.json({ enabledSlugs: enabledList });
+  } catch (error) {
+    console.error('Get enabled built-in modules error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // ─── Static Module Content Serving ───
 
