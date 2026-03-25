@@ -31,9 +31,14 @@
             >
               <MenuIcon :size="20" />
             </button>
-            <div>
+            <div class="flex items-center gap-2">
               <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ currentPageTitle }}</h2>
-              <p v-if="activeModule === 'module-iframe' && activeModuleConfig?.description" class="text-sm text-gray-500 dark:text-gray-400">{{ activeModuleConfig.description }}</p>
+              <div v-if="activeModule === 'module-iframe' && activeModuleConfig?.description" class="relative group">
+                <InfoIcon :size="16" class="text-gray-400 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-help" />
+                <div class="absolute left-1/2 -translate-x-1/2 top-full mt-2 px-3 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-lg shadow-lg whitespace-normal w-64 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-20">
+                  {{ activeModuleConfig.description }}
+                </div>
+              </div>
             </div>
           </div>
           <div class="flex items-center gap-3">
@@ -146,7 +151,7 @@
 </template>
 
 <script>
-import { Menu as MenuIcon, RefreshCw, ExternalLink as ExternalLinkIcon, Sun as SunIcon, Moon as MoonIcon, Monitor as MonitorIcon } from 'lucide-vue-next'
+import { Menu as MenuIcon, RefreshCw, ExternalLink as ExternalLinkIcon, Sun as SunIcon, Moon as MoonIcon, Monitor as MonitorIcon, Info as InfoIcon } from 'lucide-vue-next'
 import LoadingOverlay from '@shared/client/components/LoadingOverlay.vue'
 import Toast from '@shared/client/components/Toast.vue'
 import RefreshModal from '@shared/client/components/RefreshModal.vue'
@@ -174,6 +179,7 @@ export default {
     SunIcon,
     MoonIcon,
     MonitorIcon,
+    InfoIcon,
     LoadingOverlay,
     Toast,
     UserManagement,
