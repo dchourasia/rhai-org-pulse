@@ -147,8 +147,6 @@
       :duration="toast.duration"
       @close="removeToast(toast.id)"
     />
-
-    <BackendConnectivityModal />
   </div>
 </template>
 
@@ -162,7 +160,6 @@ import SettingsView from './SettingsView.vue'
 import AppSidebar from './AppSidebar.vue'
 import LandingPage from './LandingPage.vue'
 import ModuleIframeView from './ModuleIframeView.vue'
-import BackendConnectivityModal from './BackendConnectivityModal.vue'
 import { computed, ref, readonly, provide, onUnmounted } from 'vue'
 import { useAuth } from '@shared/client/composables/useAuth'
 import { useRoster } from '@shared/client/composables/useRoster'
@@ -190,8 +187,7 @@ export default {
     AppSidebar,
     RefreshModal,
     LandingPage,
-    ModuleIframeView,
-    BackendConnectivityModal
+    ModuleIframeView
   },
   setup() {
     const { user: authUser, isAdmin: authIsAdmin } = useAuth()
