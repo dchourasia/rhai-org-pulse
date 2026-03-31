@@ -221,11 +221,13 @@ import {
   Settings,
   ExternalLink,
   Network,
+  Layers,
   ChevronDown,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  HelpCircle
+  HelpCircle,
+  ChartCandlestick
 } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 
@@ -239,7 +241,9 @@ const ICON_MAP = {
   Settings,
   ExternalLink,
   Network,
+  Layers,
   'bar-chart': BarChart3,
+  'chart-candlestick': ChartCandlestick,
   'network': Network
 }
 

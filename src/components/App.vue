@@ -177,7 +177,7 @@ import { useGithubStats } from '@shared/client/composables/useGithubStats'
 import { useGitlabStats } from '@shared/client/composables/useGitlabStats'
 import { useModules } from '../composables/useModules'
 import { useTheme } from '../composables/useTheme'
-import { refreshMetrics, getLastRefreshed } from '@shared/client/services/api'
+import { refreshMetrics, getLastRefreshed, apiRequest } from '@shared/client/services/api'
 import { loadModuleManifests, loadModuleClient } from '../module-loader'
 
 export default {
@@ -241,11 +241,13 @@ export default {
       return modulesData.value?.modules || []
     })
 
-    // Built-in module manifests (from import.meta.glob), filtered by enabled state
-    const allBuiltInManifests = loadModuleManifests()
+    // Built-in module manifests: start from Vite glob, then replace with server discovery
+    // so new modules under modules/ appear in the shell without restarting the dev bundler.
+    const allBuiltInManifests = ref(loadModuleManifests())
     const builtInManifests = computed(() => {
-      if (!enabledBuiltInSlugs.value) return allBuiltInManifests
-      return allBuiltInManifests.filter(m => enabledBuiltInSlugs.value.includes(m.slug))
+      const list = allBuiltInManifests.value
+      if (!enabledBuiltInSlugs.value) return list
+      return list.filter(m => enabledBuiltInSlugs.value.includes(m.slug))
     })
 
     // Module client cache
@@ -357,11 +359,12 @@ export default {
       }
     }
   },
-  mounted() {
+  async mounted() {
     window.addEventListener('hashchange', this.onHashChange)
     window.addEventListener('keydown', this.onKeyDown)
+    await this.loadBuiltInManifestsFromApi()
     if (this.authUser) {
-      this.loadInitialData()
+      await this.loadInitialData()
     }
   },
   beforeUnmount() {
@@ -373,6 +376,33 @@ export default {
       if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
         e.preventDefault()
         this.sidebarCollapsed = !this.sidebarCollapsed
+      }
+    },
+
+    async loadBuiltInManifestsFromApi() {
+      const bundled = loadModuleManifests()
+      try {
+        const data = await apiRequest('/built-in-modules/manifests')
+        if (!data.modules || !Array.isArray(data.modules)) {
+          this.allBuiltInManifests = bundled
+          return
+        }
+        const bySlug = new Map(bundled.map(m => [m.slug, { ...m }]))
+        for (const m of data.modules) {
+          const prev = bySlug.get(m.slug) || {}
+          bySlug.set(m.slug, {
+            ...prev,
+            ...m,
+            slug: m.slug,
+            client: m.client || prev.client
+          })
+        }
+        this.allBuiltInManifests = [...bySlug.values()].sort(
+          (a, b) => (a.order ?? 100) - (b.order ?? 100)
+        )
+      } catch (err) {
+        console.warn('Failed to load built-in manifests from API, using bundled manifests:', err.message)
+        this.allBuiltInManifests = bundled
       }
     },
 

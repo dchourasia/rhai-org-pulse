@@ -12,6 +12,7 @@
  */
 
 const express = require('express');
+const path = require('path');
 const errorBuffer = require('./error-buffer');
 const requestTracker = require('./request-tracker');
 
@@ -27,6 +28,7 @@ const { createAuthMiddleware, proxySecretGuard } = require('../shared/server/aut
 const modulesConfig = require('./modules/config');
 const gitSync = require('./modules/git-sync');
 const { createModuleStaticMiddleware, invalidateCache: invalidateStaticCache } = require('./modules/static-serve');
+const { discoverModules } = require('./module-loader');
 
 if (DEMO_MODE) {
   console.log('Running in DEMO MODE - using fixture data, Jira/GitHub APIs disabled');
@@ -148,6 +150,32 @@ app.get('/api/whoami', function(req, res) {
     // Local dev fallback
     const devEmail = (process.env.ADMIN_EMAILS || 'local-dev@redhat.com').split(',')[0].trim();
     res.json({ email: devEmail, displayName: devEmail.split('@')[0], isAdmin: isAdmin(devEmail.toLowerCase()) });
+  }
+});
+
+/**
+ * Built-in module manifests (no auth): used by the shell to list modules from disk.
+ * Registered before authMiddleware so the sidebar works on first paint and without session issues.
+ */
+app.get('/api/built-in-modules/manifests', function(req, res) {
+  try {
+    const discovered = discoverModules();
+    const modules = discovered.map(function(mod) {
+      return {
+        slug: mod.slug,
+        name: mod.name,
+        description: mod.description,
+        icon: mod.icon,
+        order: mod.order,
+        client: mod.client,
+        requires: mod.requires || [],
+        defaultEnabled: mod.defaultEnabled
+      };
+    });
+    res.json({ modules });
+  } catch (error) {
+    console.error('Get built-in module manifests error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -338,6 +366,69 @@ app.get('/api/modules', function(req, res) {
     res.status(500).json({ error: error.message });
   }
 });
+
+// ─── Built-in Module Discovery ───
+// Mount before GET /api/modules/:slug so nested module paths are handled by the module router.
+
+const {
+  createModuleRouters, mountModuleRouters, collectModuleDiagnostics,
+  loadModuleState, saveModuleState, getEffectiveState, reconcileStartupState,
+  resolveEnableOrder, checkDisableAllowed, computeRequiredBy, wasMountedAtStartup
+} = require('./module-loader');
+const builtInModules = discoverModules();
+const diagnosticsRegistry = {};
+const moduleContext = { storage: storageModule, requireAuth: authMiddleware, requireAdmin, registerDiagnostics: null };
+
+const persistedState = loadModuleState(storageModule);
+const effectiveState = getEffectiveState(builtInModules, persistedState);
+reconcileStartupState(builtInModules, effectiveState, storageModule);
+const enabledSlugs = new Set(Object.entries(effectiveState).filter(([, v]) => v).map(([k]) => k));
+
+const moduleRouters = createModuleRouters(builtInModules, moduleContext, enabledSlugs, diagnosticsRegistry);
+
+const ttRouter = moduleRouters['team-tracker'];
+if (ttRouter && enabledSlugs.has('team-tracker')) {
+  const LEGACY_FORWARDS = {
+    '/api/roster': '/roster',
+    '/api/roster-sync': '/roster-sync',
+    '/api/person': '/person',
+    '/api/people': '/people',
+    '/api/team': '/team',
+    '/api/github': '/github',
+    '/api/gitlab': '/gitlab',
+    '/api/trends': '/trends',
+    '/api/sprints': '/sprints',
+    '/api/boards': '/boards',
+    '/api/dashboard-summary': '/dashboard-summary',
+    '/api/last-refreshed': '/last-refreshed',
+    '/api/refresh': '/refresh',
+    '/api/jira-name-cache': '/jira-name-cache',
+    '/api/teams': '/teams',
+    '/api/trend': '/trend',
+    '/api/admin/roster-sync': '/admin/roster-sync',
+    '/api/admin/jira-sync': '/admin/jira-sync',
+  };
+
+  for (const [legacyPath, modulePath] of Object.entries(LEGACY_FORWARDS)) {
+    app.use(legacyPath, function(req, res, next) {
+      req.url = modulePath + req.url;
+      ttRouter(req, res, next);
+    });
+  }
+}
+
+if (!moduleRouters['release-analysis']) {
+  try {
+    const raRouter = express.Router();
+    require(path.join(__dirname, '../modules/release-analysis/server/index.js'))(raRouter, moduleContext);
+    moduleRouters['release-analysis'] = raRouter;
+    console.log('[dev-server] Loaded release-analysis fallback router');
+  } catch (err) {
+    console.error('[dev-server] release-analysis fallback load failed:', err.message);
+  }
+}
+
+mountModuleRouters(app, builtInModules, moduleRouters);
 
 /**
  * @openapi
@@ -686,67 +777,7 @@ app.get('/api/admin/modules/sync/status', requireAdmin, function(req, res) {
   }
 });
 
-// ─── Export: Anonymized test data ───
-
 const { handleExport } = require('./export');
-
-// ─── Built-in Module Discovery ───
-
-const {
-  discoverModules, createModuleRouters, mountModuleRouters, collectModuleDiagnostics,
-  loadModuleState, saveModuleState, getEffectiveState, reconcileStartupState,
-  resolveEnableOrder, checkDisableAllowed, computeRequiredBy, wasMountedAtStartup
-} = require('./module-loader');
-const builtInModules = discoverModules();
-const diagnosticsRegistry = {};
-const moduleContext = { storage: storageModule, requireAuth: authMiddleware, requireAdmin, registerDiagnostics: null };
-
-// Compute effective enabled state and reconcile dependencies at startup
-const persistedState = loadModuleState(storageModule);
-const effectiveState = getEffectiveState(builtInModules, persistedState);
-reconcileStartupState(builtInModules, effectiveState, storageModule);
-const enabledSlugs = new Set(Object.entries(effectiveState).filter(([, v]) => v).map(([k]) => k));
-
-// Step 1: Create module routers only for enabled modules
-const moduleRouters = createModuleRouters(builtInModules, moduleContext, enabledSlugs, diagnosticsRegistry);
-
-// Step 2: Register legacy API route forwards BEFORE mounting module routers
-// Only register if team-tracker is enabled at startup
-const ttRouter = moduleRouters['team-tracker'];
-if (ttRouter && enabledSlugs.has('team-tracker')) {
-  const LEGACY_FORWARDS = {
-    '/api/roster': '/roster',
-    '/api/roster-sync': '/roster-sync',
-    '/api/person': '/person',
-    '/api/people': '/people',
-    '/api/team': '/team',
-    '/api/github': '/github',
-    '/api/gitlab': '/gitlab',
-    '/api/trends': '/trends',
-    '/api/sprints': '/sprints',
-    '/api/boards': '/boards',
-    '/api/dashboard-summary': '/dashboard-summary',
-    '/api/last-refreshed': '/last-refreshed',
-    '/api/refresh': '/refresh',
-    '/api/jira-name-cache': '/jira-name-cache',
-    '/api/teams': '/teams',
-    '/api/trend': '/trend',
-    '/api/admin/roster-sync': '/admin/roster-sync',
-    '/api/admin/jira-sync': '/admin/jira-sync',
-  };
-
-  for (const [legacyPath, modulePath] of Object.entries(LEGACY_FORWARDS)) {
-    app.use(legacyPath, function(req, res, next) {
-      req.url = modulePath + req.url;
-      ttRouter(req, res, next);
-    });
-  }
-}
-
-// Step 3: Mount module routers at /api/modules/<slug>/
-mountModuleRouters(app, builtInModules, moduleRouters);
-
-// ─── Export: Anonymized test data download ───
 
 /**
  * @openapi
@@ -860,11 +891,12 @@ app.get('/api/must-gather', requireAdmin, async function(req, res) {
 // Admin: get all built-in modules with state
 app.get('/api/admin/modules/state', requireAdmin, function(req, res) {
   try {
+    const discovered = discoverModules();
     const currentState = loadModuleState(storageModule);
-    const effective = getEffectiveState(builtInModules, currentState);
-    const requiredBy = computeRequiredBy(builtInModules);
+    const effective = getEffectiveState(discovered, currentState);
+    const requiredBy = computeRequiredBy(discovered);
 
-    const modules = builtInModules.map(function(mod) {
+    const modules = discovered.map(function(mod) {
       return {
         slug: mod.slug,
         name: mod.name,
@@ -930,19 +962,20 @@ app.post('/api/admin/modules/:slug/enable', requireAdmin, function(req, res) {
     }
 
     const slug = req.params.slug;
-    const mod = builtInModules.find(function(m) { return m.slug === slug; });
+    const discovered = discoverModules();
+    const mod = discovered.find(function(m) { return m.slug === slug; });
     if (!mod) {
       return res.status(404).json({ error: `Module "${slug}" not found` });
     }
 
     const currentState = loadModuleState(storageModule);
-    const effective = getEffectiveState(builtInModules, currentState);
+    const effective = getEffectiveState(discovered, currentState);
 
     if (effective[slug]) {
       return res.json({ enabled: [slug], autoEnabled: [], restartRequired: false });
     }
 
-    const result = resolveEnableOrder(slug, builtInModules, effective);
+    const result = resolveEnableOrder(slug, discovered, effective);
     if (result.error) {
       return res.status(400).json({ error: result.error });
     }
@@ -1009,19 +1042,20 @@ app.post('/api/admin/modules/:slug/disable', requireAdmin, function(req, res) {
     }
 
     const slug = req.params.slug;
-    const mod = builtInModules.find(function(m) { return m.slug === slug; });
+    const discovered = discoverModules();
+    const mod = discovered.find(function(m) { return m.slug === slug; });
     if (!mod) {
       return res.status(404).json({ error: `Module "${slug}" not found` });
     }
 
     const currentState = loadModuleState(storageModule);
-    const effective = getEffectiveState(builtInModules, currentState);
+    const effective = getEffectiveState(discovered, currentState);
 
     if (!effective[slug]) {
       return res.json({ disabled: slug });
     }
 
-    const check = checkDisableAllowed(slug, builtInModules, effective);
+    const check = checkDisableAllowed(slug, discovered, effective);
     if (!check.allowed) {
       return res.status(400).json({
         error: `Cannot disable "${slug}": required by ${check.blockedBy.join(', ')}`,
@@ -1063,8 +1097,25 @@ app.post('/api/admin/modules/:slug/disable', requireAdmin, function(req, res) {
 // Public (auth required): get enabled built-in module slugs
 app.get('/api/built-in-modules/state', function(req, res) {
   try {
-    const currentState = loadModuleState(storageModule);
-    const effective = getEffectiveState(builtInModules, currentState);
+    const discovered = discoverModules();
+    let currentState = loadModuleState(storageModule);
+    if (!currentState || typeof currentState !== 'object' || Array.isArray(currentState)) {
+      currentState = {};
+    }
+    // Persist defaults for newly discovered modules so enabledSlugs stays in sync with Settings
+    const nextState = Object.assign({}, currentState);
+    let changed = false;
+    for (let i = 0; i < discovered.length; i++) {
+      const mod = discovered[i];
+      if (!Object.prototype.hasOwnProperty.call(nextState, mod.slug)) {
+        nextState[mod.slug] = mod.defaultEnabled !== false;
+        changed = true;
+      }
+    }
+    if (changed) {
+      saveModuleState(storageModule, nextState);
+    }
+    const effective = getEffectiveState(discovered, nextState);
     const enabledList = Object.entries(effective)
       .filter(function(entry) { return entry[1]; })
       .map(function(entry) { return entry[0]; });

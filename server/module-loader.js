@@ -177,8 +177,8 @@ function createModuleRouters(modules, context, enabledSlugs, diagnosticsRegistry
   const routers = {}
   for (const mod of modules) {
     if (!mod.server?.entry) continue
-    // Skip disabled modules if enabledSlugs is provided
-    if (enabledSlugs && !enabledSlugs.has(mod.slug)) continue
+    // Skip disabled modules if enabledSlugs is provided (always load release-analysis so Jira APIs exist when the UI is reachable)
+    if (enabledSlugs && !enabledSlugs.has(mod.slug) && mod.slug !== 'release-analysis') continue
     // Validate entry path does not escape module directory
     const entryPath = path.join(mod._dir, mod.server.entry)
     if (!entryPath.startsWith(mod._dir + path.sep) && entryPath !== mod._dir) {
