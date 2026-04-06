@@ -5,7 +5,7 @@
       <button @click="nav.navigateTo('portfolio')" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">Portfolio</button>
       <template v-if="fromOrg">
         <ChevronRightIcon :size="14" class="text-gray-400 dark:text-gray-500" />
-        <button @click="nav.navigateTo('org-detail', { org: fromOrg })" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">{{ orgDisplayName }}</button>
+        <button @click="nav.navigateTo('org-detail', { org: fromOrg })" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">{{ orgDisplayName || fromOrg }}</button>
       </template>
       <ChevronRightIcon :size="14" class="text-gray-400 dark:text-gray-500" />
       <span class="text-gray-900 dark:text-gray-100 font-medium">{{ projectName }}</span>
@@ -422,7 +422,7 @@ const contributorsExpanded = ref(false)
 const leadership = ref(null)
 const membersExpanded = ref(false)
 const projectInfo = ref(null)
-const orgDisplayName = ref(nav.params.value?.org || '')
+const orgDisplayName = ref('')
 
 const projectName = computed(() => projectInfo.value?.name || 'Project')
 
