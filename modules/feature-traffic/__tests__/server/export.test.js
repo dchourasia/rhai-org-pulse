@@ -22,8 +22,10 @@ function makeStorage(data = {}) {
       return data[key] ? JSON.parse(JSON.stringify(data[key])) : null
     },
     writeToStorage() {},
-    listKeys(prefix) {
-      return Object.keys(data).filter(k => k.startsWith(prefix))
+    listStorageFiles(dir) {
+      return Object.keys(data)
+        .filter(k => k.startsWith(dir + '/') || k.startsWith(dir))
+        .map(k => k.split('/').pop())
     }
   }
 }

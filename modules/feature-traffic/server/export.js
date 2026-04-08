@@ -7,7 +7,7 @@
 const DATA_PREFIX = 'feature-traffic';
 
 module.exports = async function featureTrafficExport(addFile, storage, mapping) {
-  const { readFromStorage, listKeys } = storage;
+  const { readFromStorage, listStorageFiles } = storage;
 
   // 1. index.json
   const index = readFromStorage(`${DATA_PREFIX}/index.json`);
@@ -20,11 +20,10 @@ module.exports = async function featureTrafficExport(addFile, storage, mapping) 
   addFile(`${DATA_PREFIX}/index.json`, anonymizedIndex);
 
   // 2. features/*.json
-  const featureKeys = listKeys ? listKeys(`${DATA_PREFIX}/features/`) : [];
-  for (const key of featureKeys) {
-    const feature = readFromStorage(key);
+  const featureFiles = listStorageFiles(`${DATA_PREFIX}/features`);
+  for (const fileName of featureFiles) {
+    const feature = readFromStorage(`${DATA_PREFIX}/features/${fileName}`);
     if (!feature) continue;
-    const fileName = key.split('/').pop();
     const anonymized = anonymizeFeatureDetail(feature, mapping);
     addFile(`${DATA_PREFIX}/features/${fileName}`, anonymized);
   }
