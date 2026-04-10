@@ -5,6 +5,9 @@
 
 const CONFIG_KEY = 'roster-sync-config.json';
 
+// Simple cache for getOrgDisplayNames — invalidated on saveConfig
+let _orgDisplayNamesCache = null;
+
 function loadConfig(storage) {
   const config = storage.readFromStorage(CONFIG_KEY);
   if (config) {
@@ -91,6 +94,7 @@ function migrateGitlabInstances(config, storage) {
 }
 
 function saveConfig(storage, config) {
+  _orgDisplayNamesCache = null;
   storage.writeToStorage(CONFIG_KEY, config);
 }
 
@@ -100,12 +104,14 @@ function isConfigured(storage) {
 }
 
 function getOrgDisplayNames(storage) {
+  if (_orgDisplayNamesCache) return _orgDisplayNamesCache;
   const config = loadConfig(storage);
   if (!config || !config.orgRoots) return {};
   const map = {};
   for (const root of config.orgRoots) {
     map[root.uid] = root.displayName || root.name;
   }
+  _orgDisplayNamesCache = map;
   return map;
 }
 
@@ -118,10 +124,15 @@ function updateSyncStatus(storage, status, error) {
   saveConfig(storage, config);
 }
 
+function clearDisplayNamesCache() {
+  _orgDisplayNamesCache = null;
+}
+
 module.exports = {
   loadConfig,
   saveConfig,
   isConfigured,
   getOrgDisplayNames,
-  updateSyncStatus
+  updateSyncStatus,
+  clearDisplayNamesCache
 };

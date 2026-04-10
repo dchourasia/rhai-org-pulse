@@ -101,6 +101,7 @@ module.exports = function registerRoutes(router, context) {
     const full = readRosterFull();
     const orgs = [];
 
+    const orgDisplayNames = getOrgDisplayNames();
     const liveConfig = rosterSyncConfig.loadConfig(storage);
     const teamStructure = liveConfig?.teamStructure || null;
 
@@ -165,7 +166,7 @@ module.exports = function registerRoutes(router, context) {
 
       orgs.push({
         key: orgKey,
-        displayName: getOrgDisplayNames()[orgKey] || orgData.leader.name,
+        displayName: orgDisplayNames[orgKey] || orgData.leader.name,
         leader: {
           name: orgData.leader.name,
           uid: orgData.leader.uid,
@@ -175,7 +176,63 @@ module.exports = function registerRoutes(router, context) {
       });
     }
 
-    return { vp: full.vp, orgs, visibleFields, primaryDisplayField };
+    // ─── Merge pass: combine orgs with the same explicitly-configured displayName ───
+    const byDisplayName = {};
+    for (const org of orgs) {
+      // Only merge orgs that have an explicit displayName from config
+      if (!orgDisplayNames[org.key]) continue;
+      const name = orgDisplayNames[org.key];
+      if (!byDisplayName[name]) byDisplayName[name] = [];
+      byDisplayName[name].push(org);
+    }
+
+    const mergedKeyMap = {};
+    for (const [displayName, group] of Object.entries(byDisplayName)) {
+      if (group.length < 2) continue;
+
+      // Sort by key (UID) alphabetically for deterministic canonical key
+      group.sort((a, b) => a.key.localeCompare(b.key));
+      const canonical = group[0];
+      const mergedKeys = group.map(o => o.key);
+      canonical.mergedKeys = mergedKeys;
+
+      for (let i = 1; i < group.length; i++) {
+        const secondary = group[i];
+        mergedKeyMap[secondary.key] = canonical.key;
+
+        // Merge teams from secondary into canonical
+        for (const [teamName, teamData] of Object.entries(secondary.teams)) {
+          if (canonical.teams[teamName]) {
+            // Team name collision: combine members, deduplicating
+            canonical.teams[teamName].members = dedupeMembers([
+              ...canonical.teams[teamName].members,
+              ...teamData.members
+            ]);
+          } else {
+            canonical.teams[teamName] = teamData;
+          }
+        }
+
+        // Remove secondary org from the array
+        const idx = orgs.indexOf(secondary);
+        if (idx !== -1) orgs.splice(idx, 1);
+      }
+
+      console.log(`[roster] Merged org "${displayName}": ${mergedKeys.slice(1).join(', ')} merged into ${canonical.key}`);
+    }
+
+    return { vp: full.vp, orgs, visibleFields, primaryDisplayField, mergedKeyMap };
+  }
+
+  /**
+   * Find an org by key, falling back to merged key lookup.
+   */
+  function findOrgByKey(roster, key) {
+    const direct = roster.orgs.find(o => o.key === key);
+    if (direct) return direct;
+    const canonical = roster.mergedKeyMap?.[key];
+    if (canonical) return roster.orgs.find(o => o.key === canonical);
+    return null;
   }
 
   function dedupeMembers(members) {
@@ -402,7 +459,7 @@ module.exports = function registerRoutes(router, context) {
       if (sepIdx !== -1) {
         const oKey = teamKey.substring(0, sepIdx);
         const tName = teamKey.substring(sepIdx + 2);
-        const org = roster.orgs.find(o => o.key === oKey);
+        const org = findOrgByKey(roster, oKey);
         if (org) team = org.teams[tName];
       } else {
         for (const org of roster.orgs) {
@@ -414,7 +471,7 @@ module.exports = function registerRoutes(router, context) {
       }
       members = dedupeMembers(team.members);
     } else if (scope === 'org') {
-      const org = roster.orgs.find(o => o.key === orgKey);
+      const org = findOrgByKey(roster, orgKey);
       if (!org) {
         return res.status(404).json({ error: `Org "${orgKey}" not found in roster` });
       }
@@ -1036,7 +1093,8 @@ module.exports = function registerRoutes(router, context) {
         return res.json({ orgs: [] });
       }
       const roster = deriveRoster();
-      res.json(roster);
+      const { mergedKeyMap: _mergedKeyMap, ...rosterResponse } = roster;
+      res.json(rosterResponse);
     } catch (error) {
       console.error('Read roster error:', error);
       res.status(500).json({ error: error.message });
@@ -1158,7 +1216,7 @@ module.exports = function registerRoutes(router, context) {
       if (sepIdx !== -1) {
         orgKey = teamKey.substring(0, sepIdx);
         teamName = teamKey.substring(sepIdx + 2);
-        const org = roster.orgs.find(o => o.key === orgKey);
+        const org = findOrgByKey(roster, orgKey);
         if (org) team = org.teams[teamName];
       } else {
         for (const org of roster.orgs) {
@@ -2032,7 +2090,7 @@ module.exports = function registerRoutes(router, context) {
     if (sepIdx !== -1) {
       const orgKey = teamKey.substring(0, sepIdx);
       const teamName = teamKey.substring(sepIdx + 2);
-      const org = roster.orgs.find(o => o.key === orgKey);
+      const org = findOrgByKey(roster, orgKey);
       if (org && org.teams[teamName]) return org.teams[teamName];
     }
     return null;
