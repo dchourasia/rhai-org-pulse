@@ -49,7 +49,6 @@ vi.mock('../../server/jira/orchestration', () => ({
 vi.mock('node-fetch', () => ({ default: vi.fn() }))
 
 import { readFromStorage, writeToStorage } from '../../../../shared/server/storage'
-import * as rosterSyncConfig from '../../../../shared/server/roster-sync'
 
 function createTestApp() {
   const app = express()
