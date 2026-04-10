@@ -7,6 +7,12 @@ on:
       - 'docs/**'
       - '*.md'
       - 'deploy/openshift/overlays/*/kustomization.yaml'
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'deploy/openshift/overlays/*/kustomization.yaml'
   issue_comment:
     types: [created]
   workflow_dispatch:
@@ -22,6 +28,7 @@ permissions:
   id-token: write
 
 jobs:
+  # Full review with autofix — runs for same-repo PRs only (trusted code)
   claude-review:
     name: Claude Review
     timeout-minutes: 20
@@ -43,47 +50,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Setup fork PR branch (if applicable)
-        id: fork-setup
-        run: |
-          PR_NUM=${{ github.event.pull_request.number || github.event.issue.number }}
-          if [ -z "$PR_NUM" ]; then
-            echo "No PR number, skipping"
-            exit 0
-          fi
-
-          # Check if this is a fork PR
-          PR_JSON=$(gh api repos/${{ github.repository }}/pulls/"$PR_NUM" \
-            --jq '{is_fork: (.head.repo.full_name != .base.repo.full_name), head_ref: .head.ref}')
-          IS_FORK=$(echo "$PR_JSON" | jq -r '.is_fork')
-          HEAD_REF=$(echo "$PR_JSON" | jq -r '.head_ref')
-
-          if [ "$IS_FORK" != "true" ]; then
-            echo "Same-repo PR, no special setup needed"
-            exit 0
-          fi
-
-          echo "Fork PR detected (branch: ${HEAD_REF})"
-
-          # The claude-code-action runs `git fetch origin <branchName>` internally,
-          # which fails for fork PRs because the branch only exists on the fork.
-          # Workaround: push the PR head commit to origin under the same branch name
-          # so the action's fetch succeeds. Clean up after the review completes.
-
-          # Safety: check if branch already exists on origin
-          if git ls-remote --exit-code origin "refs/heads/${HEAD_REF}" >/dev/null 2>&1; then
-            echo "::warning::Branch ${HEAD_REF} already exists on origin, skipping fork workaround"
-            exit 0
-          fi
-
-          git fetch origin "refs/pull/${PR_NUM}/head"
-          git push origin "FETCH_HEAD:refs/heads/${HEAD_REF}"
-
-          echo "fork_branch=${HEAD_REF}" >> "$GITHUB_OUTPUT"
-          echo "Pushed fork PR head to origin/${HEAD_REF}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -121,9 +87,6 @@ jobs:
             1. **Determine PR context**:
                - If no PR number is available (e.g., workflow_dispatch without context),
                  post a comment explaining that no PR was found and exit.
-               - Run `gh pr view <PR_NUMBER> --json isCrossRepository` to check if
-                 this is a fork PR. If `isCrossRepository` is true, do a **read-only
-                 review only** — post comments but do NOT edit files, commit, or push.
                - Run `gh pr checkout <PR_NUMBER>` to switch to the PR branch.
 
             2. **Review** the PR diff for:
@@ -171,6 +134,94 @@ jobs:
               subjective, comment instead of changing code.
             - Do not modify files outside the scope of the PR unless necessary to
               fix an issue (e.g., a missing import in another file).
+        env:
+          ANTHROPIC_VERTEX_PROJECT_ID: "itpc-gcp-ai-eng-claude"
+          CLOUD_ML_REGION: "us-east5"
+          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
+          DISABLE_PROMPT_CACHING: "1"
+
+  # Read-only review for fork PRs — never executes fork code
+  claude-review-fork:
+    name: Claude Review (Fork)
+    timeout-minutes: 20
+    if: |
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.head.repo.full_name != github.repository &&
+      github.event.pull_request.draft != true &&
+      github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Setup fork PR branch for action
+        id: fork-setup
+        run: |
+          echo "Fork PR #${PR_NUM} detected (branch: ${HEAD_REF})"
+
+          # The claude-code-action runs `git fetch origin <branchName>` internally,
+          # which fails for fork PRs because the branch only exists on the fork.
+          # Workaround: push the PR head commit to origin under a namespaced ref
+          # so the action's fetch succeeds. Clean up after the review completes.
+          SAFE_BRANCH="claude-review/fork-pr-${PR_NUM}"
+
+          git fetch origin "refs/pull/${PR_NUM}/head"
+          git push origin "FETCH_HEAD:refs/heads/${SAFE_BRANCH}"
+
+          echo "fork_branch=${SAFE_BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "Pushed fork PR head to origin/${SAFE_BRANCH}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Claude Code Review (Read-Only)
+        uses: anthropics/claude-code-action@v1
+        continue-on-error: true
+        with:
+          use_vertex: "true"
+          track_progress: true
+          display_report: "true"
+          claude_args: '--model claude-opus-4-6 --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"'
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            You are reviewing a **fork pull request**. This is a READ-ONLY review.
+            You must NEVER execute any code from the PR (no npm test, npm run, node,
+            or any other command that runs PR code). You do NOT have tools to edit
+            files, commit, or push — only read and comment.
+
+            1. Run `gh pr diff ${{ github.event.pull_request.number }}` to get the
+               full diff of the PR.
+
+            2. **Review** the diff for:
+               - Code quality and maintainability
+               - Security vulnerabilities (OWASP top 10, injection, XSS, etc.)
+               - Potential bugs and edge cases
+               - Adherence to project conventions (see CLAUDE.md)
+               - Performance concerns
+
+            3. **Report** your findings:
+               - Use inline comments for specific issues in the diff
+               - Post a top-level PR comment summarizing:
+                 - Issues found (with brief descriptions and suggestions)
+                 - If no issues were found, say so briefly
+               - Note that this was a read-only review (fork PR) and no autofixes
+                 were applied
+
+            **Important rules:**
+            - This is a FORK PR. Do NOT run any commands that execute PR code.
+            - Do NOT attempt to check out the PR branch.
+            - Use `gh pr diff` and `Read` to understand the changes.
+            - Be concise. Focus on actionable feedback.
         env:
           ANTHROPIC_VERTEX_PROJECT_ID: "itpc-gcp-ai-eng-claude"
           CLOUD_ML_REGION: "us-east5"
