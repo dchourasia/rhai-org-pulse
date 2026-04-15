@@ -41,6 +41,13 @@
         <span class="text-xs text-gray-500 dark:text-gray-400">
           Due {{ formatDate(release.dueDate) }} · {{ release.daysRemaining }}d left
         </span>
+        <span
+          v-if="predictedDate"
+          class="inline-flex items-center gap-1 text-xs text-teal-600 dark:text-teal-400"
+          title="95% confidence predicted completion date (Monte Carlo)"
+        >
+          Predicted {{ predictedDate }}
+        </span>
       </div>
       <div class="flex items-center gap-4 shrink-0">
         <!-- Compact progress bar -->
@@ -304,6 +311,7 @@
 import { computed, ref } from 'vue'
 import MonteCarloChart from './MonteCarloChart.vue'
 import { extractProduct } from '../composables/useReleaseFilter'
+import { gammaSample } from '../utils/monteCarlo'
 
 const props = defineProps({
   release: { type: Object, required: true },
@@ -337,6 +345,32 @@ const issueSum = computed(() => {
 })
 
 const releaseHasNoIssues = computed(() => issueSum.value === 0)
+
+// ── Lightweight Monte Carlo for header predicted date ──
+
+const MC_ITERATIONS = 1000
+const MC_MAX_DAYS = 730
+
+const predictedDate = computed(() => {
+  const mc = props.mcInputs
+  if (!mc || mc.notDoneCount <= 0 || mc.totalVelocity <= 0) return null
+
+  const scale = 14 / mc.totalVelocity
+  const n = mc.notDoneCount
+  const completionDays = new Array(MC_ITERATIONS)
+  for (let i = 0; i < MC_ITERATIONS; i++) {
+    completionDays[i] = Math.min(Math.ceil(gammaSample(n, scale)), MC_MAX_DAYS)
+  }
+  completionDays.sort((a, b) => a - b)
+
+  const p95Days = completionDays[Math.ceil(MC_ITERATIONS * 0.95) - 1]
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const p95Date = new Date(today)
+  p95Date.setDate(p95Date.getDate() + p95Days)
+
+  return p95Date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
+})
 
 const releaseRiskTitle = computed(() => {
   return props.release?.riskSummary || 'Schedule risk from open issue count vs days to due date.'
