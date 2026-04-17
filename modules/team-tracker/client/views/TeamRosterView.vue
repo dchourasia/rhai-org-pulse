@@ -183,7 +183,8 @@ const { teams: allTeams } = useRoster()
 const team = computed(() => {
   const teamKey = nav.params.value?.teamKey
   if (!teamKey) return null
-  return allTeams.value.find(t => t.key === teamKey) || null
+  // Match by exact key (orgKey::teamName) or by displayName-based key
+  return allTeams.value.find(t => t.key === teamKey || t.displayKey === teamKey) || null
 })
 
 const { viewPreference: viewPref } = useViewPreference()

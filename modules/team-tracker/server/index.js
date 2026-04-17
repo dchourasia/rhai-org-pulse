@@ -241,6 +241,9 @@ module.exports = function registerRoutes(router, context) {
     if (direct) return direct;
     const canonical = roster.mergedKeyMap?.[key];
     if (canonical) return roster.orgs.find(o => o.key === canonical);
+    // Fall back to matching by displayName (org-teams uses display names as keys)
+    const byDisplay = roster.orgs.find(o => o.displayName === key);
+    if (byDisplay) return byDisplay;
     return null;
   }
 

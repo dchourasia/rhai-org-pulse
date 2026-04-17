@@ -341,6 +341,7 @@ const allTeamsFlat = computed(() => {
     for (const [teamName, team] of Object.entries(org.teams)) {
       result.push({
         key: `${org.key}::${teamName}`,
+        displayKey: org.displayName ? `${org.displayName}::${teamName}` : null,
         displayName: team.displayName,
         members: team.members
       })
@@ -354,7 +355,7 @@ const team = computed(() => {
   if (!teamKey) return null
   const orgKey = teamKey.split('::')[0]
   if (orgKey) selectOrg(orgKey)
-  return allTeams.value.find(t => t.key === teamKey) || null
+  return allTeams.value.find(t => t.key === teamKey || t.displayKey === teamKey) || null
 })
 
 const person = computed(() => {
