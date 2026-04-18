@@ -110,7 +110,8 @@ module.exports = function registerOrgTeamsRoutes(router, context) {
         const grouping = p._teamGrouping || p.miroTeam || '';
         return !grouping.trim();
       })
-      .map(p => ({ name: p.name, orgKey: p.orgKey, org: orgKeyToDisplay[p.orgKey] || p.orgKey, title: p.title || '' }));
+      .map(p => ({ name: p.name, orgKey: p.orgKey, org: orgKeyToDisplay[p.orgKey] || p.orgKey, title: p.title || '' }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     return { teams, unassigned, fetchedAt: metaData.fetchedAt };
   }
