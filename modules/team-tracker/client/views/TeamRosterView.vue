@@ -112,6 +112,7 @@
         <TeamOverviewTab
           :headcount="teamDetail?.headcount"
           :members="uniqueMembers"
+          :teamKey="team?.key"
         />
       </div>
 

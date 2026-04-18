@@ -105,7 +105,8 @@ const { linkTo } = useModuleLink()
 const { teams: allTeams } = useRoster()
 
 const props = defineProps({
-  members: { type: Array, required: true }
+  members: { type: Array, required: true },
+  teamKey: { type: String, default: null }
 })
 
 const uidToMember = computed(() => {
@@ -144,9 +145,9 @@ const columns = [
 
 function personLink(member) {
   if (member.uid) {
-    return linkTo('team-tracker', 'person-detail', { uid: member.uid })
+    return linkTo('team-tracker', 'person-detail', { uid: member.uid, ...(props.teamKey && { teamKey: props.teamKey }) })
   }
-  return linkTo('team-tracker', 'person-detail', { person: member.name })
+  return linkTo('team-tracker', 'person-detail', { person: member.name, ...(props.teamKey && { teamKey: props.teamKey }) })
 }
 
 function getSpecialty(member) {
@@ -158,7 +159,7 @@ function getStatus(member) {
 }
 
 function getComponent(member) {
-  return member.component || '—'
+  return member.customFields?.component || member.component || '—'
 }
 
 function getLocation(member) {

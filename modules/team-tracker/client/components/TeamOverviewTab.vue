@@ -12,7 +12,7 @@
         Team Members
         <span class="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">{{ members.length }} member{{ members.length !== 1 ? 's' : '' }}</span>
       </h3>
-      <TeamMembersTable :members="members" />
+      <TeamMembersTable :members="members" :teamKey="teamKey" />
     </div>
   </div>
 </template>
@@ -23,6 +23,7 @@ import TeamMembersTable from './TeamMembersTable.vue'
 
 defineProps({
   headcount: { type: Object, default: null },
-  members: { type: Array, default: () => [] }
+  members: { type: Array, default: () => [] },
+  teamKey: { type: String, default: null }
 })
 </script>

@@ -79,6 +79,7 @@
       :multiTeamMembers="multiTeamMembers"
       :getTeamsForPerson="getTeamsForPerson"
       :memberMetrics="memberMetricsMap"
+      :teamKey="team?.key"
       @select="$emit('select-person', $event)"
       @view-history="openPersonHistory"
     />

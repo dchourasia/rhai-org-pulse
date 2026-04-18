@@ -57,6 +57,7 @@ const editSaving = ref(false)
 
 const uid = computed(() => nav.params.value?.uid)
 const personName = computed(() => nav.params.value?.person)
+const fromTeamKey = computed(() => nav.params.value?.teamKey)
 
 async function loadPerson() {
   const lookupId = uid.value || personName.value
@@ -86,8 +87,17 @@ async function loadPerson() {
   }
 }
 
+const fromTeam = computed(() => {
+  if (!fromTeamKey.value) return null
+  return allTeams.value.find(t => t.key === fromTeamKey.value || t.displayKey === fromTeamKey.value) || null
+})
+
 function goBack() {
-  nav.navigateTo('people')
+  if (fromTeamKey.value) {
+    nav.navigateTo('team-detail', { teamKey: fromTeamKey.value })
+  } else {
+    nav.navigateTo('people')
+  }
 }
 
 function openPerson(personUid) {
@@ -166,7 +176,7 @@ onMounted(() => {
 <template>
   <div>
     <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-4">
-      <button @click="goBack" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">People</button>
+      <button @click="goBack" class="hover:text-primary-600 dark:hover:text-primary-400 transition-colors">{{ fromTeam?.displayName || 'People' }}</button>
       <span class="text-gray-300 dark:text-gray-600">›</span>
       <span class="text-gray-900 dark:text-gray-100 font-medium">{{ person ? person.name : 'Loading...' }}</span>
     </nav>

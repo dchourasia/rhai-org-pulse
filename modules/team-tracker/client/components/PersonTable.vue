@@ -97,13 +97,14 @@ const props = defineProps({
   members: { type: Array, required: true },
   multiTeamMembers: { type: Set, default: () => new Set() },
   getTeamsForPerson: { type: Function, default: () => () => [] },
-  memberMetrics: { type: Map, default: () => new Map() }
+  memberMetrics: { type: Map, default: () => new Map() },
+  teamKey: { type: String, default: null }
 })
 defineEmits(['select', 'view-history'])
 
 function personLink(member) {
-  if (member.uid) return linkTo('team-tracker', 'person-detail', { uid: member.uid })
-  return linkTo('team-tracker', 'person-detail', { person: member.name })
+  if (member.uid) return linkTo('team-tracker', 'person-detail', { uid: member.uid, ...(props.teamKey && { teamKey: props.teamKey }) })
+  return linkTo('team-tracker', 'person-detail', { person: member.name, ...(props.teamKey && { teamKey: props.teamKey }) })
 }
 
 const columns = computed(() => {
