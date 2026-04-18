@@ -11,9 +11,9 @@ module.exports = function registerRoutes(router, context) {
   const { fetchGitlabData } = require('./gitlab/contributions');
   const rosterSync = require('../../../shared/server/roster-sync');
   const rosterSyncConfig = require('../../../shared/server/roster-sync/config');
-  const { readRosterFull: sharedReadRosterFull, EXCLUDED_TITLES } = require('../../../shared/server/roster');
+  const { readRosterFull: sharedReadRosterFull } = require('../../../shared/server/roster');
   const jiraSyncConfig = require('./jira/config');
-  const { RESERVED_KEYS } = require('../../../shared/server/roster-sync/constants');
+  const { RESERVED_KEYS, DEFAULT_EXCLUDED_TITLES } = require('../../../shared/server/roster-sync/constants');
   const sheetsModule = require('../../../shared/server/roster-sync/sheets');
   const snapshots = require('./snapshots');
 
@@ -127,8 +127,7 @@ module.exports = function registerRoutes(router, context) {
 
     for (const [orgKey, orgData] of Object.entries(full.orgs)) {
       const teamMap = {};
-      const allMembers = [orgData.leader, ...orgData.members]
-        .filter(p => !EXCLUDED_TITLES.includes(p.title));
+      const allMembers = [orgData.leader, ...orgData.members];
 
       for (const person of allMembers) {
         const groupingValue = teamStructure
@@ -151,6 +150,7 @@ module.exports = function registerRoutes(router, context) {
           location: person.location || null,
           country: person.country || null,
           city: person.city || null,
+          engineeringSpeciality: person.engineeringSpeciality || null,
           customFields: {}
         };
 
@@ -242,6 +242,9 @@ module.exports = function registerRoutes(router, context) {
     if (direct) return direct;
     const canonical = roster.mergedKeyMap?.[key];
     if (canonical) return roster.orgs.find(o => o.key === canonical);
+    // Fall back to matching by displayName (org-teams uses display names as keys)
+    const byDisplay = roster.orgs.find(o => o.displayName === key);
+    if (byDisplay) return byDisplay;
     return null;
   }
 
@@ -1716,9 +1719,10 @@ module.exports = function registerRoutes(router, context) {
     try {
       const config = rosterSyncConfig.loadConfig(storage);
       if (!config) {
-        return res.json({ configured: false });
+        return res.json({ configured: false, excludedTitles: DEFAULT_EXCLUDED_TITLES });
       }
-      res.json({ configured: true, ...config });
+      const excludedTitles = config.excludedTitles?.length ? config.excludedTitles : DEFAULT_EXCLUDED_TITLES;
+      res.json({ configured: true, ...config, excludedTitles });
     } catch (error) {
       console.error('Read roster-sync config error:', error);
       res.status(500).json({ error: error.message });
@@ -1747,7 +1751,7 @@ module.exports = function registerRoutes(router, context) {
    */
   router.post('/admin/roster-sync/config', requireAdmin, function(req, res) {
     try {
-      const { orgRoots, googleSheetId, sheetNames, githubOrgs, gitlabGroups, gitlabInstances, teamStructure } = req.body;
+      const { orgRoots, googleSheetId, sheetNames, githubOrgs, gitlabGroups, gitlabInstances, teamStructure, excludedTitles } = req.body;
 
       if (orgRoots !== undefined) {
         if (!Array.isArray(orgRoots) || orgRoots.length === 0) {
@@ -1860,6 +1864,29 @@ module.exports = function registerRoutes(router, context) {
         }
       }
 
+      // Validate excludedTitles
+      let validatedExcludedTitles = undefined;
+      if (excludedTitles !== undefined) {
+        if (!Array.isArray(excludedTitles)) {
+          return res.status(400).json({ error: 'excludedTitles must be an array' });
+        }
+        if (excludedTitles.length > 20) {
+          return res.status(400).json({ error: 'Maximum of 20 excluded titles allowed' });
+        }
+        const seen = new Set();
+        validatedExcludedTitles = [];
+        for (const title of excludedTitles) {
+          if (typeof title !== 'string' || !title.trim()) {
+            return res.status(400).json({ error: 'Each excluded title must be a non-empty string' });
+          }
+          const trimmed = title.trim().slice(0, 100);
+          if (!seen.has(trimmed)) {
+            seen.add(trimmed);
+            validatedExcludedTitles.push(trimmed);
+          }
+        }
+      }
+
       const existing = rosterSyncConfig.loadConfig(storage) || {};
 
       const config = {
@@ -1870,6 +1897,7 @@ module.exports = function registerRoutes(router, context) {
         gitlabGroups: gitlabGroups !== undefined ? (gitlabGroups || []) : (existing.gitlabGroups || []),
         gitlabInstances: gitlabInstances !== undefined ? (gitlabInstances || []) : (existing.gitlabInstances || []),
         teamStructure: validatedTeamStructure !== undefined ? validatedTeamStructure : (existing.teamStructure || null),
+        excludedTitles: validatedExcludedTitles !== undefined ? validatedExcludedTitles : (existing.excludedTitles || []),
         customFields: existing.customFields || null,
         lastSyncAt: existing.lastSyncAt || null,
         lastSyncStatus: existing.lastSyncStatus || null,
@@ -2523,6 +2551,7 @@ module.exports = function registerRoutes(router, context) {
   // ─── Absorbed routes from org-roster and team-data ───
 
   const registerIpaRegistryRoutes = require('./routes/ipa-registry');
+  const { runIpaSync, isIpaSyncInProgress } = require('./routes/ipa-registry');
   const registerOrgTeamsRoutes = require('./routes/org-teams');
   const { isOrgSyncInProgress, getTriggerOrgSync } = require('./routes/org-teams');
 
@@ -2544,6 +2573,9 @@ module.exports = function registerRoutes(router, context) {
     }
     if (isOrgSyncInProgress()) {
       return res.status(409).json({ error: 'Org metadata sync already in progress' });
+    }
+    if (isIpaSyncInProgress()) {
+      return res.status(409).json({ error: 'IPA registry sync already in progress' });
     }
 
     unifiedSyncState.inProgress = true;
@@ -2572,6 +2604,32 @@ module.exports = function registerRoutes(router, context) {
         const triggerOrgSync = getTriggerOrgSync();
         if (triggerOrgSync) {
           await triggerOrgSync();
+        }
+
+        // Phase 3: IPA registry sync
+        unifiedSyncState.currentPhase = 'registry';
+        unifiedSyncState.phaseLabel = 'Syncing people registry...';
+
+        if (isIpaSyncInProgress()) {
+          console.warn('[unified-sync] IPA sync became active between phases, skipping Phase 3');
+        } else {
+          // Sync IPA config from roster sync config (org roots + excluded titles)
+          const ipaConfig = storage.readFromStorage('team-data/config.json') || {};
+          const rosterConfig = rosterSyncConfig.loadConfig(storage);
+          let ipaConfigChanged = false;
+
+          if ((!ipaConfig.orgRoots || ipaConfig.orgRoots.length === 0) && rosterConfig?.orgRoots?.length > 0) {
+            ipaConfig.orgRoots = rosterConfig.orgRoots;
+            ipaConfigChanged = true;
+          }
+          const excludedTitles = rosterConfig?.excludedTitles?.length ? rosterConfig.excludedTitles : DEFAULT_EXCLUDED_TITLES;
+          ipaConfig.excludedTitles = excludedTitles;
+          ipaConfigChanged = true;
+          if (ipaConfigChanged) {
+            storage.writeToStorage('team-data/config.json', ipaConfig);
+            console.log('[unified-sync] Synced IPA registry config from roster sync config');
+          }
+          await runIpaSync(storage);
         }
       } catch (err) {
         console.error('[unified-sync] Error:', err.message);

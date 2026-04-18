@@ -159,7 +159,7 @@ async function runIpaSync(storage) {
   }
 }
 
-module.exports = function registerIpaRegistryRoutes(router, context) {
+function registerIpaRegistryRoutes(router, context) {
   var storage = context.storage;
   var requireAdmin = context.requireAdmin;
   var DEMO_MODE = process.env.DEMO_MODE === 'true';
@@ -245,6 +245,17 @@ module.exports = function registerIpaRegistryRoutes(router, context) {
   router.get('/registry/people/:uid', function(req, res) {
     var people = getPeopleMap();
     var person = people[req.params.uid];
+    // Fallback: if not found by UID key, try matching by name
+    if (!person) {
+      var uidsAll = Object.keys(people);
+      for (var j = 0; j < uidsAll.length; j++) {
+        var candidate = people[uidsAll[j]];
+        if (candidate.name === req.params.uid) {
+          person = candidate;
+          break;
+        }
+      }
+    }
     if (!person) return res.status(404).json({ error: 'Person not found' });
 
     var managerChain = [];
@@ -399,4 +410,8 @@ module.exports = function registerIpaRegistryRoutes(router, context) {
   if (!DEMO_MODE) {
     scheduleAutoSync(loadIpaConfig(storage));
   }
-};
+}
+
+module.exports = registerIpaRegistryRoutes;
+module.exports.runIpaSync = runIpaSync;
+module.exports.isIpaSyncInProgress = function() { return ipaSyncRunning; };

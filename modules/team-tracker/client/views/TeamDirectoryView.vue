@@ -17,12 +17,11 @@ function selectOrg(org) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadTeams(), loadOrgs()])
+  const orgParam = nav.params.value?.org || selectedOrg.value
+  await Promise.all([loadTeams(orgParam || undefined), loadOrgs()])
 
-  const orgParam = nav.params.value?.org
-  if (orgParam) {
-    selectedOrg.value = orgParam
-    loadTeams(orgParam)
+  if (nav.params.value?.org) {
+    selectedOrg.value = nav.params.value.org
   }
 })
 </script>
@@ -43,7 +42,7 @@ onMounted(async () => {
             class="w-64 pl-4 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
-        <select v-model="sortBy" class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+        <select v-model="sortBy" class="h-[38px] border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
           <option value="name">A–Z</option>
           <option value="headcount">Headcount</option>
           <option value="rfe">RFE Count</option>
