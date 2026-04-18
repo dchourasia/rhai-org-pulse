@@ -349,7 +349,6 @@ module.exports = function registerOrgTeamsRoutes(router, context) {
         return res.status(400).json({ error: 'Request body must be a JSON object' });
       }
 
-      const _allowedKeys = ['teamBoardsTab', 'componentsTab', 'jiraProject', 'rfeIssueType', 'orgNameMapping', 'componentMapping'];
       const config = getOrgConfig();
 
       if (body.teamBoardsTab !== undefined && typeof body.teamBoardsTab === 'string') config.teamBoardsTab = body.teamBoardsTab;
