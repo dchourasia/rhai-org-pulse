@@ -6,11 +6,26 @@ import { useRoster } from '@shared/client/composables/useRoster.js'
 
 const nav = inject('moduleNav')
 const { isAdmin } = useAuth()
-const { getTeamsForPerson } = useRoster()
+const { getTeamsForPerson, teams: allTeams } = useRoster()
 
 const personTeams = computed(() => {
   if (!person.value) return []
   return getTeamsForPerson(person.value.name)
+})
+
+const rosterMember = computed(() => {
+  if (!person.value) return null
+  for (const t of allTeams.value) {
+    const m = t.members.find(m => m.uid === person.value.uid)
+    if (m) return m
+  }
+  return null
+})
+
+const engineeringSpeciality = computed(() => {
+  return rosterMember.value?.customFields?.engineeringSpeciality
+    || rosterMember.value?.engineeringSpeciality
+    || null
 })
 
 const person = ref(null)
@@ -151,36 +166,50 @@ onMounted(loadPerson)
         <div class="lg:col-span-2 space-y-6">
           <!-- Profile Card -->
           <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-            <div class="flex items-start justify-between mb-4">
-              <div>
-                <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                  {{ person.name }}
+            <div class="flex items-start gap-4 mb-5">
+              <!-- Avatar -->
+              <div class="w-14 h-14 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0">
+                <span class="text-xl font-bold text-white">{{ person.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() }}</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">{{ person.name }}</h2>
                   <span v-if="person.status === 'inactive'" class="text-xs font-normal px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400">Inactive</span>
-                </h2>
+                  <span v-if="engineeringSpeciality" class="text-xs px-2.5 py-0.5 rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 font-medium">{{ engineeringSpeciality }}</span>
+                </div>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{{ person.title }}</p>
               </div>
-              <div v-if="isAdmin && person.status === 'inactive'" class="flex gap-2">
+              <div v-if="isAdmin && person.status === 'inactive'" class="flex gap-2 flex-shrink-0">
                 <button @click="reactivate" class="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700">Reactivate</button>
                 <button @click="purge" class="px-3 py-1.5 text-xs border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20">Purge</button>
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span class="text-gray-500 dark:text-gray-400">Email</span>
-                <div><a :href="'mailto:' + person.email" class="text-primary-600 dark:text-primary-400 hover:underline">{{ person.email }}</a></div>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div class="flex items-center gap-2.5">
+                <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <a :href="'mailto:' + person.email" class="text-primary-600 dark:text-primary-400 hover:underline truncate">{{ person.email }}</a>
               </div>
-              <div>
-                <span class="text-gray-500 dark:text-gray-400">UID</span>
-                <div class="text-gray-900 dark:text-gray-100 font-mono text-xs">{{ person.uid }}</div>
+              <div class="flex items-center gap-2.5">
+                <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0" />
+                </svg>
+                <span class="text-gray-900 dark:text-gray-100 font-mono text-xs">{{ person.uid }}</span>
               </div>
-              <div>
-                <span class="text-gray-500 dark:text-gray-400">Location</span>
-                <div class="text-gray-900 dark:text-gray-100">{{ person.city }}{{ person.country ? ', ' + person.country : '' }}</div>
+              <div class="flex items-center gap-2.5">
+                <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span class="text-gray-900 dark:text-gray-100">{{ person.city }}{{ person.country ? ', ' + person.country : '' }}</span>
               </div>
-              <div>
-                <span class="text-gray-500 dark:text-gray-400">Geo</span>
-                <div class="text-gray-900 dark:text-gray-100">{{ person.geo || '—' }}</div>
+              <div class="flex items-center gap-2.5">
+                <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="text-gray-900 dark:text-gray-100">{{ person.geo || '—' }}</span>
               </div>
             </div>
           </div>
