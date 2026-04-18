@@ -292,7 +292,7 @@ const visibleTabs = computed(() => {
   const tabs = [
     { id: 'overview', label: 'Overview', icon: TAB_ICONS.overview },
     { id: 'delivery', label: 'Delivery', icon: TAB_ICONS.delivery },
-    { id: 'backlog', label: 'Backlog', icon: TAB_ICONS.backlog },
+    { id: 'backlog', label: 'RFE Backlog', icon: TAB_ICONS.backlog },
   ]
   if (showSprintsTab.value) {
     tabs.push({ id: 'sprints', label: 'Sprints', icon: TAB_ICONS.sprints })

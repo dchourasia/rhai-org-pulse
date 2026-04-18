@@ -73,23 +73,7 @@
     </div>
 
     <!-- Content -->
-    <div class="flex items-center justify-end mb-3">
-      <ViewToggle v-model="viewPref" />
-    </div>
-
-    <div v-if="viewPref === 'cards'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      <PersonCard
-        v-for="member in uniqueMembers"
-        :key="member.jiraDisplayName"
-        :member="member"
-        :teamCount="getTeamsForPerson(member.jiraDisplayName).length"
-        :metrics="memberMetricsMap.get(member.jiraDisplayName)"
-        @select="$emit('select-person', $event)"
-      />
-    </div>
-
     <PersonTable
-      v-else
       :members="uniqueMembers"
       :multiTeamMembers="multiTeamMembers"
       :getTeamsForPerson="getTeamsForPerson"
@@ -119,13 +103,10 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import PersonCard from './PersonCard.vue'
 import PersonTable from './PersonTable.vue'
-import ViewToggle from './ViewToggle.vue'
 import MetricCard from './MetricCard.vue'
 import ResolvedIssuesModal from './ResolvedIssuesModal.vue'
 import SnapshotHistoryModal from './SnapshotHistoryModal.vue'
-import { useViewPreference } from '../composables/useViewPreference'
 import { useRoster } from '@shared/client/composables/useRoster'
 import { useGithubStats } from '@shared/client/composables/useGithubStats'
 import { useGitlabStats } from '@shared/client/composables/useGitlabStats'
@@ -139,7 +120,6 @@ const props = defineProps({
 
 defineEmits(['select-person'])
 
-const { viewPreference: viewPref } = useViewPreference()
 const { multiTeamMembers, getTeamsForPerson, visibleFields } = useRoster()
 const { getContributions } = useGithubStats()
 const { getContributions: getGitlabContributions } = useGitlabStats()
