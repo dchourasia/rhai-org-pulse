@@ -17,12 +17,11 @@ function selectOrg(org) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadTeams(), loadOrgs()])
+  const orgParam = nav.params.value?.org || selectedOrg.value
+  await Promise.all([loadTeams(orgParam || undefined), loadOrgs()])
 
-  const orgParam = nav.params.value?.org
-  if (orgParam) {
-    selectedOrg.value = orgParam
-    loadTeams(orgParam)
+  if (nav.params.value?.org) {
+    selectedOrg.value = nav.params.value.org
   }
 })
 </script>
