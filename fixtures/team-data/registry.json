@@ -28,6 +28,7 @@
       "firstSeenAt": "2026-01-01T00:00:00.000Z",
       "lastSeenAt": "2026-01-15T00:00:00.000Z",
       "inactiveSince": null,
+      "_teamGrouping": "Platform",
       "jiraTeam": "Platform",
       "specialty": "backend"
     },
@@ -50,6 +51,7 @@
       "firstSeenAt": "2026-01-01T00:00:00.000Z",
       "lastSeenAt": "2026-01-15T00:00:00.000Z",
       "inactiveSince": null,
+      "_teamGrouping": "Platform",
       "jiraTeam": "Platform",
       "specialty": "backend"
     },
@@ -72,6 +74,7 @@
       "firstSeenAt": "2026-01-01T00:00:00.000Z",
       "lastSeenAt": "2026-01-15T00:00:00.000Z",
       "inactiveSince": null,
+      "_teamGrouping": "Platform",
       "jiraTeam": "Platform",
       "specialty": "fullstack"
     },
@@ -94,6 +97,7 @@
       "firstSeenAt": "2026-01-01T00:00:00.000Z",
       "lastSeenAt": "2026-01-15T00:00:00.000Z",
       "inactiveSince": null,
+      "_teamGrouping": "Infrastructure",
       "jiraTeam": "Infrastructure",
       "specialty": "backend"
     },
@@ -116,6 +120,7 @@
       "firstSeenAt": "2026-01-01T00:00:00.000Z",
       "lastSeenAt": "2026-01-15T00:00:00.000Z",
       "inactiveSince": null,
+      "_teamGrouping": "Infrastructure",
       "jiraTeam": "Infrastructure",
       "specialty": "devops"
     },
@@ -138,6 +143,7 @@
       "firstSeenAt": "2026-01-01T00:00:00.000Z",
       "lastSeenAt": "2026-01-15T00:00:00.000Z",
       "inactiveSince": null,
+      "_teamGrouping": "ML Platform",
       "jiraTeam": "ML Platform",
       "specialty": "ml"
     },
@@ -160,6 +166,7 @@
       "firstSeenAt": "2026-01-01T00:00:00.000Z",
       "lastSeenAt": "2026-01-15T00:00:00.000Z",
       "inactiveSince": null,
+      "_teamGrouping": "ML Platform",
       "jiraTeam": "ML Platform",
       "specialty": "ml"
     },
@@ -182,6 +189,7 @@
       "firstSeenAt": "2026-01-01T00:00:00.000Z",
       "lastSeenAt": "2026-01-15T00:00:00.000Z",
       "inactiveSince": null,
+      "_teamGrouping": "ML Platform",
       "jiraTeam": "ML Platform",
       "specialty": "ml"
     },
@@ -204,6 +212,7 @@
       "firstSeenAt": "2026-01-01T00:00:00.000Z",
       "lastSeenAt": "2026-01-15T00:00:00.000Z",
       "inactiveSince": null,
+      "_teamGrouping": "Data Pipeline",
       "jiraTeam": "Data Pipeline",
       "specialty": "data"
     },
@@ -226,6 +235,7 @@
       "firstSeenAt": "2026-01-01T00:00:00.000Z",
       "lastSeenAt": "2026-01-15T00:00:00.000Z",
       "inactiveSince": null,
+      "_teamGrouping": "Data Pipeline",
       "jiraTeam": "Data Pipeline",
       "specialty": "backend"
     }

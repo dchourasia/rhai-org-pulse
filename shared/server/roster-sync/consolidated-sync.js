@@ -175,10 +175,6 @@ async function runConsolidatedSync(storage) {
       for (var fi = 0; fi < ENRICHMENT_FIELDS.length; fi++) {
         delete registryPerson[ENRICHMENT_FIELDS[fi]];
       }
-      // Also clear any dynamic customFields keys from the previous sync
-      if (registryPerson.customFields && typeof registryPerson.customFields === 'object') {
-        delete registryPerson.customFields;
-      }
 
       // Copy enrichment fields from enriched LDAP person (deep copy to avoid aliasing)
       for (var ci = 0; ci < ENRICHMENT_FIELDS.length; ci++) {
