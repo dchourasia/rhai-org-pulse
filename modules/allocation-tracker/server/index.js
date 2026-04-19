@@ -47,7 +47,8 @@ module.exports = function registerRoutes(router, context) {
     if (project && project !== 'RHOAIENG') {
       return moduleRead(`data/${project}/${key}`);
     }
-    return moduleRead(`data/RHOAIENG/${key}`) || moduleRead(key);
+    // RHOAIENG uses root-level storage (legacy); data/RHOAIENG/ is only a fallback
+    return moduleRead(key) || moduleRead(`data/RHOAIENG/${key}`);
   }
 
   /**
@@ -220,7 +221,8 @@ module.exports = function registerRoutes(router, context) {
             fetchFilterJql: jiraClient.fetchFilterJql,
             fetchIssuesByJql: jiraClient.fetchIssuesByJql,
             readStorage: moduleRead,
-            writeStorage: moduleWrite
+            writeStorage: moduleWrite,
+            getDeps: getDepsForProject
           });
 
           const totalBoards = result.projects.reduce((sum, p) => sum + (p.boardCount || 0), 0);
