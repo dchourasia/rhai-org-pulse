@@ -195,20 +195,6 @@ function getHistory() {
         </div>
       </div>
 
-      <!-- Labels -->
-      <div v-if="featureDetail?.latest?.labels?.length" class="mb-6">
-        <h5 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Labels</h5>
-        <div class="flex flex-wrap gap-1">
-          <span
-            v-for="label in featureDetail.latest.labels"
-            :key="label"
-            class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-          >
-            {{ label }}
-          </span>
-        </div>
-      </div>
-
       <!-- History -->
       <div v-if="getHistory().length > 0" class="mb-6">
         <h5 class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Score History</h5>
