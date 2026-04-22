@@ -35,11 +35,21 @@ function enrichPerson(person, sheetsMap, orgDisplayName) {
     person[key] = value;
   }
 
+  // Aggregate _teamGrouping from ALL entries (not just primary), deduplicated
   if (Array.isArray(ssData) && ssData.length > 1) {
+    const allGroupings = [...new Set(
+      ssData.map(e => e._teamGrouping).filter(Boolean)
+    )];
+    if (allGroupings.length > 0) {
+      person._teamGrouping = allGroupings.join(', ');
+    }
+
+    // Keep additionalAssignments for non-grouping fields, but strip _teamGrouping
+    // since it's already been aggregated onto the person
     person.additionalAssignments = ssData.filter(e => e !== primary).map(function(e) {
       const assignment = {};
       for (const [key, value] of Object.entries(e)) {
-        if (key === 'originalName' || key === 'sourceSheet') continue;
+        if (key === 'originalName' || key === 'sourceSheet' || key === '_teamGrouping') continue;
         assignment[key] = value;
       }
       return assignment;
@@ -54,7 +64,7 @@ function enrichPerson(person, sheetsMap, orgDisplayName) {
  * @param {Object} ldapOrgs - Map of uid -> { leader, members }
  * @param {Map} sheetsData - Map of normalized name -> enrichment data (or null)
  * @param {Object} vpInfo - { name, uid } for the VP (optional)
- * @returns {Object} org-roster-full.json format
+ * @returns {Object} roster format ({ generatedAt, vp, orgs })
  */
 function buildRoster(orgRoots, ldapOrgs, sheetsData, vpInfo) {
   const roster = {

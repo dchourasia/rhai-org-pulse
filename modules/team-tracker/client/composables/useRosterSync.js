@@ -96,6 +96,15 @@ async function triggerSync() {
   }
 }
 
+async function discoverSheets(spreadsheetId) {
+  const res = await fetch(`/api/modules/team-tracker/sheets/discover?spreadsheetId=${encodeURIComponent(spreadsheetId)}`)
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to discover sheets')
+  }
+  return data.sheets
+}
+
 export function useRosterSync() {
   return {
     config,
@@ -110,6 +119,7 @@ export function useRosterSync() {
     fetchStatus,
     saveConfig,
     saveCustomFields,
-    triggerSync
+    triggerSync,
+    discoverSheets
   }
 }

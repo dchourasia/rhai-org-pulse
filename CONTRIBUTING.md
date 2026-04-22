@@ -1,4 +1,4 @@
-# Contributing to Team Tracker
+# Contributing to People & Teams
 
 ## Prerequisites
 
@@ -121,6 +121,10 @@ Use descriptive branch names:
 4. Run `npm test` and `npm run lint` to verify
 5. Run `npm run build` to confirm the production build works
 6. Open a PR against `main`
+
+PRs receive an automated Claude code review that can fix minor issues directly.
+The review criteria are defined in
+[`.github/instructions/review.instructions.md`](.github/instructions/review.instructions.md).
 
 ### Code style
 

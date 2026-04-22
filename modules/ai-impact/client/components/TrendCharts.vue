@@ -19,11 +19,17 @@ ChartJS.register(
   Filler, Title, Tooltip, Legend
 )
 
+import ScoreDistributionChart from './ScoreDistributionChart.vue'
+import CriteriaBreakdownChart from './CriteriaBreakdownChart.vue'
+
 const props = defineProps({
   trendData: { type: Array, default: () => [] },
   breakdown: { type: Array, default: () => [] },
-  expanded: { type: Boolean, default: true }
+  expanded: { type: Boolean, default: true },
+  filteredAssessments: { type: Object, default: () => ({}) }
 })
+
+const hasAssessments = computed(() => Object.keys(props.filteredAssessments).length > 0)
 
 const emit = defineEmits(['toggle'])
 
@@ -36,15 +42,16 @@ const adoptionChartData = computed(() => ({
       borderColor: '#10b981',
       backgroundColor: 'rgba(16, 185, 129, 0.1)',
       fill: true,
-      tension: 0.3
+      tension: 0.3,
+      type: 'line',
+      yAxisID: 'y'
     },
     {
-      label: 'Revised with AI (%)',
-      data: props.trendData.map(p => p.revisedPct),
-      borderColor: '#f59e0b',
-      backgroundColor: 'rgba(245, 158, 11, 0.1)',
-      fill: true,
-      tension: 0.3
+      label: 'Revised with AI',
+      data: props.trendData.map(p => p.revisedCount),
+      backgroundColor: 'rgba(245, 158, 11, 0.5)',
+      type: 'bar',
+      yAxisID: 'y1'
     }
   ]
 }))
@@ -55,7 +62,8 @@ const adoptionChartOptions = {
   plugins: { legend: { display: true, position: 'top', labels: { font: { size: 11 } } } },
   scales: {
     x: { ticks: { font: { size: 10 } } },
-    y: { ticks: { font: { size: 10 } }, title: { display: true, text: '% AI Involvement' } }
+    y: { position: 'left', ticks: { font: { size: 10 } }, title: { display: true, text: '% Created with AI' } },
+    y1: { position: 'right', ticks: { font: { size: 10 }, precision: 0 }, title: { display: true, text: 'Revised (count)' }, grid: { drawOnChartArea: false } }
   }
 }
 
@@ -101,7 +109,8 @@ const breakdownChartOptions = {
       </svg>
     </button>
 
-    <div v-if="expanded" class="px-6 pb-6 grid md:grid-cols-2 gap-6">
+    <div v-if="expanded" class="px-6 pb-6 space-y-6">
+      <div class="grid md:grid-cols-2 gap-6">
       <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-sm font-medium dark:text-gray-300">Adoption Over Time</h3>
@@ -111,7 +120,7 @@ const breakdownChartOptions = {
                 d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div class="absolute right-0 top-6 z-10 hidden group-hover:block w-64 p-2 text-xs text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50">
-              Shows the percentage of RFEs created or revised with AI assistance per week over the selected time window.
+              Shows the percentage of RFEs created with AI per week (line) and the count of RFEs revised with AI per week (bars) over the selected time window.
             </div>
           </div>
         </div>
@@ -136,6 +145,13 @@ const breakdownChartOptions = {
         <div class="h-[180px]">
           <Bar :data="breakdownChartData" :options="breakdownChartOptions" />
         </div>
+      </div>
+      </div>
+
+      <!-- Assessment Quality Charts -->
+      <div v-if="hasAssessments" class="grid md:grid-cols-2 gap-6">
+        <ScoreDistributionChart :assessments="filteredAssessments" />
+        <CriteriaBreakdownChart :assessments="filteredAssessments" />
       </div>
     </div>
   </div>

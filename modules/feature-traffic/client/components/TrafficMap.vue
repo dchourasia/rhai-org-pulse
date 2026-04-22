@@ -103,9 +103,9 @@ const lanes = computed(() => {
       const comps = repo.components || []
       const repoOrg = repoOrgName(repo.url)
       // Find epics that share components with this repo
-      const compSet = new Set(comps.map(c => c.toLowerCase()))
+      const compSet = new Set(comps.map(comp => comp.toLowerCase()))
       const matchedEpics = props.epics.filter(e =>
-        (e.components || []).some(c => compSet.has(c.toLowerCase()))
+        (e.components || []).some(comp => compSet.has(comp.toLowerCase()))
       )
       const node = {
         name: repoName(repo.url),

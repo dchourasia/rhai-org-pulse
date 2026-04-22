@@ -1,6 +1,6 @@
 {
-  "teamBoardsTab": "Scrum Team Boards",
-  "componentsTab": "Summary: components per team",
+  "teamBoardsTab": "",
+  "componentsTab": "",
   "jiraProject": "RHAIRFE",
   "rfeIssueType": "Feature Request",
   "orgNameMapping": {}

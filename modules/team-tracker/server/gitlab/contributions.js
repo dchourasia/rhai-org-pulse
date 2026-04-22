@@ -181,7 +181,20 @@ async function fetchGroupWindowContributions(groupPath, from, to, credentials) {
 async function fetchInstanceContributions(instance, credentials, usernameSet, windows) {
   const userMonths = {};
 
-  for (const group of instance.groups) {
+  // Filter out excluded groups for this instance
+  const excludeGroups = instance.excludeGroups || [];
+  const filteredGroups = instance.groups.filter(g => !excludeGroups.includes(g));
+
+  if (excludeGroups.length > 0) {
+    console.log(`[gitlab] ${instance.label}: Excluding ${excludeGroups.length} group(s): ${excludeGroups.join(', ')}`);
+  }
+
+  if (filteredGroups.length === 0) {
+    console.warn(`[gitlab] ${instance.label}: All groups excluded, skipping`);
+    return { counts: {}, instanceInfo: { baseUrl: instance.baseUrl, label: instance.label } };
+  }
+
+  for (const group of filteredGroups) {
     for (const window of windows) {
       try {
         const counts = await fetchGroupWindowContributions(group, window.from, window.to, credentials);
@@ -243,7 +256,7 @@ async function fetchGitlabData(usernames, options = {}) {
 
   // Merge results across instances
   // { username: { "YYYY-MM": count } } for aggregated months
-  // { username: [{ baseUrl, label, contributions }] } for per-instance breakdown
+  // { username: { baseUrl: { totalContributions, months } } } for per-instance breakdown
   const userMonths = {};
   const userInstances = {};
 
@@ -255,19 +268,18 @@ async function fetchGitlabData(usernames, options = {}) {
     const { counts, instanceInfo } = result.value;
     for (const [username, months] of Object.entries(counts)) {
       if (!userMonths[username]) userMonths[username] = {};
+      if (!userInstances[username]) userInstances[username] = {};
+      const instanceMonths = {};
       let instanceTotal = 0;
       for (const [monthKey, count] of Object.entries(months)) {
         userMonths[username][monthKey] = (userMonths[username][monthKey] || 0) + count;
+        instanceMonths[monthKey] = count;
         instanceTotal += count;
       }
-      if (instanceTotal > 0) {
-        if (!userInstances[username]) userInstances[username] = [];
-        userInstances[username].push({
-          baseUrl: instanceInfo.baseUrl,
-          label: instanceInfo.label,
-          contributions: instanceTotal
-        });
-      }
+      userInstances[username][instanceInfo.baseUrl] = {
+        totalContributions: instanceTotal,
+        months: instanceMonths
+      };
     }
   }
 
@@ -281,12 +293,10 @@ async function fetchGitlabData(usernames, options = {}) {
     results[username] = {
       totalContributions,
       months,
+      instances: userInstances[username] || {},
       fetchedAt: now,
       source: 'graphql'
     };
-    if (userInstances[username] && userInstances[username].length > 0) {
-      results[username].instances = userInstances[username];
-    }
   }
 
   const withContribs = Object.values(results).filter(r => r.totalContributions > 0).length;
