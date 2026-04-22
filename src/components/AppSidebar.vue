@@ -256,7 +256,8 @@ import {
   Activity,
   Wand2,
   Info,
-  KeyRound
+  KeyRound,
+  ClipboardList
 } from 'lucide-vue-next'
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 
@@ -293,7 +294,9 @@ const ICON_MAP = {
   'git-branch': GitBranch,
   'sparkles': Sparkles,
   'activity': Activity,
-  'network': Network
+  'network': Network,
+  'clipboard-list': ClipboardList,
+  ClipboardList
 }
 
 const props = defineProps({
