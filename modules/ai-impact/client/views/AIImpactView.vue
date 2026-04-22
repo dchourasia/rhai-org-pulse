@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useAIImpact } from '../composables/useAIImpact.js'
 import { useAutofix } from '../composables/useAutofix.js'
 import { useAssessments } from '../composables/useAssessments.js'
@@ -157,27 +157,42 @@ function handleNavigateToFeature(featureKey) {
 
 function handleNavigateToRFE(rfeKey) {
   // Cross-link: switch to RFE Review phase and select the source RFE
-  // Reset filters to maximize chance of finding the RFE
+  // Reset filters so the RFE is visible in the list
   filter.value = 'all'
   searchQuery.value = ''
   passFailFilter.value = 'all'
   priorityFilter.value = 'all'
   statusFilter.value = 'all'
-  timeWindow.value = '3months'
 
   selectedPhase.value = 'rfe-review'
   selectedFeature.value = null
 
-  // Find the RFE in the full issues array (not filteredRFEs which may exclude it)
+  // Try to find the RFE in current data first
   const rfe = rfeData.value?.issues?.find(r => r.key === rfeKey)
   if (rfe) {
     selectedRFE.value = rfe
+    return
+  }
+
+  // If not found and not already at widest window, expand and wait for reload
+  if (timeWindow.value !== '3months') {
+    timeWindow.value = '3months'
+    const unwatch = watch(loading, (isLoading) => {
+      if (!isLoading) {
+        unwatch()
+        const found = rfeData.value?.issues?.find(r => r.key === rfeKey)
+        if (found) {
+          selectedRFE.value = found
+        } else {
+          const jiraHost = rfeData.value?.jiraHost
+          if (jiraHost) window.open(`${jiraHost}/browse/${rfeKey}`, '_blank')
+        }
+      }
+    })
   } else {
-    // Fall back to Jira link
+    // Already at widest window and not found — fall back to Jira
     const jiraHost = rfeData.value?.jiraHost
-    if (jiraHost) {
-      window.open(`${jiraHost}/browse/${rfeKey}`, '_blank')
-    }
+    if (jiraHost) window.open(`${jiraHost}/browse/${rfeKey}`, '_blank')
   }
 }
 
