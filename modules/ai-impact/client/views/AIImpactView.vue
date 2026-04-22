@@ -3,14 +3,18 @@ import { ref, computed } from 'vue'
 import { useAIImpact } from '../composables/useAIImpact.js'
 import { useAutofix } from '../composables/useAutofix.js'
 import { useAssessments } from '../composables/useAssessments.js'
+import { useFeatures } from '../composables/useFeatures.js'
 import PhaseSidebar from '../components/PhaseSidebar.vue'
 import PhaseContent from '../components/PhaseContent.vue'
 import AutofixContent from '../components/AutofixContent.vue'
 import ComingSoonPlaceholder from '../components/ComingSoonPlaceholder.vue'
 import RFEDetailPanel from '../components/RFEDetailPanel.vue'
+import FeatureReviewContent from '../components/FeatureReviewContent.vue'
+import FeatureDetailPanel from '../components/FeatureDetailPanel.vue'
 
 const selectedPhase = ref('rfe-review')
 const selectedRFE = ref(null)
+const selectedFeature = ref(null)
 const timeWindow = ref('week')
 const filter = ref('all')
 const searchQuery = ref('')
@@ -20,11 +24,21 @@ const passFailFilter = ref('all')
 const priorityFilter = ref('all')
 const statusFilter = ref('all')
 
+// Feature review filters
+const featureSearchQuery = ref('')
+const featureRecommendationFilter = ref('all')
+const featurePriorityFilter = ref('all')
+const featureHumanReviewFilter = ref('all')
+const featureNeedsAttentionFilter = ref('all')
+const featureSortBy = ref('default')
+
 const { rfeData, loading, error, load } = useAIImpact(timeWindow)
 const { assessments, loadAssessments, loadAssessmentDetail } = useAssessments()
+const { features, featureMeta, featureLoading, featureError, loadFeatures, loadFeatureDetail } = useFeatures()
 
-// Load assessments alongside RFE data
+// Load assessments and features alongside RFE data
 loadAssessments()
+loadFeatures()
 
 const autofixTimeWindow = ref('month')
 const { autofixData, loading: autofixLoading, error: autofixError, load: autofixLoad } = useAutofix(autofixTimeWindow)
@@ -35,7 +49,7 @@ const breakdown = computed(() => rfeData.value?.breakdown || [])
 
 const phases = [
   { id: 'rfe-review', name: 'RFE Review', order: 1, status: 'active' },
-  { id: 'architecture', name: 'Architecture & Design', order: 2, status: 'coming-soon' },
+  { id: 'feature-review', name: 'Feature Review', order: 2, status: 'active' },
   { id: 'implementation', name: 'Implementation', order: 3, status: 'coming-soon' },
   { id: 'qe-validation', name: 'QE / Validation', order: 4, status: 'coming-soon' },
   { id: 'security', name: 'Security Review', order: 5, status: 'coming-soon' },
@@ -86,10 +100,42 @@ function handleRetry() {
   loadAssessments()
 }
 
+function handleFeatureRetry() {
+  loadFeatures()
+}
+
 function handleSelect(id) {
   selectedPhase.value = id
   selectedRFE.value = null
+  selectedFeature.value = null
 }
+
+function handleNavigateToRFE(rfeKey) {
+  // Cross-link: switch to RFE Review phase and select the source RFE
+  // Reset filters to maximize chance of finding the RFE
+  filter.value = 'all'
+  searchQuery.value = ''
+  passFailFilter.value = 'all'
+  priorityFilter.value = 'all'
+  statusFilter.value = 'all'
+  timeWindow.value = '3months'
+
+  selectedPhase.value = 'rfe-review'
+  selectedFeature.value = null
+
+  // Find the RFE in the full issues array (not filteredRFEs which may exclude it)
+  const rfe = rfeData.value?.issues?.find(r => r.key === rfeKey)
+  if (rfe) {
+    selectedRFE.value = rfe
+  } else {
+    // Fall back to Jira link
+    const jiraHost = rfeData.value?.jiraHost
+    if (jiraHost) {
+      window.open(`${jiraHost}/browse/${rfeKey}`, '_blank')
+    }
+  }
+}
+
 </script>
 
 <template>
@@ -101,8 +147,8 @@ function handleSelect(id) {
       @select="handleSelect"
     />
 
-    <!-- Phase views -->
-    <template v-if="isPhase && activePhase?.status === 'active'">
+    <!-- RFE Review phase -->
+    <template v-if="selectedPhase === 'rfe-review'">
       <PhaseContent
         :phase="activePhase"
         :loading="loading"
@@ -142,6 +188,41 @@ function handleSelect(id) {
         :assessment="assessments[selectedRFE?.key] || null"
         :loadAssessmentDetail="loadAssessmentDetail"
         @close="selectedRFE = null"
+      />
+    </template>
+
+    <!-- Feature Review phase -->
+    <template v-else-if="selectedPhase === 'feature-review'">
+      <FeatureReviewContent
+        :loading="featureLoading"
+        :error="featureError"
+        :features="features"
+        :featureMeta="featureMeta"
+        :searchQuery="featureSearchQuery"
+        :recommendationFilter="featureRecommendationFilter"
+        :priorityFilter="featurePriorityFilter"
+        :humanReviewFilter="featureHumanReviewFilter"
+        :needsAttentionFilter="featureNeedsAttentionFilter"
+        :sortBy="featureSortBy"
+        :selectedFeature="selectedFeature"
+        @update:searchQuery="featureSearchQuery = $event"
+        @update:recommendationFilter="featureRecommendationFilter = $event"
+        @update:priorityFilter="featurePriorityFilter = $event"
+        @update:humanReviewFilter="featureHumanReviewFilter = $event"
+        @update:needsAttentionFilter="featureNeedsAttentionFilter = $event"
+        @update:sortBy="featureSortBy = $event"
+        @selectFeature="selectedFeature = $event"
+        @retry="handleFeatureRetry"
+      />
+
+      <FeatureDetailPanel
+        v-if="selectedFeature"
+        :feature="selectedFeature"
+        :phases="phases"
+        :jiraHost="rfeData?.jiraHost"
+        :loadFeatureDetail="loadFeatureDetail"
+        @close="selectedFeature = null"
+        @navigateToRFE="handleNavigateToRFE"
       />
     </template>
 
