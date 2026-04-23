@@ -126,15 +126,17 @@ async function checkConnection() {
   }
 }
 
+const { getAllPeople } = require('../../../shared/server/roster');
+
 const ROSTER_PUSH_SOURCE = 'org_pulse_roster';
 const ROSTER_PUSH_REPLACES = ['github_org_sync'];
 const ROSTER_PUSH_INTERVAL = 2 * 60 * 60 * 1000; // 2 hours
 const ROSTER_PUSH_STARTUP_DELAY = 2 * 60 * 1000; // 2 minutes
 
-var _lastPushGeneratedAt = null;
+let _lastPushGeneratedAt = null;
 
 function getServiceIdentityHeaders() {
-  var serviceUser = process.env.UPSTREAM_SYNC_SERVICE_USER || 'roster-sync-service';
+  const serviceUser = process.env.UPSTREAM_SYNC_SERVICE_USER || 'roster-sync-service';
   return {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -144,12 +146,10 @@ function getServiceIdentityHeaders() {
 }
 
 async function pushRosterToUpstream(storage) {
-  var { getAllPeople } = require('../../../shared/server/roster');
-  var allPeople = getAllPeople(storage);
+  const allPeople = getAllPeople(storage);
 
-  var people = [];
-  for (var i = 0; i < allPeople.length; i++) {
-    var p = allPeople[i];
+  const people = [];
+  for (const p of allPeople) {
     if (!p.github || !p.github.username) continue;
     people.push({
       name: p.name,
@@ -166,23 +166,23 @@ async function pushRosterToUpstream(storage) {
     return { skipped: true, reason: 'no_people' };
   }
 
-  var base = getBaseUrl();
-  var url = base + '/api/admin/team-members/sync';
-  var body = {
+  const base = getBaseUrl();
+  const url = base + '/api/admin/team-members/sync';
+  const body = {
     source: ROSTER_PUSH_SOURCE,
     replacesSources: ROSTER_PUSH_REPLACES,
     people: people
   };
 
   console.log('[upstream-pulse] Pushing ' + people.length + ' roster members to ' + url);
-  var response = await fetch(url, {
+  const response = await fetch(url, {
     method: 'POST',
     timeout: PROXY_TIMEOUT,
     headers: getServiceIdentityHeaders(),
     body: JSON.stringify(body)
   });
 
-  var data = await response.json().catch(function() { return {}; });
+  const data = await response.json().catch(function() { return {}; });
   if (!response.ok) {
     throw new Error('Roster push failed (' + response.status + '): ' + (data.error || 'unknown'));
   }
@@ -192,15 +192,14 @@ async function pushRosterToUpstream(storage) {
 }
 
 function startPeriodicRosterPush(storage) {
-  var DEMO_MODE = process.env.DEMO_MODE === 'true';
-  if (DEMO_MODE) return;
+  if (process.env.DEMO_MODE === 'true') return;
 
   function checkAndPush() {
     try {
-      var registry = storage.readFromStorage('team-data/registry.json');
+      const registry = storage.readFromStorage('team-data/registry.json');
       if (!registry || !registry.meta || !registry.meta.generatedAt) return;
 
-      var generatedAt = registry.meta.generatedAt;
+      const generatedAt = registry.meta.generatedAt;
       if (_lastPushGeneratedAt === generatedAt) return;
 
       pushRosterToUpstream(storage).then(function(result) {
@@ -216,7 +215,7 @@ function startPeriodicRosterPush(storage) {
   }
 
   setTimeout(checkAndPush, ROSTER_PUSH_STARTUP_DELAY);
-  var timer = setInterval(checkAndPush, ROSTER_PUSH_INTERVAL);
+  const timer = setInterval(checkAndPush, ROSTER_PUSH_INTERVAL);
   if (timer.unref) timer.unref();
 }
 
@@ -369,9 +368,9 @@ module.exports = function registerRoutes(router, context) {
 
   router.post('/roster-push', requireAdmin, async function(req, res) {
     try {
-      var result = await pushRosterToUpstream(context.storage);
+      const result = await pushRosterToUpstream(context.storage);
       if (!result.skipped) {
-        var registry = context.storage.readFromStorage('team-data/registry.json');
+        const registry = context.storage.readFromStorage('team-data/registry.json');
         if (registry && registry.meta) _lastPushGeneratedAt = registry.meta.generatedAt;
       }
       res.json(result);
