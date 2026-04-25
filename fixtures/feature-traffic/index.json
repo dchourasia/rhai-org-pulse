@@ -10573,7 +10573,7 @@
       "architect": null,
       "parentKey": "TEST1-1016"
     }
-  ],
+      ],
   "rfes": [
     {
       "key": "RHAIRFE-101",
@@ -10627,6 +10627,6 @@
       ],
       "lastUpdated": "2025-12-01T10:00:00.000+0000"
     }
-  ],
+      ],
   "rfeCount": 4
 }

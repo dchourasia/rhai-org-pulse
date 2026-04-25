@@ -230,13 +230,9 @@ const visibleSignalGroups = computed(() => {
   return signalGroups.value.filter(g => selectedSignals.value.includes(g.id))
 })
 
-const priorityStyle = {
-  'Blocker': 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400',
-  'Critical': 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400',
-  'Major': 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400',
-  'Normal': 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400',
-  'Minor': 'bg-gray-100 dark:bg-gray-500/20 text-gray-600 dark:text-gray-400',
-  'Undefined': 'bg-gray-100 dark:bg-gray-500/20 text-gray-500 dark:text-gray-500'
+function normalizeOwnerStatusColor(c) {
+  const s = String(c || '').trim().toUpperCase()
+  return s === 'GREEN' || s === 'YELLOW' || s === 'RED' ? s : null
 }
 
 function handleSelect(key) {
@@ -484,13 +480,12 @@ onMounted(() => {
                     <div class="flex items-center gap-2">
                       <span class="text-primary-600 dark:text-blue-400 font-mono text-xs font-semibold">{{ f.key }}</span>
                       <StatusBadge :status="f.status" />
-                      <span
-                        v-if="f.priority && f.priority !== 'Undefined'"
-                        class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold"
-                        :class="priorityStyle[f.priority] || priorityStyle['Undefined']"
-                      >{{ f.priority }}</span>
                     </div>
-                    <StatusBadge :health="f.health" />
+                    <StatusBadge
+                      v-if="normalizeOwnerStatusColor(f.ownerStatusColor)"
+                      :health="normalizeOwnerStatusColor(f.ownerStatusColor)"
+                    />
+                    <StatusBadge v-else status="Status color missing" />
                   </div>
                   <p class="text-sm text-gray-900 dark:text-gray-100 font-medium leading-snug">{{ f.summary }}</p>
                 </div>
