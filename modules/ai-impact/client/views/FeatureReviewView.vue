@@ -14,7 +14,6 @@ const searchQuery = ref('')
 const recommendationFilter = ref('all')
 const priorityFilter = ref('all')
 const humanReviewFilter = ref('all')
-const needsAttentionFilter = ref('all')
 const sortBy = ref('default')
 
 const { features, featureMeta, featureLoading, featureError, loadFeatures, loadFeatureDetail } = useFeatures()
@@ -42,7 +41,6 @@ watch(() => moduleNav.params.value, (params) => {
       recommendationFilter.value = 'all'
       priorityFilter.value = 'all'
       humanReviewFilter.value = 'all'
-      needsAttentionFilter.value = 'all'
       sortBy.value = 'default'
       selectedFeature.value = feature
     }
@@ -72,14 +70,12 @@ watch(() => Object.keys(features.value).length, () => {
       :recommendationFilter="recommendationFilter"
       :priorityFilter="priorityFilter"
       :humanReviewFilter="humanReviewFilter"
-      :needsAttentionFilter="needsAttentionFilter"
       :sortBy="sortBy"
       :selectedFeature="selectedFeature"
       @update:searchQuery="searchQuery = $event"
       @update:recommendationFilter="recommendationFilter = $event"
       @update:priorityFilter="priorityFilter = $event"
       @update:humanReviewFilter="humanReviewFilter = $event"
-      @update:needsAttentionFilter="needsAttentionFilter = $event"
       @update:sortBy="sortBy = $event"
       @selectFeature="selectedFeature = $event"
       @retry="handleRetry"
@@ -95,6 +91,6 @@ watch(() => Object.keys(features.value).length, () => {
       @navigateToRFE="handleNavigateToRFE"
     />
 
-    <AIImpactGuide dismissKey="ai-impact-guide-dismissed-features" />
+    <AIImpactGuide />
   </div>
 </template>

@@ -21,8 +21,8 @@ const avgScore = computed(() => {
   return (sum / totalFeatures.value).toFixed(1)
 })
 
-const needsAttentionCount = computed(() => {
-  return featureList.value.filter(f => f.needsAttention).length
+const flaggedCount = computed(() => {
+  return featureList.value.filter(f => f.humanReviewStatus === 'needs-review').length
 })
 </script>
 
@@ -46,9 +46,9 @@ const needsAttentionCount = computed(() => {
       </div>
 
       <div class="space-y-1">
-        <p class="text-sm text-gray-500 dark:text-gray-400">Needs Attention</p>
-        <span class="text-3xl font-bold" :class="needsAttentionCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'dark:text-gray-100'">
-          {{ needsAttentionCount }}
+        <p class="text-sm text-gray-500 dark:text-gray-400">Flagged</p>
+        <span class="text-3xl font-bold" :class="flaggedCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'dark:text-gray-100'">
+          {{ flaggedCount }}
         </span>
       </div>
     </div>

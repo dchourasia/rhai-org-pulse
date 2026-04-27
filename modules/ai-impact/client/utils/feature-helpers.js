@@ -16,7 +16,7 @@ export function getRecommendationLabel(rec) {
   }
 }
 
-export function getHumanReviewClass(status) {
+export function getReviewStatusClass(status) {
   switch (status) {
     case 'approved': return 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
     case 'needs-review': return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
@@ -25,16 +25,16 @@ export function getHumanReviewClass(status) {
   }
 }
 
-export function getHumanReviewLabel(status) {
+export function getReviewStatusLabel(status) {
   switch (status) {
-    case 'approved': return 'Human Approved'
-    case 'needs-review': return 'Needs Human Review'
-    case 'awaiting-review': return 'Awaiting Review'
-    default: return 'Awaiting Review'
+    case 'approved': return 'Approved'
+    case 'needs-review': return 'Flagged'
+    case 'awaiting-review': return 'Awaiting Sign-off'
+    default: return 'Awaiting Sign-off'
   }
 }
 
-export function getHumanReviewTooltip(status) {
+export function getReviewStatusTooltip(status) {
   switch (status) {
     case 'approved': return 'A human engineer has reviewed and signed off on this feature. No further action needed.'
     case 'needs-review': return 'The AI pipeline flagged concerns. Open in Jira, add feedback in the Staff Engineer Input section of the description, then remove the strat-creator-needs-attention label to unblock re-refinement.'
@@ -50,10 +50,6 @@ export function getRecommendationTooltip(rec) {
     case 'reject': return 'AI reviewers found significant concerns. This feature needs rework before proceeding.'
     default: return ''
   }
-}
-
-export function getNeedsAttentionTooltip() {
-  return 'The AI pipeline flagged this feature for human review due to low scores or concerns. Open in Jira to review and provide feedback.'
 }
 
 export function getScoreClass(score) {

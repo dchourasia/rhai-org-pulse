@@ -151,6 +151,6 @@ watch(() => moduleNav.params.value, (params) => {
       @navigateToFeature="handleNavigateToFeature"
     />
 
-    <AIImpactGuide dismissKey="ai-impact-guide-dismissed-rfe" />
+    <AIImpactGuide />
   </div>
 </template>

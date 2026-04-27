@@ -2,18 +2,13 @@
 import { ref, onMounted } from 'vue'
 import AssessmentGuideModal from './AssessmentGuideModal.vue'
 
-const props = defineProps({
-  dismissKey: {
-    type: String,
-    default: 'ai-impact-guide-dismissed'
-  }
-})
+const DISMISS_KEY = 'ai-impact-guide-dismissed'
 
 const showGuideModal = ref(false)
 const initialTab = ref(null)
 
 onMounted(() => {
-  if (localStorage.getItem(props.dismissKey) !== 'true') {
+  if (localStorage.getItem(DISMISS_KEY) !== 'true') {
     showGuideModal.value = true
   }
 })
@@ -22,7 +17,7 @@ function closeGuide(dismiss) {
   showGuideModal.value = false
   initialTab.value = null
   if (dismiss) {
-    localStorage.setItem(props.dismissKey, 'true')
+    localStorage.setItem(DISMISS_KEY, 'true')
   }
 }
 

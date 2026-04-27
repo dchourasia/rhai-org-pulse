@@ -19,6 +19,6 @@ const { autofixData, loading, error, load } = useAutofix(timeWindow)
       @retry="load"
     />
 
-    <AIImpactGuide dismissKey="ai-impact-guide-dismissed-autofix" />
+    <AIImpactGuide />
   </div>
 </template>

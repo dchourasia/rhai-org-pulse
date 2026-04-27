@@ -202,7 +202,7 @@ function handleClose() {
                 <div class="space-y-3">
                   <div class="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
                     <div class="flex items-center gap-2 mb-1.5">
-                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Needs Human Review</span>
+                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Flagged</span>
                     </div>
                     <p class="text-sm text-gray-700 dark:text-gray-300">
                       The AI pipeline flagged concerns with this feature. Open it in Jira, review the AI-generated content, and add your technical corrections or direction in the <strong>Staff Engineer Input</strong> section of the description. Then remove the <code class="px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-800/40 text-xs">strat-creator-needs-attention</code> label to unblock the pipeline for re-refinement.
@@ -210,7 +210,7 @@ function handleClose() {
                   </div>
                   <div class="rounded-lg border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 p-3">
                     <div class="flex items-center gap-2 mb-1.5">
-                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200">Awaiting Review</span>
+                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200">Awaiting Sign-off</span>
                     </div>
                     <p class="text-sm text-gray-700 dark:text-gray-300">
                       This feature passed AI review but no human has signed off yet. Review the feature in Jira. If it looks good, add the <code class="px-1 py-0.5 rounded bg-yellow-100 dark:bg-yellow-800/40 text-xs">strat-creator-human-sign-off</code> label. If changes are needed, add your feedback in the <strong>Staff Engineer Input</strong> section of the description and the pipeline will incorporate it on the next run.
@@ -218,7 +218,7 @@ function handleClose() {
                   </div>
                   <div class="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-3">
                     <div class="flex items-center gap-2 mb-1.5">
-                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200">Human Approved</span>
+                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200">Approved</span>
                     </div>
                     <p class="text-sm text-gray-700 dark:text-gray-300">
                       This feature has been reviewed and signed off by a human engineer. No further action needed.
