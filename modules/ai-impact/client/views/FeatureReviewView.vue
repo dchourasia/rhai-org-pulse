@@ -5,6 +5,7 @@ import { useAIImpact } from '../composables/useAIImpact.js'
 import { PHASES } from '../constants.js'
 import FeatureReviewContent from '../components/FeatureReviewContent.vue'
 import FeatureDetailPanel from '../components/FeatureDetailPanel.vue'
+import AIImpactGuide from '../components/AIImpactGuide.vue'
 
 const moduleNav = inject('moduleNav')
 
@@ -17,6 +18,8 @@ const needsAttentionFilter = ref('all')
 const sortBy = ref('default')
 
 const { features, featureMeta, featureLoading, featureError, loadFeatures, loadFeatureDetail } = useFeatures()
+
+loadFeatures()
 
 // Load RFE data only for jiraHost (used by detail panel links)
 const timeWindow = ref('month')
@@ -91,5 +94,7 @@ watch(() => Object.keys(features.value).length, () => {
       @close="selectedFeature = null"
       @navigateToRFE="handleNavigateToRFE"
     />
+
+    <AIImpactGuide dismissKey="ai-impact-guide-dismissed-features" />
   </div>
 </template>

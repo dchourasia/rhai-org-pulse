@@ -1,5 +1,6 @@
 <script setup>
-import { getRecommendationClass, getRecommendationLabel, getHumanReviewClass, getHumanReviewLabel } from '../utils/feature-helpers.js'
+import { getRecommendationClass, getRecommendationLabel, getRecommendationTooltip, getHumanReviewClass, getHumanReviewLabel, getHumanReviewTooltip, getNeedsAttentionTooltip } from '../utils/feature-helpers.js'
+import InfoBubble from './InfoBubble.vue'
 
 defineProps({
   feature: { type: Object, required: true },
@@ -22,18 +23,24 @@ const emit = defineEmits(['select'])
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 mb-1">
           <span class="font-mono text-xs text-gray-500 dark:text-gray-400">{{ feature.key }}</span>
-          <span
-            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-            :class="getRecommendationClass(feature.recommendation)"
-          >
-            AI Recommendation: {{ getRecommendationLabel(feature.recommendation) }}
+          <span class="inline-flex items-center">
+            <span
+              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+              :class="getRecommendationClass(feature.recommendation)"
+            >
+              AI: {{ getRecommendationLabel(feature.recommendation) }}
+            </span>
+            <InfoBubble :text="getRecommendationTooltip(feature.recommendation)" />
           </span>
           <span
             v-if="feature.needsAttention"
-            class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+            class="inline-flex items-center"
           >
-            <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-            Needs Attention
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+              <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              Needs Attention
+            </span>
+            <InfoBubble :text="getNeedsAttentionTooltip()" />
           </span>
         </div>
         <h4 class="font-medium text-sm truncate dark:text-gray-200">{{ feature.title }}</h4>
@@ -50,11 +57,14 @@ const emit = defineEmits(['select'])
             <span class="font-medium text-gray-500 dark:text-gray-400">Source</span>
             <span class="text-gray-800 dark:text-gray-100">{{ feature.sourceRfe }}</span>
           </span>
-          <span
-            class="inline-flex items-center px-2 py-0.5 rounded-full text-xs"
-            :class="getHumanReviewClass(feature.humanReviewStatus)"
-          >
-            {{ getHumanReviewLabel(feature.humanReviewStatus) }}
+          <span class="inline-flex items-center">
+            <span
+              class="inline-flex items-center px-2 py-0.5 rounded-full text-xs"
+              :class="getHumanReviewClass(feature.humanReviewStatus)"
+            >
+              {{ getHumanReviewLabel(feature.humanReviewStatus) }}
+            </span>
+            <InfoBubble :text="getHumanReviewTooltip(feature.humanReviewStatus)" />
           </span>
         </div>
       </div>

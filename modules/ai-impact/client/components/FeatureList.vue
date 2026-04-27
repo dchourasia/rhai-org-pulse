@@ -117,9 +117,9 @@ const sortedAndFilteredFeatures = computed(() => {
         class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-800 dark:text-gray-300"
       >
         <option value="all">All Review Status</option>
-        <option value="pending">Awaiting Human Review</option>
-        <option value="reviewed">Human Reviewed</option>
-        <option value="not-required">No Review Needed</option>
+        <option value="needs-review">Needs Human Review</option>
+        <option value="awaiting-review">Awaiting Review</option>
+        <option value="approved">Human Approved</option>
       </select>
 
       <select

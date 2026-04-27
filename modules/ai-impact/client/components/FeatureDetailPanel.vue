@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import PipelineTimeline from './PipelineTimeline.vue'
-import { getRecommendationClass, getRecommendationLabel, getScoreClass, getHumanReviewClass, getHumanReviewLabel } from '../utils/feature-helpers.js'
+import { getRecommendationClass, getRecommendationLabel, getRecommendationTooltip, getScoreClass, getHumanReviewClass, getHumanReviewLabel, getHumanReviewTooltip, getNeedsAttentionTooltip } from '../utils/feature-helpers.js'
+import InfoBubble from './InfoBubble.vue'
 
 const props = defineProps({
   feature: { type: Object, required: true },
@@ -62,11 +63,14 @@ const history = computed(() => featureDetail.value?.history || [])
             {{ feature.key }}
           </a>
           <span v-else class="font-mono text-xs text-gray-500 dark:text-gray-400">{{ feature.key }}</span>
-          <span
-            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-            :class="getRecommendationClass(feature.recommendation)"
-          >
-            AI Recommendation: {{ getRecommendationLabel(feature.recommendation) }}
+          <span class="inline-flex items-center">
+            <span
+              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+              :class="getRecommendationClass(feature.recommendation)"
+            >
+              AI: {{ getRecommendationLabel(feature.recommendation) }}
+            </span>
+            <InfoBubble :text="getRecommendationTooltip(feature.recommendation)" />
           </span>
         </div>
         <h4 class="text-lg font-semibold mt-1 dark:text-gray-100">{{ feature.title }}</h4>
@@ -88,20 +92,26 @@ const history = computed(() => featureDetail.value?.history || [])
         </div>
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">Human Review</p>
-          <span
-            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-            :class="getHumanReviewClass(feature.humanReviewStatus)"
-          >
-            {{ getHumanReviewLabel(feature.humanReviewStatus) }}
+          <span class="inline-flex items-center">
+            <span
+              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+              :class="getHumanReviewClass(feature.humanReviewStatus)"
+            >
+              {{ getHumanReviewLabel(feature.humanReviewStatus) }}
+            </span>
+            <InfoBubble :text="getHumanReviewTooltip(feature.humanReviewStatus)" />
           </span>
         </div>
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">Needs Attention</p>
-          <span
-            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-            :class="feature.needsAttention ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'"
-          >
-            {{ feature.needsAttention ? 'Yes' : 'No' }}
+          <span class="inline-flex items-center">
+            <span
+              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+              :class="feature.needsAttention ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'"
+            >
+              {{ feature.needsAttention ? 'Yes' : 'No' }}
+            </span>
+            <InfoBubble v-if="feature.needsAttention" :text="getNeedsAttentionTooltip()" />
           </span>
         </div>
         <div>

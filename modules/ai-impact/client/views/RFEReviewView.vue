@@ -1,30 +1,14 @@
 <script setup>
-import { ref, computed, watch, inject, onMounted } from 'vue'
+import { ref, computed, watch, inject } from 'vue'
 import { useAIImpact } from '../composables/useAIImpact.js'
 import { useAssessments } from '../composables/useAssessments.js'
 import { useFeatures } from '../composables/useFeatures.js'
 import { PHASES } from '../constants.js'
 import PhaseContent from '../components/PhaseContent.vue'
 import RFEDetailPanel from '../components/RFEDetailPanel.vue'
-import AssessmentGuideModal from '../components/AssessmentGuideModal.vue'
+import AIImpactGuide from '../components/AIImpactGuide.vue'
 
 const moduleNav = inject('moduleNav')
-
-const GUIDE_DISMISSED_KEY = 'ai-impact-guide-dismissed'
-const showGuideModal = ref(false)
-
-onMounted(() => {
-  if (localStorage.getItem(GUIDE_DISMISSED_KEY) !== 'true') {
-    showGuideModal.value = true
-  }
-})
-
-function closeGuide(dismiss) {
-  showGuideModal.value = false
-  if (dismiss) {
-    localStorage.setItem(GUIDE_DISMISSED_KEY, 'true')
-  }
-}
 
 const selectedRFE = ref(null)
 const timeWindow = ref('week')
@@ -167,19 +151,6 @@ watch(() => moduleNav.params.value, (params) => {
       @navigateToFeature="handleNavigateToFeature"
     />
 
-    <!-- Floating help button -->
-    <button
-      @click="showGuideModal = true"
-      class="fixed bottom-6 right-6 w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center group z-40"
-    >
-      <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      <span class="absolute bottom-full right-0 mb-2 px-3 py-1.5 text-xs font-medium text-white bg-gray-900 dark:bg-gray-700 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-        AI Impact Guide
-      </span>
-    </button>
-
-    <AssessmentGuideModal :show="showGuideModal" @close="closeGuide" />
+    <AIImpactGuide dismissKey="ai-impact-guide-dismissed-rfe" />
   </div>
 </template>

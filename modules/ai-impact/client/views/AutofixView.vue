@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useAutofix } from '../composables/useAutofix.js'
 import AutofixContent from '../components/AutofixContent.vue'
+import AIImpactGuide from '../components/AIImpactGuide.vue'
 
 const timeWindow = ref('month')
 const { autofixData, loading, error, load } = useAutofix(timeWindow)
@@ -17,5 +18,7 @@ const { autofixData, loading, error, load } = useAutofix(timeWindow)
       @update:timeWindow="timeWindow = $event"
       @retry="load"
     />
+
+    <AIImpactGuide dismissKey="ai-impact-guide-dismissed-autofix" />
   </div>
 </template>
