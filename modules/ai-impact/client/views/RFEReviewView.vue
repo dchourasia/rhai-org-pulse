@@ -177,6 +177,7 @@ watch([() => moduleNav.params.value, rfeData], ([params]) => {
             </div>
             <button
               @click="notFoundRFE = null"
+              aria-label="Dismiss"
               class="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             >
               <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

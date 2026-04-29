@@ -104,7 +104,7 @@ function getInvolvementClass(involvement) {
         <div class="absolute inset-0 bg-black/50" @click="emit('close')" />
 
         <!-- Modal -->
-        <div ref="modalRef" class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col">
+        <div ref="modalRef" role="dialog" aria-modal="true" class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col">
           <!-- Header -->
           <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center gap-3 min-w-0">
@@ -122,6 +122,7 @@ function getInvolvementClass(involvement) {
             </div>
             <button
               @click="emit('close')"
+              aria-label="Close"
               class="p-1.5 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
