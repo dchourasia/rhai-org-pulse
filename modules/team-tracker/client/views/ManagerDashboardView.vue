@@ -50,6 +50,22 @@
         <div v-else>
           <!-- Edit mode controls -->
           <div class="flex items-center justify-end gap-3 mb-3">
+            <!-- Include indirect reports toggle -->
+            <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mr-auto cursor-pointer select-none">
+              <button
+                role="switch"
+                :aria-checked="includeIndirect"
+                @click="toggleIndirectReports"
+                class="relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                :class="includeIndirect ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-600'"
+              >
+                <span
+                  class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                  :class="includeIndirect ? 'translate-x-4' : 'translate-x-0'"
+                />
+              </button>
+              Include indirect reports
+            </label>
             <template v-if="bulkEditing">
               <span v-if="pendingChangeCount > 0" class="text-xs text-amber-600 dark:text-amber-400">{{ pendingChangeCount }} unsaved change{{ pendingChangeCount !== 1 ? 's' : '' }}</span>
               <button
@@ -77,7 +93,29 @@
             </button>
           </div>
 
-          <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <!-- Search -->
+          <div class="relative mb-3">
+            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Search by name, title, or team..."
+              class="w-full pl-9 pr-8 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+            <button
+              v-if="searchQuery"
+              @click="searchQuery = ''"
+              class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <X class="w-4 h-4" />
+            </button>
+          </div>
+
+          <div v-if="searchQuery && filteredReports.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
+            No reports match "{{ searchQuery }}"
+          </div>
+
+          <table v-else class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead class="bg-gray-50 dark:bg-gray-800">
               <tr>
                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="bulkEditing ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'">Name</th>
@@ -93,17 +131,24 @@
             </thead>
             <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               <tr
-                v-for="report in directReports"
+                v-for="report in filteredReports"
                 :key="report.uid"
                 class="hover:bg-gray-50 dark:hover:bg-gray-700/50"
               >
                 <td class="px-4 py-3 text-sm whitespace-nowrap" :class="bulkEditing ? 'opacity-50' : ''">
-                  <button
-                    @click="navigateToPersonDetail(report.uid)"
-                    class="text-primary-600 dark:text-primary-400 hover:underline font-medium"
-                  >
-                    {{ report.name }}
-                  </button>
+                  <div class="flex items-center gap-1.5">
+                    <button
+                      @click="navigateToPersonDetail(report.uid)"
+                      class="text-primary-600 dark:text-primary-400 hover:underline font-medium"
+                    >
+                      {{ report.name }}
+                    </button>
+                    <span
+                      v-if="includeIndirect && !directReportUidSet.has(report.uid)"
+                      class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                      title="Indirect report"
+                    >indirect</span>
+                  </div>
                 </td>
                 <td class="px-4 py-3 text-sm whitespace-nowrap" :class="bulkEditing ? 'opacity-50 text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-400'">
                   {{ report.title || '—' }}
@@ -344,7 +389,7 @@
 
 <script setup>
 import { ref, computed, reactive, onMounted, inject } from 'vue'
-import { ExternalLink, ChevronDown, Pencil } from 'lucide-vue-next'
+import { ExternalLink, ChevronDown, Pencil, Search, X } from 'lucide-vue-next'
 import { useManagerDashboard } from '../composables/useManagerDashboard'
 import { useFieldDefinitions } from '@shared/client/composables/useFieldDefinitions'
 import { useRoster } from '@shared/client/composables/useRoster'
@@ -355,12 +400,13 @@ import PersonAutocomplete from '../components/PersonAutocomplete.vue'
 
 const nav = inject('moduleNav', null)
 
-const { directReports, teams, allOrgTeams, fieldDefinitions, loading, error, reason, load, refresh } = useManagerDashboard()
+const { directReports, indirectReports, teams, allOrgTeams, fieldDefinitions, loading, error, reason, includeIndirect, load, refresh } = useManagerDashboard()
 const { updatePersonFields } = useFieldDefinitions()
 const { reloadRoster } = useRoster()
 
 const activeTab = ref('reports')
 const expandedTeams = ref({})
+const searchQuery = ref('')
 
 // Single-cell editing state
 const editingCell = ref({ uid: null, fieldId: null })
@@ -376,8 +422,29 @@ const bulkChanges = reactive({})
 // Stores pending team changes: { "uid": ["teamName1", "teamName2"] }
 const bulkTeamChanges = reactive({})
 
+const visibleReports = computed(() =>
+  includeIndirect.value
+    ? [...directReports.value, ...indirectReports.value]
+    : directReports.value
+)
+
+const directReportUidSet = computed(() =>
+  new Set(directReports.value.map(r => r.uid))
+)
+
+const filteredReports = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return visibleReports.value
+  return visibleReports.value.filter(r => {
+    if (r.name?.toLowerCase().includes(q)) return true
+    if (r.title?.toLowerCase().includes(q)) return true
+    if (r.teamIds?.some(id => teamById.value[id]?.name?.toLowerCase().includes(q))) return true
+    return false
+  })
+})
+
 const tabs = computed(() => [
-  { id: 'reports', label: 'My Reports', count: directReports.value.length },
+  { id: 'reports', label: 'My Reports', count: visibleReports.value.length },
   { id: 'teams', label: 'My Teams', count: teams.value.length }
 ])
 
@@ -406,8 +473,14 @@ const teamById = computed(() => {
 })
 
 const allPeopleForEditor = computed(() =>
-  directReports.value.map(r => ({ uid: r.uid, name: r.name }))
+  visibleReports.value.map(r => ({ uid: r.uid, name: r.name }))
 )
+
+async function toggleIndirectReports() {
+  includeIndirect.value = !includeIndirect.value
+  if (bulkEditing.value) cancelBulkEdit()
+  await load()
+}
 
 const allOrgTeamNames = computed(() =>
   allOrgTeams.value.map(t => t.name).sort()
@@ -449,7 +522,7 @@ function getBulkValue(uid, field) {
   const key = bulkKey(uid, field.id)
   if (key in bulkChanges) return bulkChanges[key]
   // Return current value from data
-  const raw = directReports.value.find(r => r.uid === uid)?.customFields[field.id] ?? null
+  const raw = visibleReports.value.find(r => r.uid === uid)?.customFields[field.id] ?? null
   if (field.type === 'constrained' && field.multiValue) {
     return Array.isArray(raw) ? raw : (raw ? [raw] : [])
   }
@@ -462,7 +535,7 @@ function getBulkValue(uid, field) {
 function setBulkValue(uid, fieldId, value) {
   const key = bulkKey(uid, fieldId)
   // Check if value differs from original
-  const report = directReports.value.find(r => r.uid === uid)
+  const report = visibleReports.value.find(r => r.uid === uid)
   const original = report?.customFields[fieldId] ?? null
   const field = visiblePersonFields.value.find(f => f.id === fieldId)
 
@@ -484,7 +557,7 @@ function setBulkValue(uid, fieldId, value) {
 }
 
 function teamNamesForUid(uid) {
-  const report = directReports.value.find(r => r.uid === uid)
+  const report = visibleReports.value.find(r => r.uid === uid)
   if (!report || !report.teamIds) return []
   return report.teamIds.map(id => teamById.value[id]?.name).filter(Boolean)
 }
@@ -636,7 +709,7 @@ function resolvePersonName(rawUid) {
 // --- Shared helpers ---
 
 function getReport(uid) {
-  return directReports.value.find(r => r.uid === uid)
+  return visibleReports.value.find(r => r.uid === uid)
 }
 
 function getReportName(uid) {

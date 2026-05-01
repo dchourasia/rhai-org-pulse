@@ -8,21 +8,27 @@ const mockLoad = vi.fn()
 const mockRefresh = vi.fn()
 const mockManager = ref(null)
 const mockDirectReports = ref([])
+const mockIndirectReports = ref([])
 const mockTeams = ref([])
+const mockAllOrgTeams = ref([])
 const mockFieldDefinitions = ref({ person: [], team: [] })
 const mockLoading = ref(false)
 const mockError = ref(null)
 const mockReason = ref(null)
+const mockIncludeIndirect = ref(false)
 
 vi.mock('../../client/composables/useManagerDashboard', () => ({
   useManagerDashboard: () => ({
     manager: mockManager,
     directReports: mockDirectReports,
+    indirectReports: mockIndirectReports,
     teams: mockTeams,
+    allOrgTeams: mockAllOrgTeams,
     fieldDefinitions: mockFieldDefinitions,
     loading: mockLoading,
     error: mockError,
     reason: mockReason,
+    includeIndirect: mockIncludeIndirect,
     load: mockLoad,
     refresh: mockRefresh
   })
@@ -69,11 +75,14 @@ function mountView() {
 beforeEach(() => {
   mockManager.value = null
   mockDirectReports.value = []
+  mockIndirectReports.value = []
   mockTeams.value = []
+  mockAllOrgTeams.value = []
   mockFieldDefinitions.value = { person: [], team: [] }
   mockLoading.value = false
   mockError.value = null
   mockReason.value = null
+  mockIncludeIndirect.value = false
   mockLoad.mockClear()
   mockRefresh.mockClear()
 })

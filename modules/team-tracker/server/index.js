@@ -571,7 +571,8 @@ module.exports = function registerRoutes(router, context) {
       }
     }
 
-    const purview = getManagerPurview(req.userUid, registry, teamsData);
+    const includeIndirect = req.query?.includeIndirect === 'true';
+    const purview = getManagerPurview(req.userUid, registry, teamsData, { includeIndirect });
 
     // Build enriched direct reports with customFields
     const directReports = purview.directReportUids.map(uid => {
@@ -591,9 +592,34 @@ module.exports = function registerRoutes(router, context) {
       };
     }).filter(Boolean);
 
+    // Build enriched indirect reports when requested
+    let indirectReports;
+    if (includeIndirect && purview.indirectReportUids) {
+      indirectReports = purview.indirectReportUids.map(uid => {
+        const person = registry.people[uid];
+        if (!person) return null;
+        const customFields = {};
+        for (const fieldDef of personFieldDefs) {
+          customFields[fieldDef.id] = person._appFields?.[fieldDef.id] || null;
+        }
+        return {
+          uid: person.uid,
+          name: person.name || null,
+          email: person.email || null,
+          title: person.title || null,
+          teamIds: person.teamIds || [],
+          managerUid: person.managerUid || null,
+          customFields
+        };
+      }).filter(Boolean);
+    }
+
     // Collect distinct orgRoot values from direct reports to determine available teams
     const orgRoots = new Set();
-    for (const uid of purview.directReportUids) {
+    const allReportUids = includeIndirect
+      ? [...purview.directReportUids, ...(purview.indirectReportUids || [])]
+      : purview.directReportUids;
+    for (const uid of allReportUids) {
       const person = registry.people[uid];
       if (person && person.orgRoot) orgRoots.add(person.orgRoot);
     }
@@ -606,7 +632,7 @@ module.exports = function registerRoutes(router, context) {
           .map(t => ({ id: t.id, name: t.name, orgKey: t.orgKey }))
       : [];
 
-    res.json({
+    const response = {
       manager: managerPerson ? {
         uid: req.userUid,
         name: managerPerson.name || null,
@@ -619,7 +645,9 @@ module.exports = function registerRoutes(router, context) {
         person: personFieldDefs,
         team: teamFieldDefs
       }
-    });
+    };
+    if (includeIndirect) response.indirectReports = indirectReports || [];
+    res.json(response);
   });
 
   // ─── Routes: Team Structure Management ───

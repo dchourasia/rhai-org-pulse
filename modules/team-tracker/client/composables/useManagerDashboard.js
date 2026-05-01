@@ -3,12 +3,14 @@ import { apiRequest } from '@shared/client/services/api'
 
 const manager = ref(null)
 const directReports = ref([])
+const indirectReports = ref([])
 const teams = ref([])
 const allOrgTeams = ref([])
 const fieldDefinitions = ref({ person: [], team: [] })
 const loading = ref(false)
 const error = ref(null)
 const reason = ref(null)
+const includeIndirect = ref(false)
 
 export function useManagerDashboard() {
   async function load() {
@@ -16,9 +18,11 @@ export function useManagerDashboard() {
     error.value = null
     reason.value = null
     try {
-      const data = await apiRequest('/modules/team-tracker/manager/dashboard')
+      const params = includeIndirect.value ? '?includeIndirect=true' : ''
+      const data = await apiRequest(`/modules/team-tracker/manager/dashboard${params}`)
       manager.value = data.manager || null
       directReports.value = data.directReports || []
+      indirectReports.value = data.indirectReports || []
       teams.value = data.teams || []
       allOrgTeams.value = data.allOrgTeams || []
       fieldDefinitions.value = data.fieldDefinitions || { person: [], team: [] }
@@ -37,12 +41,14 @@ export function useManagerDashboard() {
   return {
     manager,
     directReports,
+    indirectReports,
     teams,
     allOrgTeams,
     fieldDefinitions,
     loading,
     error,
     reason,
+    includeIndirect,
     load,
     refresh
   }
