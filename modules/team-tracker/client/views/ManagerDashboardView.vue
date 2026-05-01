@@ -82,7 +82,7 @@
               <tr>
                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="bulkEditing ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'">Name</th>
                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="bulkEditing ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'">Title</th>
-                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="bulkEditing ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'">Team(s)</th>
+                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :class="bulkEditing ? 'text-primary-700 dark:text-primary-300 bg-blue-50 dark:bg-blue-900/30' : 'text-gray-500 dark:text-gray-400'">Team(s)</th>
                 <th
                   v-for="field in visiblePersonFields"
                   :key="field.id"
@@ -108,9 +108,49 @@
                 <td class="px-4 py-3 text-sm whitespace-nowrap" :class="bulkEditing ? 'opacity-50 text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-400'">
                   {{ report.title || '—' }}
                 </td>
-                <td class="px-4 py-3 text-sm whitespace-nowrap" :class="bulkEditing ? 'opacity-50' : ''">
-                  <span v-if="report.teamIds.length > 0" class="text-gray-600 dark:text-gray-400">{{ teamNamesForReport(report) }}</span>
-                  <span v-else class="text-amber-500 dark:text-amber-400">Unassigned</span>
+                <td class="px-4 py-3 text-sm" :class="bulkEditing ? 'bg-blue-50 dark:bg-blue-900/20' : ''">
+                  <!-- BULK EDIT MODE -->
+                  <div v-if="bulkEditing" class="min-w-[140px]">
+                    <ConstrainedAutocomplete
+                      :model-value="getBulkTeamValue(report.uid)"
+                      :options="allOrgTeamNames"
+                      :multi-value="true"
+                      @update:model-value="setBulkTeamValue(report.uid, $event)"
+                    />
+                  </div>
+
+                  <!-- SINGLE-CELL EDIT MODE -->
+                  <div v-else-if="editingTeamUid === report.uid" class="relative min-w-[160px]">
+                    <ConstrainedAutocomplete
+                      :model-value="editTeamValue"
+                      :options="allOrgTeamNames"
+                      :multi-value="true"
+                      @update:model-value="editTeamValue = $event"
+                    />
+                    <div class="flex gap-1.5 mt-1">
+                      <button class="px-2 py-0.5 text-xs font-medium text-white bg-primary-600 rounded hover:bg-primary-700 disabled:opacity-50" :disabled="saving" @click="saveTeamEdit(report.uid)">Save</button>
+                      <button class="px-2 py-0.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600" @click="cancelTeamEdit">Cancel</button>
+                    </div>
+                  </div>
+
+                  <!-- DISPLAY MODE -->
+                  <div v-else class="group flex items-center gap-1.5 cursor-pointer" @click="startTeamEdit(report)">
+                    <div v-if="report.teamIds.length > 0">
+                      <template v-for="(id, idx) in report.teamIds" :key="id">
+                        <span v-if="idx > 0" class="text-gray-400 dark:text-gray-500">, </span>
+                        <button
+                          v-if="teamById[id]"
+                          @click.stop="navigateToTeamDetail(teamById[id])"
+                          class="text-primary-600 dark:text-primary-400 hover:underline"
+                        >{{ teamById[id].name }}</button>
+                        <span v-else class="text-gray-600 dark:text-gray-400">{{ id }}</span>
+                      </template>
+                    </div>
+                    <span v-else class="text-amber-500 dark:text-amber-400">Unassigned</span>
+                    <svg class="h-3 w-3 text-gray-400 dark:text-gray-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </div>
                 </td>
                 <!-- Field cells -->
                 <td
@@ -183,7 +223,6 @@
                           :key="v"
                           class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                         >{{ v }}</span>
-                        <span v-if="multiValueOverflow(report, field) > 0" class="text-xs text-gray-400 dark:text-gray-500">+{{ multiValueOverflow(report, field) }}</span>
                         <span v-if="displayMultiValues(report, field).length === 0" class="text-gray-400 dark:text-gray-500">—</span>
                       </div>
                     </template>
@@ -308,14 +347,17 @@ import { ref, computed, reactive, onMounted, inject } from 'vue'
 import { ExternalLink, ChevronDown, Pencil } from 'lucide-vue-next'
 import { useManagerDashboard } from '../composables/useManagerDashboard'
 import { useFieldDefinitions } from '@shared/client/composables/useFieldDefinitions'
+import { useRoster } from '@shared/client/composables/useRoster'
+import { apiRequest } from '@shared/client/services/api'
 import PersonFieldEditor from '../components/PersonFieldEditor.vue'
 import ConstrainedAutocomplete from '../components/ConstrainedAutocomplete.vue'
 import PersonAutocomplete from '../components/PersonAutocomplete.vue'
 
 const nav = inject('moduleNav', null)
 
-const { directReports, teams, fieldDefinitions, loading, error, reason, load, refresh } = useManagerDashboard()
+const { directReports, teams, allOrgTeams, fieldDefinitions, loading, error, reason, load, refresh } = useManagerDashboard()
 const { updatePersonFields } = useFieldDefinitions()
+const { reloadRoster } = useRoster()
 
 const activeTab = ref('reports')
 const expandedTeams = ref({})
@@ -323,12 +365,16 @@ const expandedTeams = ref({})
 // Single-cell editing state
 const editingCell = ref({ uid: null, fieldId: null })
 const editValue = ref(null)
+const editingTeamUid = ref(null)
+const editTeamValue = ref([])
 const saving = ref(false)
 
 // Bulk editing state
 const bulkEditing = ref(false)
 // Stores pending changes: { "uid:fieldId": newValue }
 const bulkChanges = reactive({})
+// Stores pending team changes: { "uid": ["teamName1", "teamName2"] }
+const bulkTeamChanges = reactive({})
 
 const tabs = computed(() => [
   { id: 'reports', label: 'My Reports', count: directReports.value.length },
@@ -351,10 +397,10 @@ const visibleTeamFields = computed(() =>
   teamFieldDefs.value.filter(f => f.visible)
 )
 
-const teamIdToName = computed(() => {
+const teamById = computed(() => {
   const map = {}
   for (const team of teams.value) {
-    map[team.id] = team.name
+    map[team.id] = team
   }
   return map
 })
@@ -363,30 +409,36 @@ const allPeopleForEditor = computed(() =>
   directReports.value.map(r => ({ uid: r.uid, name: r.name }))
 )
 
-const pendingChangeCount = computed(() => Object.keys(bulkChanges).length)
+const allOrgTeamNames = computed(() =>
+  allOrgTeams.value.map(t => t.name).sort()
+)
 
-function teamNamesForReport(report) {
-  if (!report.teamIds || report.teamIds.length === 0) return ''
-  return report.teamIds
-    .map(id => teamIdToName.value[id] || id)
-    .join(', ')
-}
+const orgTeamNameToId = computed(() => {
+  const map = {}
+  for (const t of allOrgTeams.value) {
+    map[t.name] = t.id
+  }
+  return map
+})
+
+const pendingChangeCount = computed(() => {
+  const fieldChanges = Object.keys(bulkChanges).length
+  const teamChanges = Object.keys(bulkTeamChanges).length
+  return fieldChanges + teamChanges
+})
 
 // --- Bulk editing ---
 
 function enterBulkEdit() {
   bulkEditing.value = true
-  // Clear any pending changes
-  for (const key of Object.keys(bulkChanges)) {
-    delete bulkChanges[key]
-  }
+  for (const key of Object.keys(bulkChanges)) delete bulkChanges[key]
+  for (const key of Object.keys(bulkTeamChanges)) delete bulkTeamChanges[key]
 }
 
 function cancelBulkEdit() {
   bulkEditing.value = false
-  for (const key of Object.keys(bulkChanges)) {
-    delete bulkChanges[key]
-  }
+  for (const key of Object.keys(bulkChanges)) delete bulkChanges[key]
+  for (const key of Object.keys(bulkTeamChanges)) delete bulkTeamChanges[key]
 }
 
 function bulkKey(uid, fieldId) {
@@ -431,10 +483,51 @@ function setBulkValue(uid, fieldId, value) {
   }
 }
 
+function teamNamesForUid(uid) {
+  const report = directReports.value.find(r => r.uid === uid)
+  if (!report || !report.teamIds) return []
+  return report.teamIds.map(id => teamById.value[id]?.name).filter(Boolean)
+}
+
+function getBulkTeamValue(uid) {
+  if (uid in bulkTeamChanges) return bulkTeamChanges[uid]
+  return teamNamesForUid(uid)
+}
+
+function setBulkTeamValue(uid, names) {
+  const original = teamNamesForUid(uid)
+  if (JSON.stringify([...names].sort()) === JSON.stringify([...original].sort())) {
+    delete bulkTeamChanges[uid]
+  } else {
+    bulkTeamChanges[uid] = names
+  }
+}
+
+async function saveTeamChanges(uid, newNames) {
+  const report = directReports.value.find(r => r.uid === uid)
+  const oldIds = report?.teamIds || []
+  const newIds = newNames.map(n => orgTeamNameToId.value[n]).filter(Boolean)
+  const toAdd = newIds.filter(id => !oldIds.includes(id))
+  const toRemove = oldIds.filter(id => !newIds.includes(id))
+  const ops = [
+    ...toAdd.map(id =>
+      apiRequest(`/modules/team-tracker/structure/teams/${id}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid })
+      })
+    ),
+    ...toRemove.map(id =>
+      apiRequest(`/modules/team-tracker/structure/teams/${id}/members/${uid}`, { method: 'DELETE' })
+    )
+  ]
+  await Promise.all(ops)
+}
+
 async function saveAllChanges() {
   saving.value = true
   try {
-    // Group changes by uid
+    // Group field changes by uid
     const changesByUid = {}
     for (const [key, value] of Object.entries(bulkChanges)) {
       const [uid, fieldId] = key.split(':')
@@ -446,16 +539,19 @@ async function saveAllChanges() {
       }
       changesByUid[uid][fieldId] = valueToSave
     }
-    // Save each person's changes
-    await Promise.all(
-      Object.entries(changesByUid).map(([uid, fields]) =>
+    // Save field changes and team changes in parallel
+    await Promise.all([
+      ...Object.entries(changesByUid).map(([uid, fields]) =>
         updatePersonFields(uid, fields)
+      ),
+      ...Object.entries(bulkTeamChanges).map(([uid, names]) =>
+        saveTeamChanges(uid, names)
       )
-    )
+    ])
     bulkEditing.value = false
-    for (const key of Object.keys(bulkChanges)) {
-      delete bulkChanges[key]
-    }
+    for (const key of Object.keys(bulkChanges)) delete bulkChanges[key]
+    if (Object.keys(bulkTeamChanges).length > 0) reloadRoster()
+    for (const key of Object.keys(bulkTeamChanges)) delete bulkTeamChanges[key]
     refresh()
   } finally {
     saving.value = false
@@ -496,6 +592,27 @@ function cancelEdit() {
   editingCell.value = { uid: null, fieldId: null }
 }
 
+function startTeamEdit(report) {
+  editingTeamUid.value = report.uid
+  editTeamValue.value = [...teamNamesForUid(report.uid)]
+}
+
+async function saveTeamEdit(uid) {
+  saving.value = true
+  try {
+    await saveTeamChanges(uid, editTeamValue.value)
+    editingTeamUid.value = null
+    reloadRoster()
+    refresh()
+  } finally {
+    saving.value = false
+  }
+}
+
+function cancelTeamEdit() {
+  editingTeamUid.value = null
+}
+
 // --- Display helpers ---
 
 function displaySingleValue(report, field) {
@@ -506,14 +623,7 @@ function displaySingleValue(report, field) {
 
 function displayMultiValues(report, field) {
   const raw = report.customFields[field.id]
-  const vals = Array.isArray(raw) ? raw : (raw ? [raw] : [])
-  return vals.slice(0, 3)
-}
-
-function multiValueOverflow(report, field) {
-  const raw = report.customFields[field.id]
-  const vals = Array.isArray(raw) ? raw : (raw ? [raw] : [])
-  return Math.max(0, vals.length - 3)
+  return Array.isArray(raw) ? raw : (raw ? [raw] : [])
 }
 
 function resolvePersonName(rawUid) {
@@ -553,7 +663,7 @@ function navigateToPersonDetail(uid) {
 }
 
 function navigateToTeamDetail(team) {
-  if (nav) nav.navigateTo('team-detail', { team: `${team.orgKey}::${team.name}` })
+  if (nav) nav.navigateTo('team-detail', { teamKey: `${team.orgKey}::${team.name}` })
 }
 
 function handleFieldUpdated() {

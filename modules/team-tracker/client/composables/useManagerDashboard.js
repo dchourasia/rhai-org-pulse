@@ -4,6 +4,7 @@ import { apiRequest } from '@shared/client/services/api'
 const manager = ref(null)
 const directReports = ref([])
 const teams = ref([])
+const allOrgTeams = ref([])
 const fieldDefinitions = ref({ person: [], team: [] })
 const loading = ref(false)
 const error = ref(null)
@@ -19,6 +20,7 @@ export function useManagerDashboard() {
       manager.value = data.manager || null
       directReports.value = data.directReports || []
       teams.value = data.teams || []
+      allOrgTeams.value = data.allOrgTeams || []
       fieldDefinitions.value = data.fieldDefinitions || { person: [], team: [] }
       reason.value = data.reason || null
     } catch (err) {
@@ -36,6 +38,7 @@ export function useManagerDashboard() {
     manager,
     directReports,
     teams,
+    allOrgTeams,
     fieldDefinitions,
     loading,
     error,

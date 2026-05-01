@@ -1,9 +1,11 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { useTeams } from '@shared/client/composables/useTeams'
+import { useRoster } from '@shared/client/composables/useRoster'
 import { usePermissions } from '@shared/client/composables/usePermissions'
 
 const { teams, demoToast, fetchTeams, assignMembersBulk, fetchUnassigned } = useTeams()
+const { reloadRoster } = useRoster()
 const { isAdmin, isManager, canEdit } = usePermissions()
 
 const people = ref([])
@@ -50,6 +52,7 @@ async function bulkAssign() {
   try {
     await assignMembersBulk(targetTeamId.value, [...selectedUids.value])
     selectedUids.value = new Set()
+    reloadRoster()
     await loadPeople()
   } catch (e) {
     error.value = e.message || 'Failed to assign'

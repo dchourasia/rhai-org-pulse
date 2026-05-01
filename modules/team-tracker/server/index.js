@@ -591,6 +591,21 @@ module.exports = function registerRoutes(router, context) {
       };
     }).filter(Boolean);
 
+    // Collect distinct orgRoot values from direct reports to determine available teams
+    const orgRoots = new Set();
+    for (const uid of purview.directReportUids) {
+      const person = registry.people[uid];
+      if (person && person.orgRoot) orgRoots.add(person.orgRoot);
+    }
+    // Also include the manager's own orgRoot as a fallback
+    if (managerPerson && managerPerson.orgRoot) orgRoots.add(managerPerson.orgRoot);
+
+    const allOrgTeams = teamsData && teamsData.teams
+      ? Object.values(teamsData.teams)
+          .filter(t => orgRoots.has(t.orgKey))
+          .map(t => ({ id: t.id, name: t.name, orgKey: t.orgKey }))
+      : [];
+
     res.json({
       manager: managerPerson ? {
         uid: req.userUid,
@@ -599,6 +614,7 @@ module.exports = function registerRoutes(router, context) {
       } : null,
       directReports,
       teams: purview.teams,
+      allOrgTeams,
       fieldDefinitions: {
         person: personFieldDefs,
         team: teamFieldDefs
