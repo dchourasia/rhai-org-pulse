@@ -10,5 +10,5 @@ export const routes = {
   'qe-validation': ComingSoonView,
   'security': ComingSoonView,
   'documentation': ComingSoonView,
-  'build-release': ComingSoonView,
+  'build-release': defineAsyncComponent(() => import('./views/BuildReleaseView.vue')),
 }
