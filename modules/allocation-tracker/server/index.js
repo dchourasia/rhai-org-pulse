@@ -37,6 +37,7 @@ module.exports = function registerRoutes(router, context) {
   // Import orchestration and classification
   const { discoverBoards, processBoard, processKanbanBoard, performMultiProjectRefresh } = require('./jira/orchestration');
   const { getStoragePrefix, createPrefixedStorage } = require('./jira/config');
+  const { classifyAndWrite, shouldClassify, DEFAULT_CONFIG } = require('./classification');
 
   // ─── Storage helpers ───
 
@@ -262,6 +263,121 @@ module.exports = function registerRoutes(router, context) {
       };
     }
     res.json(sanitized);
+  });
+
+  // ─── Classification routes ───
+
+  /**
+   * Classify a single issue and write Activity Type to Jira
+   * POST /api/modules/allocation-tracker/classify
+   * Body: { issueKey: 'AIPCC-12345', dryRun?: boolean }
+   */
+  router.post('/classify', requireAdmin, async function(req, res) {
+    try {
+      const { issueKey, dryRun } = req.body;
+
+      if (!issueKey || typeof issueKey !== 'string') {
+        return res.status(400).json({ error: 'issueKey is required' });
+      }
+
+      if (!/^[A-Z][A-Z0-9]+-\d+$/.test(issueKey)) {
+        return res.status(400).json({ error: 'Invalid issue key format' });
+      }
+
+      // Load classification config
+      const config = moduleRead('config/classification.json') || DEFAULT_CONFIG;
+
+      // Fetch issue from Jira
+      const jiraIssue = await jiraRequest(`/rest/api/3/issue/${issueKey}?fields=summary,description,issuetype,customfield_10464,project`);
+
+      // Transform to classification format
+      const issue = {
+        key: jiraIssue.key,
+        issueType: jiraIssue.fields.issuetype?.name,
+        summary: jiraIssue.fields.summary || '',
+        description: jiraIssue.fields.description?.content?.[0]?.content?.[0]?.text || '',
+        activityType: jiraIssue.fields.customfield_10464 || null,
+        project: jiraIssue.fields.project?.key
+      };
+
+      // Check if should classify
+      if (!shouldClassify(issue, config)) {
+        return res.json({
+          issueKey,
+          skipped: true,
+          reason: 'not-in-scope',
+          message: `Issue ${issueKey} not in configured projects or issue types`
+        });
+      }
+
+      // Classify and write
+      const result = await classifyAndWrite(issue, { dryRun: dryRun || false, config });
+
+      res.json(result);
+    } catch (error) {
+      console.error('[allocation-tracker] Classification error:', error);
+      if (error.message?.includes('404')) {
+        return res.status(404).json({ error: 'Issue not found' });
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  /**
+   * Get classification configuration
+   * GET /api/modules/allocation-tracker/classification/config
+   */
+  router.get('/classification/config', requireAdmin, function(_req, res) {
+    try {
+      const config = moduleRead('config/classification.json');
+      res.json(config || DEFAULT_CONFIG);
+    } catch (error) {
+      console.error('[allocation-tracker] Read classification config error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  /**
+   * Save classification configuration
+   * POST /api/modules/allocation-tracker/classification/config
+   * Body: { enabled, projects, confidenceThreshold, issueTypes }
+   */
+  router.post('/classification/config', requireAdmin, function(req, res) {
+    try {
+      const { enabled, projects, confidenceThreshold, issueTypes } = req.body;
+
+      // Validate config
+      if (typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: 'enabled must be a boolean' });
+      }
+
+      if (!Array.isArray(projects) || projects.some(p => typeof p !== 'string' || !isValidProjectKey(p))) {
+        return res.status(400).json({ error: 'projects must be an array of valid Jira project keys' });
+      }
+
+      if (typeof confidenceThreshold !== 'number' || confidenceThreshold < 0 || confidenceThreshold > 1) {
+        return res.status(400).json({ error: 'confidenceThreshold must be a number between 0 and 1' });
+      }
+
+      if (!Array.isArray(issueTypes) || issueTypes.some(t => typeof t !== 'string')) {
+        return res.status(400).json({ error: 'issueTypes must be an array of strings' });
+      }
+
+      const config = {
+        enabled,
+        projects,
+        confidenceThreshold,
+        issueTypes
+      };
+
+      moduleWrite('config/classification.json', config);
+      console.log('[allocation-tracker] Classification config saved:', config);
+
+      res.json(config);
+    } catch (error) {
+      console.error('[allocation-tracker] Save classification config error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // ─── Data reader routes ───
