@@ -8,19 +8,30 @@
           Policy exceptions approved for each RHOAI release, sourced from Enterprise Contract Policy YAMLs.
         </p>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex flex-col items-end gap-2">
         <span v-if="state.fetchedAt" class="text-xs text-gray-400 dark:text-gray-500">
           Updated {{ formatDateTime(state.fetchedAt) }}
         </span>
-        <select
-          v-if="allReleases.length"
-          v-model="selectedVersion"
-          class="text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option v-for="r in allReleases" :key="r.version" :value="r.version">
-            {{ r.version }} &nbsp;(GA: {{ r.gaDate }})
-          </option>
-        </select>
+        <div v-if="allReleases.length" class="flex items-center gap-2">
+          <label class="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 whitespace-nowrap">
+            Release
+          </label>
+          <div class="relative">
+            <select
+              v-model="selectedVersion"
+              class="appearance-none pl-4 pr-10 py-2.5 text-sm font-semibold rounded-xl border-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm cursor-pointer min-w-[230px]"
+            >
+              <option v-for="r in allReleases" :key="r.version" :value="r.version">
+                {{ r.version }} (GA: {{ r.gaDate }})
+              </option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+              <svg class="w-4 h-4 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -34,7 +45,33 @@
       {{ state.error }}
     </div>
 
-    <div v-else-if="selectedRelease" :key="selectedVersion">
+    <div v-else-if="selectedRelease" :key="selectedVersion" class="space-y-6">
+
+      <!-- Version banner -->
+      <div class="rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 dark:from-blue-700 dark:via-indigo-700 dark:to-violet-700 px-6 py-5 shadow-lg text-white">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-widest text-blue-200 mb-1">Viewing Release</p>
+            <h3 class="text-3xl font-extrabold tracking-tight leading-none">{{ selectedRelease.version }}</h3>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <div class="flex flex-col items-center bg-white/15 backdrop-blur-sm rounded-xl px-5 py-2.5 min-w-[90px]">
+              <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-200 mb-0.5">GA Date</span>
+              <span class="text-sm font-bold">{{ selectedRelease.gaDate }}</span>
+            </div>
+            <div v-if="selectedRelease.codeFreezeDate" class="flex flex-col items-center bg-white/15 backdrop-blur-sm rounded-xl px-5 py-2.5 min-w-[90px]">
+              <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-200 mb-0.5">Code Freeze</span>
+              <span class="text-sm font-bold">{{ selectedRelease.codeFreezeDate }}</span>
+            </div>
+            <div class="flex flex-col items-center rounded-xl px-5 py-2.5 min-w-[90px]"
+              :class="selectedRelease.gaDate <= todayStr ? 'bg-emerald-500/30' : 'bg-amber-500/30'">
+              <span class="text-[10px] font-semibold uppercase tracking-wider text-blue-200 mb-0.5">Status</span>
+              <span class="text-sm font-bold">{{ selectedRelease.gaDate <= todayStr ? 'Shipped' : 'Upcoming' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Summary cards -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div
@@ -351,6 +388,7 @@ const TABLE_COLUMNS = [
 const state = useConformaExceptions()
 const selectedVersion = ref(null)
 const chartKey = ref(0)
+const todayStr = new Date().toISOString().slice(0, 10)
 
 const allReleases = computed(() => {
   const cutoff = new Date()
