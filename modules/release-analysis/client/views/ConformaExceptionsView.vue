@@ -391,12 +391,14 @@ const chartKey = ref(0)
 const todayStr = new Date().toISOString().slice(0, 10)
 
 const allReleases = computed(() => {
-  const cutoff = new Date()
-  cutoff.setMonth(cutoff.getMonth() + 1)
-  const cutoffStr = cutoff.toISOString().slice(0, 10)
-  return [...(state.releases || [])]
-    .filter(r => r.gaDate && r.gaDate <= cutoffStr)
+  const releases = (state.releases || []).filter(r => r.gaDate)
+  const shipped = releases
+    .filter(r => r.gaDate <= todayStr)
     .sort((a, b) => b.gaDate.localeCompare(a.gaDate))
+  const nextUpcoming = releases
+    .filter(r => r.gaDate > todayStr)
+    .sort((a, b) => a.gaDate.localeCompare(b.gaDate))[0]
+  return nextUpcoming ? [nextUpcoming, ...shipped] : shipped
 })
 
 watch(allReleases, (list) => {
