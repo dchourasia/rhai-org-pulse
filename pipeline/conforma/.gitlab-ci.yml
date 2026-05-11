@@ -3,8 +3,8 @@ variables:
   ORG_PULSE_BACKEND_URL: ""        # e.g. https://team-tracker.apps.example.com
   ORG_PULSE_API_TOKEN: ""          # Bearer token (tt_...) — set as Masked variable
   SMARTSHEET_TOKEN: ""             # Smartsheet API token — set as Masked variable
-  GITLAB_CEE_TOKEN: ""             # gitlab.cee.redhat.com PAT with read_api scope — Masked
-  MIN_DATE: "2025-05-22"           # Only process releases with GA date on or after this date
+  GITLAB_TOKEN: ""                 # gitlab.cee.redhat.com PAT with read_api scope — Masked
+  MIN_DATE: "2024-01-01"           # Only process releases with GA date on or after this date
 
 stages:
   - fetch-and-push

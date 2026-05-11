@@ -59,6 +59,8 @@ def env(name: str, required: bool = True) -> str:
 
 # ─── Smartsheet ───────────────────────────────────────────────────────────────
 
+PAGE_SIZE = 500
+
 def fetch_smartsheet_rows(token: str) -> list[dict]:
     """Paginate through the sheet and return all rows as dicts with column titles as keys."""
     headers = {"Authorization": f"Bearer {token}"}
@@ -67,7 +69,7 @@ def fetch_smartsheet_rows(token: str) -> list[dict]:
     cols = None
 
     while True:
-        url = f"{SMARTSHEET_BASE}/sheets/{SMARTSHEET_SHEET_ID}?pageSize=500&page={page}"
+        url = f"{SMARTSHEET_BASE}/sheets/{SMARTSHEET_SHEET_ID}?pageSize={PAGE_SIZE}&page={page}"
         resp = requests.get(url, headers=headers, timeout=TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
@@ -84,9 +86,10 @@ def fetch_smartsheet_rows(token: str) -> list[dict]:
             }
             all_rows.append(cells)
 
-        # Smartsheet paginates with totalPages
-        total_pages = data.get("totalPages", 1)
-        if page >= total_pages:
+        print(f"  Page {page}: {len(rows)} rows (total so far: {len(all_rows)})")
+
+        # Stop when we receive fewer rows than the page size — no more pages
+        if len(rows) < PAGE_SIZE:
             break
         page += 1
 
@@ -107,8 +110,12 @@ def parse_finish_date(raw: str) -> str | None:
 def extract_releases_from_smartsheet(rows: list[dict], min_date: str) -> list[dict]:
     """Group rows by shortname and extract GA + Code Freeze dates.
 
-    Falls back to the 'Release Window' Finish date as GA date when no explicit
-    GA / RHOAI RELEASE row exists for a version (common for EA and z-stream releases).
+    Falls back to the 'Release Window' Finish date as GA date ONLY when no
+    explicit GA / RHOAI RELEASE row exists at all for a version.  This prevents
+    old versions (e.g. rhoai-2.16.x) whose maintenance Release Window rows have
+    recent dates from being incorrectly treated as new releases.  EA and z-stream
+    releases that never have an explicit GA row pick up the Release Window date
+    as intended.
     """
     grouped: dict[str, dict] = {}
     rw_dates: dict[str, str] = {}  # shortname → Release Window Finish (GA fallback)
@@ -123,7 +130,12 @@ def extract_releases_from_smartsheet(rows: list[dict], min_date: str) -> list[di
         if not finish:
             continue
 
-        entry = grouped.setdefault(shortname, {"version": shortname, "gaDate": None, "codeFreezeDate": None})
+        entry = grouped.setdefault(shortname, {
+            "version": shortname,
+            "gaDate": None,
+            "codeFreezeDate": None,
+            "_hasExplicitGA": False,  # removed before pushing to API
+        })
 
         if CF_KEYWORDS.search(task) and not GA_EXCLUDES.search(task):
             # Keep the latest code freeze date if multiple rows match
@@ -131,27 +143,29 @@ def extract_releases_from_smartsheet(rows: list[dict], min_date: str) -> list[di
                 entry["codeFreezeDate"] = finish
 
         elif GA_KEYWORDS.search(task) and not GA_EXCLUDES.search(task):
-            # Explicit GA / RHOAI RELEASE row
+            # Explicit GA / RHOAI RELEASE row — always takes priority
             if entry["gaDate"] is None or finish > entry["gaDate"]:
                 entry["gaDate"] = finish
+            entry["_hasExplicitGA"] = True
 
         elif RELEASE_WINDOW_RE.search(task):
-            # Track as fallback; used only when no explicit GA row is found
+            # Track as fallback; applied only when _hasExplicitGA is False
             if shortname not in rw_dates or finish > rw_dates[shortname]:
                 rw_dates[shortname] = finish
 
     result = []
     for entry in grouped.values():
+        has_explicit = entry.pop("_hasExplicitGA", False)
         ga = entry.get("gaDate")
-        if not ga:
-            # Fall back to Release Window date (EA releases, z-streams often lack explicit GA rows)
+
+        if not ga and not has_explicit:
+            # No explicit GA row found anywhere → try Release Window fallback
             ga = rw_dates.get(entry["version"])
             if ga:
                 entry["gaDate"] = ga
-                print(f"  INFO: {entry['version']}: no explicit GA row found, using Release Window date {ga}")
-        if not ga:
-            continue
-        if ga < min_date:
+                print(f"  INFO: {entry['version']}: no explicit GA row, using Release Window date {ga}")
+
+        if not ga or ga < min_date:
             continue
         result.append(entry)
 
@@ -324,7 +338,7 @@ def main() -> None:
     backend_url   = env("ORG_PULSE_BACKEND_URL")
     api_token     = env("ORG_PULSE_API_TOKEN")
     smartsheet_tk = env("SMARTSHEET_TOKEN")
-    gitlab_token  = env("GITLAB_CEE_TOKEN")
+    gitlab_token  = env("GITLAB_TOKEN")
     min_date      = env("MIN_DATE", required=False) or "2024-01-01"
 
     print("=== Conforma Exceptions Sync ===")
@@ -335,7 +349,7 @@ def main() -> None:
     # Step 1: Fetch smartsheet release schedule
     print("[1/4] Fetching release schedule from Smartsheet…")
     rows = fetch_smartsheet_rows(smartsheet_tk)
-    print(f"  Fetched {len(rows)} rows")
+    print(f"  Fetched {len(rows)} rows total")
 
     releases_meta = extract_releases_from_smartsheet(rows, min_date)
     print(f"  Found {len(releases_meta)} RHOAI releases with GA date >= {min_date}")

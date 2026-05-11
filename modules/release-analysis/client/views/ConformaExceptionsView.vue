@@ -34,7 +34,7 @@
       {{ state.error }}
     </div>
 
-    <template v-else-if="selectedRelease">
+    <div v-else-if="selectedRelease" :key="selectedVersion">
       <!-- Summary cards -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div
@@ -55,7 +55,7 @@
         <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 p-5">
           <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Exceptions by Rule Category</h3>
           <div v-if="categoryChartData" style="height: 300px; position: relative;">
-            <Bar :key="selectedVersion" :data="categoryChartData" :options="categoryChartOptions" />
+            <Bar :key="`bar-${chartKey}`" :data="categoryChartData" :options="categoryChartOptions" />
           </div>
           <p v-else class="text-sm text-gray-400 py-8 text-center">No exception data</p>
         </div>
@@ -67,13 +67,13 @@
             <div>
               <p class="text-xs text-center text-gray-500 dark:text-gray-400 mb-2">By Policy File</p>
               <div style="height: 180px; position: relative;">
-                <Doughnut :key="`policy-${selectedVersion}`" :data="policyFileDonutData" :options="donutOptions" />
+                <Doughnut :key="`policy-donut-${chartKey}`" :data="policyFileDonutData" :options="donutOptions" />
               </div>
             </div>
             <div>
               <p class="text-xs text-center text-gray-500 dark:text-gray-400 mb-2">By Exception Type</p>
               <div style="height: 180px; position: relative;">
-                <Doughnut :key="`type-${selectedVersion}`" :data="typeDonutData" :options="donutOptions" />
+                <Doughnut :key="`type-donut-${chartKey}`" :data="typeDonutData" :options="donutOptions" />
               </div>
             </div>
           </div>
@@ -87,7 +87,7 @@
           <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Exception Trend Across Releases</h3>
           <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">All tracked releases, sorted by GA date</p>
           <div v-if="trendChartData" style="height: 240px; position: relative;">
-            <Line :key="selectedVersion" :data="trendChartData" :options="trendChartOptions" />
+            <Line :key="`line-${chartKey}`" :data="trendChartData" :options="trendChartOptions" />
           </div>
           <p v-else class="text-sm text-gray-400 py-8 text-center">Not enough releases for trend</p>
         </div>
@@ -103,7 +103,7 @@
             <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span>Before GA</span>
           </p>
           <div v-if="volatileExceptions.length" style="height: 240px; position: relative;">
-            <Scatter :key="selectedVersion" :data="scatterChartData" :options="scatterChartOptions" />
+            <Scatter :key="`scatter-${chartKey}`" :data="scatterChartData" :options="scatterChartOptions" />
           </div>
           <p v-else class="text-sm text-gray-400 py-8 text-center">No volatile exceptions for this release</p>
         </div>
@@ -277,7 +277,7 @@
           </div>
         </div>
       </div>
-    </template>
+    </div>
 
     <!-- Empty state when no releases at all -->
     <div v-else-if="!state.loading && !state.error && !allReleases.length" class="rounded-lg border border-gray-200 dark:border-gray-700 px-6 py-10 text-center">
@@ -287,7 +287,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { Bar, Doughnut, Line, Scatter } from 'vue-chartjs'
 import {
   Chart as ChartJS,
@@ -350,6 +350,7 @@ const TABLE_COLUMNS = [
 
 const state = useConformaExceptions()
 const selectedVersion = ref(null)
+const chartKey = ref(0)
 
 const allReleases = computed(() => {
   const cutoff = new Date()
@@ -435,14 +436,16 @@ const tableFilterCategory = ref('')
 const tableSortKey = ref('')
 const tableSortDir = ref('asc')
 
-// Reset table controls whenever the selected release changes
-watch(selectedVersion, () => {
+// Reset table controls and force chart remount whenever the selected release changes
+watch(selectedVersion, async () => {
   tableSearch.value = ''
   tableFilterPolicy.value = ''
   tableFilterType.value = ''
   tableFilterCategory.value = ''
   tableSortKey.value = ''
   tableSortDir.value = 'asc'
+  await nextTick()
+  chartKey.value++
 })
 
 const hasActiveFilters = computed(() =>
