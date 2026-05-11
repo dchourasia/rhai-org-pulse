@@ -102,7 +102,7 @@
           <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Exception Distribution</h3>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <p class="text-xs text-center text-gray-500 dark:text-gray-400 mb-2">By Policy File</p>
+              <p class="text-xs text-center text-gray-500 dark:text-gray-400 mb-2">FBC vs Components</p>
               <div style="height: 180px; position: relative;">
                 <Doughnut :key="`policy-donut-${chartKey}`" :data="policyFileDonutData" :options="donutOptions" />
               </div>
@@ -183,7 +183,7 @@
             >
               <option value="">All Policies</option>
               <option value="fbc">FBC</option>
-              <option value="registry">Registry</option>
+              <option value="registry">Components</option>
             </select>
 
             <!-- Type filter -->
@@ -253,7 +253,7 @@
                   <span
                     class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase"
                     :class="ex.policyFile === 'fbc' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'"
-                  >{{ ex.policyFile }}</span>
+                  >{{ ex.policyFile === 'fbc' ? 'FBC' : 'Components' }}</span>
                 </td>
                 <!-- Type -->
                 <td class="px-4 py-3 whitespace-nowrap">
@@ -572,7 +572,7 @@ const summaryCards = computed(() => {
       valueCls: 'text-blue-700 dark:text-blue-300'
     },
     {
-      label: 'Registry Policy', value: registry,
+      label: 'Components Policy', value: registry,
       cls: 'border-emerald-200 dark:border-emerald-700/50 bg-emerald-50/60 dark:bg-emerald-900/20',
       labelCls: 'text-emerald-600 dark:text-emerald-400',
       valueCls: 'text-emerald-700 dark:text-emerald-300'
@@ -617,7 +617,7 @@ const categoryChartData = computed(() => {
         borderRadius: 3
       },
       {
-        label: 'Registry',
+        label: 'Components',
         data: activeCategories.map(c => regCounts[c]),
         backgroundColor: 'rgba(16,185,129,0.75)',
         borderColor: 'rgb(16,185,129)',
@@ -656,7 +656,7 @@ const policyFileDonutData = computed(() => {
   const fbc = all.filter(e => e.policyFile === 'fbc').length
   const reg = all.filter(e => e.policyFile === 'registry').length
   return {
-    labels: ['FBC', 'Registry'],
+    labels: ['FBC', 'Components'],
     datasets: [{
       data: [fbc, reg],
       backgroundColor: ['rgba(59,130,246,0.8)', 'rgba(16,185,129,0.8)'],
@@ -724,7 +724,7 @@ const trendChartData = computed(() => {
         tension: 0.3, fill: false, pointRadius: 3
       },
       {
-        label: 'Registry',
+        label: 'Components',
         data: sorted.map(r => countFor(r, e => e.policyFile === 'registry')),
         borderColor: 'rgb(16,185,129)',
         backgroundColor: 'transparent',
