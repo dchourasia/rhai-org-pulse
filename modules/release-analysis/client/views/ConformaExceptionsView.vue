@@ -727,7 +727,7 @@ const scatterChartData = computed(() => {
     const expMs = new Date(ex.effectiveUntil).getTime()
     const daysAfter = (expMs - gaMs) / 86400000
     const y = catIndex[ex.category] ?? catIndex['other'] ?? 0
-    const point = { x: new Date(ex.effectiveUntil), y, label: ex.value, ref: ex.reference }
+    const point = { x: expMs, y, label: ex.value, ref: ex.reference }
     if (daysAfter < 0) red.push(point)
     else if (daysAfter <= 60) orange.push(point)
     else green.push(point)
@@ -743,7 +743,6 @@ const scatterChartData = computed(() => {
 })
 
 const scatterChartOptions = computed(() => {
-  const gaDate = selectedRelease.value?.gaDate ? new Date(selectedRelease.value.gaDate) : null
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -754,26 +753,24 @@ const scatterChartOptions = computed(() => {
           title: () => '',
           label: ctx => {
             const p = ctx.raw
-            const date = p.x instanceof Date ? p.x.toISOString().slice(0, 10) : p.x
+            const date = new Date(p.x).toISOString().slice(0, 10)
             return [`${p.label}`, `Expires: ${date}`]
           }
         }
-      },
-      annotation: gaDate ? {
-        annotations: {
-          gaLine: {
-            type: 'line',
-            xMin: gaDate, xMax: gaDate,
-            borderColor: 'rgba(239,68,68,0.6)',
-            borderWidth: 2,
-            borderDash: [5, 5],
-            label: { content: 'GA', enabled: true, position: 'start', font: { size: 10 } }
-          }
-        }
-      } : {}
+      }
     },
     scales: {
-      x: { type: 'time', time: { unit: 'month' }, grid: { color: 'rgba(156,163,175,0.15)' } },
+      x: {
+        type: 'linear',
+        grid: { color: 'rgba(156,163,175,0.15)' },
+        ticks: {
+          callback: (v) => {
+            const d = new Date(v)
+            return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+          },
+          maxTicksLimit: 8
+        }
+      },
       y: {
         ticks: { callback: (v) => CATEGORIES_FOR_SCATTER[v] || v, stepSize: 1 },
         min: -0.5,
