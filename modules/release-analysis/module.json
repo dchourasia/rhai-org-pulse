@@ -10,7 +10,7 @@
     "navItems": [
       { "id": "main", "label": "Release Analysis", "icon": "ChartColumnStacked", "default": true },
       { "id": "project-breakdown", "label": "Component Breakdown", "icon": "FolderTree" },
-      { "id": "conforma-exceptions", "label": "Conforma Exceptions", "icon": "ShieldAlert" }
+      { "id": "conforma-exceptions", "label": "Conforma Insights", "icon": "ShieldAlert" }
     ],
     "settingsComponent": "./client/components/ReleaseAnalysisSettings.vue"
   },
