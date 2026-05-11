@@ -54,7 +54,7 @@
         <!-- Horizontal bar: exceptions by category -->
         <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 p-5">
           <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Exceptions by Rule Category</h3>
-          <div v-if="categoryChartData" style="height: 280px; position: relative;">
+          <div v-if="categoryChartData" style="height: 300px; position: relative;">
             <Bar :data="categoryChartData" :options="categoryChartOptions" />
           </div>
           <p v-else class="text-sm text-gray-400 py-8 text-center">No exception data</p>
@@ -111,62 +111,145 @@
 
       <!-- Detailed exceptions table -->
       <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 overflow-hidden">
-        <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
-            All Exceptions for {{ selectedVersion }}
-          </h3>
-          <span class="text-xs text-gray-400 dark:text-gray-500">{{ flatExceptions.length }} total</span>
+        <!-- Table header + toolbar -->
+        <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              All Exceptions for {{ selectedVersion }}
+            </h3>
+            <span class="text-xs text-gray-400 dark:text-gray-500">
+              {{ filteredSortedExceptions.length === flatExceptions.length
+                  ? `${flatExceptions.length} total`
+                  : `${filteredSortedExceptions.length} of ${flatExceptions.length}` }}
+            </span>
+          </div>
+
+          <!-- Search + filters -->
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Search -->
+            <div class="relative flex-1 min-w-[180px]">
+              <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+              </svg>
+              <input
+                v-model="tableSearch"
+                type="text"
+                placeholder="Search rule value, reference, comment…"
+                class="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <!-- Policy filter -->
+            <select
+              v-model="tableFilterPolicy"
+              class="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Policies</option>
+              <option value="fbc">FBC</option>
+              <option value="registry">Registry</option>
+            </select>
+
+            <!-- Type filter -->
+            <select
+              v-model="tableFilterType"
+              class="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Types</option>
+              <option value="volatile">Volatile</option>
+              <option value="permanent">Permanent</option>
+            </select>
+
+            <!-- Category filter -->
+            <select
+              v-model="tableFilterCategory"
+              class="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Categories</option>
+              <option v-for="cat in activeCategories" :key="cat" :value="cat">{{ cat }}</option>
+            </select>
+
+            <!-- Clear filters -->
+            <button
+              v-if="hasActiveFilters"
+              class="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              @click="clearTableFilters"
+            >
+              Clear
+            </button>
+          </div>
         </div>
+
         <div class="overflow-x-auto">
           <table class="w-full text-xs">
             <thead>
               <tr class="bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                <th class="px-4 py-3 text-left font-semibold">Policy</th>
-                <th class="px-4 py-3 text-left font-semibold">Type</th>
-                <th class="px-4 py-3 text-left font-semibold">Rule Value</th>
-                <th class="px-4 py-3 text-left font-semibold">Category</th>
-                <th class="px-4 py-3 text-left font-semibold">Image</th>
-                <th class="px-4 py-3 text-left font-semibold">Effective Until</th>
-                <th class="px-4 py-3 text-left font-semibold w-20">Days After GA</th>
-                <th class="px-4 py-3 text-left font-semibold">Reference</th>
+                <th
+                  v-for="col in TABLE_COLUMNS"
+                  :key="col.key"
+                  class="px-4 py-3 text-left font-semibold select-none"
+                  :class="[col.sortable ? 'cursor-pointer hover:text-gray-700 dark:hover:text-gray-200' : '', col.width || '']"
+                  @click="col.sortable && toggleSort(col.key)"
+                >
+                  <span class="inline-flex items-center gap-1">
+                    {{ col.label }}
+                    <span v-if="col.sortable" class="text-[10px] leading-none">
+                      <template v-if="tableSortKey === col.key">
+                        {{ tableSortDir === 'asc' ? '▲' : '▼' }}
+                      </template>
+                      <template v-else>
+                        <span class="text-gray-300 dark:text-gray-600">⇅</span>
+                      </template>
+                    </span>
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700/60">
               <tr
-                v-for="(ex, idx) in flatExceptions"
+                v-for="(ex, idx) in filteredSortedExceptions"
                 :key="idx"
                 class="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors"
                 :class="rowClass(ex)"
               >
+                <!-- Policy -->
                 <td class="px-4 py-3 whitespace-nowrap">
                   <span
                     class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase"
                     :class="ex.policyFile === 'fbc' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'"
                   >{{ ex.policyFile }}</span>
                 </td>
+                <!-- Type -->
                 <td class="px-4 py-3 whitespace-nowrap">
                   <span
                     class="px-1.5 py-0.5 rounded text-[10px] font-medium"
                     :class="ex.type === 'volatile' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'"
                   >{{ ex.type }}</span>
                 </td>
-                <td class="px-4 py-3 font-mono text-gray-700 dark:text-gray-300 max-w-xs truncate" :title="ex.value">
-                  {{ ex.value }}
+                <!-- Rule Value -->
+                <td class="px-4 py-3 font-mono text-gray-700 dark:text-gray-300 max-w-xs">
+                  <span class="block truncate" :title="ex.value">{{ ex.value }}</span>
                 </td>
+                <!-- Category -->
                 <td class="px-4 py-3 whitespace-nowrap">
                   <span class="px-1.5 py-0.5 rounded text-[10px] font-medium" :class="categoryBadgeCls(ex.category)">
                     {{ ex.category }}
                   </span>
                 </td>
-                <td class="px-4 py-3 font-mono text-gray-500 dark:text-gray-400 max-w-[180px] truncate" :title="ex.imageUrl || ''">
-                  {{ ex.imageUrl ? ex.imageUrl.split('/').pop() : '—' }}
+                <!-- Image -->
+                <td class="px-4 py-3 font-mono text-gray-500 dark:text-gray-400 max-w-[180px]">
+                  <span class="block truncate" :title="ex.imageUrl || ''">
+                    {{ ex.imageUrl ? ex.imageUrl.split('/').pop() : '—' }}
+                  </span>
                 </td>
+                <!-- Effective Until -->
                 <td class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400">
                   {{ ex.effectiveUntil ? ex.effectiveUntil.slice(0, 10) : '—' }}
                 </td>
+                <!-- Days After GA -->
                 <td class="px-4 py-3 whitespace-nowrap text-center font-semibold" :class="daysAfterGaCls(ex.daysAfterGa)">
                   {{ ex.daysAfterGa !== null ? ex.daysAfterGa : '—' }}
                 </td>
+                <!-- Reference -->
                 <td class="px-4 py-3">
                   <a
                     v-if="ex.reference"
@@ -181,8 +264,16 @@
               </tr>
             </tbody>
           </table>
-          <div v-if="!flatExceptions.length" class="px-5 py-8 text-sm text-gray-400 text-center">
-            No exceptions recorded for this release.
+
+          <!-- Empty state -->
+          <div v-if="!filteredSortedExceptions.length" class="px-5 py-8 text-sm text-gray-400 text-center">
+            <template v-if="hasActiveFilters">
+              No exceptions match the current filters.
+              <button class="ml-1 text-blue-500 hover:underline" @click="clearTableFilters">Clear filters</button>
+            </template>
+            <template v-else>
+              No exceptions recorded for this release.
+            </template>
           </div>
         </div>
       </div>
@@ -219,7 +310,17 @@ ChartJS.register(
   Tooltip, Legend, Filler
 )
 
+// ─── Category definitions ───────────────────────────────────────────────────
+
+// FIPS is first because it is matched by keyword, not by value prefix.
+// It must take precedence over categories like 'test' or 'tasks' that share the same prefix.
+const KNOWN_CATEGORIES = [
+  'fips', 'hermetic_task', 'test', 'tasks', 'schedule',
+  'sbom_spdx', 'rpm_signature', 'cve', 'other'
+]
+
 const CATEGORY_BADGE = {
+  fips:                 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300',
   hermetic_task:        'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300',
   test:                 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
   tasks:                'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
@@ -232,7 +333,20 @@ const CATEGORY_BADGE = {
   other:                'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
 }
 
-// ─── Data ───
+// ─── Table column definitions ────────────────────────────────────────────────
+
+const TABLE_COLUMNS = [
+  { key: 'policyFile',    label: 'Policy',        sortable: true },
+  { key: 'type',          label: 'Type',           sortable: true },
+  { key: 'value',         label: 'Rule Value',     sortable: true },
+  { key: 'category',      label: 'Category',       sortable: true },
+  { key: 'imageUrl',      label: 'Image',          sortable: false },
+  { key: 'effectiveUntil',label: 'Effective Until',sortable: true },
+  { key: 'daysAfterGa',   label: 'Days After GA',  sortable: true, width: 'w-20' },
+  { key: 'reference',     label: 'Reference',      sortable: true }
+]
+
+// ─── Data ───────────────────────────────────────────────────────────────────
 
 const state = useConformaExceptions()
 const selectedVersion = ref(null)
@@ -254,14 +368,18 @@ const selectedRelease = computed(() =>
   shippedReleases.value.find(r => r.version === selectedVersion.value) || null
 )
 
-// ─── Derived exception data ───
+// ─── Category extraction ─────────────────────────────────────────────────────
 
 function extractCategory(value) {
   if (!value) return 'other'
-  const known = ['hermetic_task', 'test', 'tasks', 'schedule', 'sbom_spdx', 'rpm_signature', 'cve', 'source_image', 'step_image_registries']
+  // FIPS: keyword match takes priority over prefix-based categorisation
+  if (value.toLowerCase().includes('fips')) return 'fips'
+  const prefixKnown = ['hermetic_task', 'test', 'tasks', 'schedule', 'sbom_spdx', 'rpm_signature', 'cve', 'source_image', 'step_image_registries']
   const prefix = value.split('.')[0].split(':')[0]
-  return known.includes(prefix) ? prefix : 'other'
+  return prefixKnown.includes(prefix) ? prefix : 'other'
 }
+
+// ─── Flat exception list (all, used by charts) ───────────────────────────────
 
 const flatExceptions = computed(() => {
   if (!selectedRelease.value) return []
@@ -306,7 +424,91 @@ const volatileExceptions = computed(() =>
   flatExceptions.value.filter(e => e.type === 'volatile' && e.effectiveUntil)
 )
 
-// ─── Summary cards ───
+// ─── Table: search / filter / sort state ────────────────────────────────────
+
+const tableSearch = ref('')
+const tableFilterPolicy = ref('')
+const tableFilterType = ref('')
+const tableFilterCategory = ref('')
+const tableSortKey = ref('')
+const tableSortDir = ref('asc')
+
+// Reset table controls whenever the selected release changes
+watch(selectedVersion, () => {
+  tableSearch.value = ''
+  tableFilterPolicy.value = ''
+  tableFilterType.value = ''
+  tableFilterCategory.value = ''
+  tableSortKey.value = ''
+  tableSortDir.value = 'asc'
+})
+
+const hasActiveFilters = computed(() =>
+  tableSearch.value.trim() !== '' ||
+  tableFilterPolicy.value !== '' ||
+  tableFilterType.value !== '' ||
+  tableFilterCategory.value !== ''
+)
+
+function clearTableFilters() {
+  tableSearch.value = ''
+  tableFilterPolicy.value = ''
+  tableFilterType.value = ''
+  tableFilterCategory.value = ''
+}
+
+function toggleSort(key) {
+  if (tableSortKey.value === key) {
+    tableSortDir.value = tableSortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    tableSortKey.value = key
+    tableSortDir.value = 'asc'
+  }
+}
+
+// Categories present in the current release (for the filter dropdown)
+const activeCategories = computed(() => {
+  const seen = new Set(flatExceptions.value.map(e => e.category))
+  return KNOWN_CATEGORIES.filter(c => seen.has(c))
+})
+
+const filteredSortedExceptions = computed(() => {
+  const needle = tableSearch.value.trim().toLowerCase()
+  let rows = flatExceptions.value
+
+  // Filters
+  if (tableFilterPolicy.value) rows = rows.filter(e => e.policyFile === tableFilterPolicy.value)
+  if (tableFilterType.value)   rows = rows.filter(e => e.type === tableFilterType.value)
+  if (tableFilterCategory.value) rows = rows.filter(e => e.category === tableFilterCategory.value)
+
+  if (needle) {
+    rows = rows.filter(e =>
+      (e.value || '').toLowerCase().includes(needle) ||
+      (e.reference || '').toLowerCase().includes(needle) ||
+      (e.comment || '').toLowerCase().includes(needle) ||
+      (e.imageUrl || '').toLowerCase().includes(needle) ||
+      (e.category || '').toLowerCase().includes(needle)
+    )
+  }
+
+  // Sort
+  if (tableSortKey.value) {
+    const dir = tableSortDir.value === 'asc' ? 1 : -1
+    rows = [...rows].sort((a, b) => {
+      const av = a[tableSortKey.value]
+      const bv = b[tableSortKey.value]
+      if (av === null && bv === null) return 0
+      if (av === null) return dir        // nulls last for asc, first for desc
+      if (bv === null) return -dir
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir
+      return String(av).localeCompare(String(bv)) * dir
+    })
+  }
+
+  return rows
+})
+
+// ─── Summary cards ──────────────────────────────────────────────────────────
 
 const summaryCards = computed(() => {
   const all = flatExceptions.value
@@ -342,9 +544,7 @@ const summaryCards = computed(() => {
   ]
 })
 
-// ─── Category horizontal bar chart ───
-
-const KNOWN_CATEGORIES = ['hermetic_task', 'test', 'tasks', 'schedule', 'sbom_spdx', 'rpm_signature', 'cve', 'other']
+// ─── Category horizontal bar chart ──────────────────────────────────────────
 
 const categoryChartData = computed(() => {
   const all = flatExceptions.value
@@ -396,7 +596,7 @@ const categoryChartOptions = {
   }
 }
 
-// ─── Donut charts ───
+// ─── Donut charts ────────────────────────────────────────────────────────────
 
 const donutOptions = {
   responsive: true,
@@ -438,20 +638,20 @@ const typeDonutData = computed(() => {
   }
 })
 
-// ─── Trend line chart ───
+// ─── Trend line chart ────────────────────────────────────────────────────────
 
 const trendChartData = computed(() => {
   const sorted = [...shippedReleases.value].sort((a, b) => a.gaDate.localeCompare(b.gaDate))
   if (sorted.length < 2) return null
 
   const labels = sorted.map(r => r.version.replace('rhoai-', ''))
-  function count(r, filter) {
+  function countFor(r, filter) {
     const all = []
     for (const pf of ['fbc', 'registry']) {
       const exc = r.exceptions?.[pf]
       if (!exc) continue
-      for (const v of exc.configExcludes || []) all.push({ type: 'permanent', policyFile: pf, value: v })
-      for (const ex of exc.volatileExcludes || []) all.push({ type: 'volatile', policyFile: pf, ...ex })
+      for (const v of exc.configExcludes || []) all.push({ type: 'permanent', policyFile: pf, value: v, category: extractCategory(v) })
+      for (const ex of exc.volatileExcludes || []) all.push({ type: 'volatile', policyFile: pf, value: ex.value, category: extractCategory(ex.value) })
     }
     return filter ? all.filter(filter).length : all.length
   }
@@ -461,28 +661,35 @@ const trendChartData = computed(() => {
     datasets: [
       {
         label: 'Total',
-        data: sorted.map(r => count(r)),
+        data: sorted.map(r => countFor(r)),
         borderColor: 'rgb(139,92,246)',
         backgroundColor: 'rgba(139,92,246,0.1)',
         tension: 0.3, fill: false, pointRadius: 4
       },
       {
+        label: 'FIPS',
+        data: sorted.map(r => countFor(r, e => e.category === 'fips')),
+        borderColor: 'rgb(6,182,212)',
+        backgroundColor: 'transparent',
+        tension: 0.3, fill: false, pointRadius: 3, borderDash: [3, 2]
+      },
+      {
         label: 'FBC',
-        data: sorted.map(r => count(r, e => e.policyFile === 'fbc')),
+        data: sorted.map(r => countFor(r, e => e.policyFile === 'fbc')),
         borderColor: 'rgb(59,130,246)',
         backgroundColor: 'transparent',
-        tension: 0.3, fill: false, pointRadius: 3, borderDash: []
+        tension: 0.3, fill: false, pointRadius: 3
       },
       {
         label: 'Registry',
-        data: sorted.map(r => count(r, e => e.policyFile === 'registry')),
+        data: sorted.map(r => countFor(r, e => e.policyFile === 'registry')),
         borderColor: 'rgb(16,185,129)',
         backgroundColor: 'transparent',
         tension: 0.3, fill: false, pointRadius: 3
       },
       {
         label: 'Volatile',
-        data: sorted.map(r => count(r, e => e.type === 'volatile')),
+        data: sorted.map(r => countFor(r, e => e.type === 'volatile')),
         borderColor: 'rgb(245,158,11)',
         backgroundColor: 'transparent',
         tension: 0.3, fill: false, pointRadius: 3, borderDash: [4, 3]
@@ -501,9 +708,9 @@ const trendChartOptions = {
   }
 }
 
-// ─── Scatter (expiry timeline) ───
+// ─── Scatter (expiry timeline) ───────────────────────────────────────────────
 
-const CATEGORIES_FOR_SCATTER = ['hermetic_task', 'test', 'tasks', 'schedule', 'sbom_spdx', 'rpm_signature', 'cve', 'other']
+const CATEGORIES_FOR_SCATTER = KNOWN_CATEGORIES  // includes 'fips'
 
 const scatterChartData = computed(() => {
   if (!selectedRelease.value) return { datasets: [] }
@@ -515,12 +722,7 @@ const scatterChartData = computed(() => {
     const expMs = new Date(ex.effectiveUntil).getTime()
     const daysAfter = (expMs - gaMs) / 86400000
     const y = catIndex[ex.category] ?? catIndex['other'] ?? 0
-    const point = {
-      x: new Date(ex.effectiveUntil),
-      y,
-      label: ex.value,
-      ref: ex.reference
-    }
+    const point = { x: new Date(ex.effectiveUntil), y, label: ex.value, ref: ex.reference }
     if (daysAfter < 0) red.push(point)
     else if (daysAfter <= 60) orange.push(point)
     else green.push(point)
@@ -568,10 +770,7 @@ const scatterChartOptions = computed(() => {
     scales: {
       x: { type: 'time', time: { unit: 'month' }, grid: { color: 'rgba(156,163,175,0.15)' } },
       y: {
-        ticks: {
-          callback: (v) => CATEGORIES_FOR_SCATTER[v] || v,
-          stepSize: 1
-        },
+        ticks: { callback: (v) => CATEGORIES_FOR_SCATTER[v] || v, stepSize: 1 },
         min: -0.5,
         max: CATEGORIES_FOR_SCATTER.length - 0.5,
         grid: { color: 'rgba(156,163,175,0.10)' }
@@ -580,7 +779,7 @@ const scatterChartOptions = computed(() => {
   }
 })
 
-// ─── Helpers ───
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDateTime(iso) {
   if (!iso) return ''
@@ -590,7 +789,7 @@ function formatDateTime(iso) {
 
 function refLabel(url) {
   if (!url) return ''
-  const m = url.match(/\/browse\/([A-Z]+-\d+)/) || url.match(/\/browse\/([A-Z]+-\d+)$/)
+  const m = url.match(/\/browse\/([A-Z]+-\d+)/)
   if (m) return m[1]
   try { return new URL(url).pathname.split('/').filter(Boolean).pop() || url } catch { return url }
 }

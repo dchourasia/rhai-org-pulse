@@ -1,25 +1,9 @@
 'use strict'
 
-const path = require('path')
 const DEMO_MODE = process.env.DEMO_MODE === 'true'
 
 const STORAGE_KEY = 'release-analysis/conforma.json'
-const FIXTURE_PATH = path.resolve(__dirname, '../../../fixtures/release-analysis/conforma.json')
-
 const DEFAULT_MIN_DATE = '2025-05-22'
-
-function readFixture() {
-  try {
-    return require(FIXTURE_PATH)
-  } catch {
-    return null
-  }
-}
-
-function readData(readFromStorage) {
-  if (DEMO_MODE) return readFixture()
-  return readFromStorage(STORAGE_KEY)
-}
 
 function validateRelease(r) {
   if (!r || typeof r !== 'object') return 'must be an object'
@@ -35,7 +19,7 @@ module.exports = function registerConformaRoutes(router, context) {
 
   // GET /conforma/status
   router.get('/conforma/status', requireAuth, function (req, res) {
-    const data = readData(readFromStorage)
+    const data = readFromStorage(STORAGE_KEY)
     if (!data) return res.json({ status: 'no_data' })
     res.json({
       fetchedAt: data.fetchedAt || null,
@@ -46,7 +30,7 @@ module.exports = function registerConformaRoutes(router, context) {
 
   // GET /conforma/releases — list all
   router.get('/conforma/releases', requireAuth, function (req, res) {
-    const data = readData(readFromStorage)
+    const data = readFromStorage(STORAGE_KEY)
     if (!data) {
       return res.status(404).json({ error: 'No conforma data available. Run the ingestion pipeline.' })
     }
@@ -60,7 +44,7 @@ module.exports = function registerConformaRoutes(router, context) {
 
   // GET /conforma/releases/:version — single release
   router.get('/conforma/releases/:version', requireAuth, function (req, res) {
-    const data = readData(readFromStorage)
+    const data = readFromStorage(STORAGE_KEY)
     if (!data) {
       return res.status(404).json({ error: 'No conforma data available.' })
     }
