@@ -3,7 +3,7 @@
 const DEMO_MODE = process.env.DEMO_MODE === 'true'
 
 const STORAGE_KEY = 'release-analysis/conforma.json'
-const DEFAULT_MIN_DATE = '2025-05-22'
+const DEFAULT_MIN_DATE = '2024-01-01'
 
 function validateRelease(r) {
   if (!r || typeof r !== 'object') return 'must be an object'

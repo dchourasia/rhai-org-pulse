@@ -13,11 +13,11 @@
           Updated {{ formatDateTime(state.fetchedAt) }}
         </span>
         <select
-          v-if="shippedReleases.length"
+          v-if="allReleases.length"
           v-model="selectedVersion"
           class="text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option v-for="r in shippedReleases" :key="r.version" :value="r.version">
+          <option v-for="r in allReleases" :key="r.version" :value="r.version">
             {{ r.version }} &nbsp;(GA: {{ r.gaDate }})
           </option>
         </select>
@@ -55,7 +55,7 @@
         <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 p-5">
           <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Exceptions by Rule Category</h3>
           <div v-if="categoryChartData" style="height: 300px; position: relative;">
-            <Bar :data="categoryChartData" :options="categoryChartOptions" />
+            <Bar :key="selectedVersion" :data="categoryChartData" :options="categoryChartOptions" />
           </div>
           <p v-else class="text-sm text-gray-400 py-8 text-center">No exception data</p>
         </div>
@@ -67,13 +67,13 @@
             <div>
               <p class="text-xs text-center text-gray-500 dark:text-gray-400 mb-2">By Policy File</p>
               <div style="height: 180px; position: relative;">
-                <Doughnut :data="policyFileDonutData" :options="donutOptions" />
+                <Doughnut :key="`policy-${selectedVersion}`" :data="policyFileDonutData" :options="donutOptions" />
               </div>
             </div>
             <div>
               <p class="text-xs text-center text-gray-500 dark:text-gray-400 mb-2">By Exception Type</p>
               <div style="height: 180px; position: relative;">
-                <Doughnut :data="typeDonutData" :options="donutOptions" />
+                <Doughnut :key="`type-${selectedVersion}`" :data="typeDonutData" :options="donutOptions" />
               </div>
             </div>
           </div>
@@ -85,9 +85,9 @@
         <!-- Trend across releases -->
         <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 p-5">
           <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Exception Trend Across Releases</h3>
-          <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">All shipped releases, sorted by GA date</p>
+          <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">All tracked releases, sorted by GA date</p>
           <div v-if="trendChartData" style="height: 240px; position: relative;">
-            <Line :data="trendChartData" :options="trendChartOptions" />
+            <Line :key="selectedVersion" :data="trendChartData" :options="trendChartOptions" />
           </div>
           <p v-else class="text-sm text-gray-400 py-8 text-center">Not enough releases for trend</p>
         </div>
@@ -103,7 +103,7 @@
             <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span>Before GA</span>
           </p>
           <div v-if="volatileExceptions.length" style="height: 240px; position: relative;">
-            <Scatter :data="scatterChartData" :options="scatterChartOptions" />
+            <Scatter :key="selectedVersion" :data="scatterChartData" :options="scatterChartOptions" />
           </div>
           <p v-else class="text-sm text-gray-400 py-8 text-center">No volatile exceptions for this release</p>
         </div>
@@ -280,7 +280,7 @@
     </template>
 
     <!-- Empty state when no releases at all -->
-    <div v-else-if="!state.loading && !state.error && !shippedReleases.length" class="rounded-lg border border-gray-200 dark:border-gray-700 px-6 py-10 text-center">
+    <div v-else-if="!state.loading && !state.error && !allReleases.length" class="rounded-lg border border-gray-200 dark:border-gray-700 px-6 py-10 text-center">
       <p class="text-sm text-gray-500 dark:text-gray-400">No shipped releases found. Run the ingestion pipeline to populate.</p>
     </div>
   </div>
@@ -351,21 +351,23 @@ const TABLE_COLUMNS = [
 const state = useConformaExceptions()
 const selectedVersion = ref(null)
 
-const shippedReleases = computed(() => {
-  const today = new Date().toISOString().slice(0, 10)
+const allReleases = computed(() => {
+  const cutoff = new Date()
+  cutoff.setMonth(cutoff.getMonth() + 1)
+  const cutoffStr = cutoff.toISOString().slice(0, 10)
   return [...(state.releases || [])]
-    .filter(r => r.gaDate && r.gaDate <= today)
+    .filter(r => r.gaDate && r.gaDate <= cutoffStr)
     .sort((a, b) => b.gaDate.localeCompare(a.gaDate))
 })
 
-watch(shippedReleases, (list) => {
+watch(allReleases, (list) => {
   if (list.length && !selectedVersion.value) {
     selectedVersion.value = list[0].version
   }
 }, { immediate: true })
 
 const selectedRelease = computed(() =>
-  shippedReleases.value.find(r => r.version === selectedVersion.value) || null
+  allReleases.value.find(r => r.version === selectedVersion.value) || null
 )
 
 // ─── Category extraction ─────────────────────────────────────────────────────
@@ -641,7 +643,7 @@ const typeDonutData = computed(() => {
 // ─── Trend line chart ────────────────────────────────────────────────────────
 
 const trendChartData = computed(() => {
-  const sorted = [...shippedReleases.value].sort((a, b) => a.gaDate.localeCompare(b.gaDate))
+  const sorted = [...allReleases.value].sort((a, b) => a.gaDate.localeCompare(b.gaDate))
   if (sorted.length < 2) return null
 
   const labels = sorted.map(r => r.version.replace('rhoai-', ''))
