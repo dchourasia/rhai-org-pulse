@@ -298,6 +298,22 @@
                   >{{ refLabel(ex.reference) }}</a>
                   <span v-else class="text-gray-400">—</span>
                 </td>
+                <!-- Docs -->
+                <td class="px-4 py-3 text-center">
+                  <a
+                    v-if="CATEGORY_DOCS[ex.category]"
+                    :href="CATEGORY_DOCS[ex.category]"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    :title="`Conforma docs: ${ex.category}`"
+                    class="inline-flex items-center justify-center w-6 h-6 rounded text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                  </a>
+                  <span v-else class="text-gray-300 dark:text-gray-600">—</span>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -370,6 +386,19 @@ const CATEGORY_BADGE = {
   other:                'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
 }
 
+const CATEGORY_DOCS = {
+  fips:                  'https://conforma.dev/docs/policy/packages/release_test.html',
+  hermetic_task:         'https://conforma.dev/docs/policy/packages/release_hermetic_task.html',
+  test:                  'https://conforma.dev/docs/policy/packages/release_test.html',
+  tasks:                 'https://conforma.dev/docs/policy/packages/release_tasks.html',
+  schedule:              'https://conforma.dev/docs/policy/packages/release_schedule.html',
+  sbom_spdx:             'https://conforma.dev/docs/policy/packages/release_sbom_spdx.html',
+  rpm_signature:         'https://conforma.dev/docs/policy/packages/release_rpm_signature.html',
+  cve:                   'https://conforma.dev/docs/policy/packages/release_cve.html',
+  source_image:          'https://conforma.dev/docs/policy/packages/release_source_image.html',
+  step_image_registries: 'https://conforma.dev/docs/policy/packages/task_step_image_registries.html',
+}
+
 // ─── Table column definitions ────────────────────────────────────────────────
 
 const TABLE_COLUMNS = [
@@ -380,7 +409,8 @@ const TABLE_COLUMNS = [
   { key: 'imageUrl',      label: 'Image',          sortable: false },
   { key: 'effectiveUntil',label: 'Effective Until',sortable: true },
   { key: 'daysAfterGa',   label: 'Days After GA',  sortable: true, width: 'w-20' },
-  { key: 'reference',     label: 'Reference',      sortable: true }
+  { key: 'reference',     label: 'Reference',      sortable: true },
+  { key: 'docs',          label: 'Docs',           sortable: false, width: 'w-12' }
 ]
 
 // ─── Data ───────────────────────────────────────────────────────────────────
