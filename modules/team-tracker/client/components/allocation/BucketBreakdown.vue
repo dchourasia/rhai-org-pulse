@@ -1,22 +1,22 @@
 <template>
   <div
     data-testid="bucket-card"
-    class="bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 p-4"
+    class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 border-l-4 p-4"
     :class="borderClass"
   >
     <div class="flex items-start justify-between mb-2">
-      <h3 class="text-sm font-semibold text-gray-900">{{ name }}</h3>
+      <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ name }}</h3>
       <span data-testid="variance" class="text-xs font-medium" :class="varianceColorClass">
         {{ varianceText }}
       </span>
     </div>
 
     <div class="flex items-baseline gap-2 mb-1">
-      <span class="text-2xl font-bold text-gray-900">{{ displayValue }} {{ unitLabel }}</span>
-      <span class="text-sm text-gray-500">({{ percentage }}%)</span>
+      <span class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ displayValue }} {{ unitLabel }}</span>
+      <span class="text-sm text-gray-500 dark:text-gray-400">({{ percentage }}%)</span>
     </div>
 
-    <div class="text-xs text-gray-500 mb-3">
+    <div class="text-xs text-gray-500 dark:text-gray-400 mb-3">
       Target: {{ targetPercentage }}% · {{ displayCompleted }} completed · {{ issues.length }} issues
     </div>
 
@@ -66,7 +66,7 @@ const varianceText = computed(() => {
 })
 
 const varianceColorClass = computed(() => {
-  if (Math.abs(variance.value) <= 5) return 'text-green-600'
-  return variance.value > 0 ? 'text-amber-600' : 'text-blue-600'
+  if (Math.abs(variance.value) <= 5) return 'text-green-600 dark:text-green-400'
+  return variance.value > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'
 })
 </script>

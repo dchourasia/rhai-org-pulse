@@ -1,13 +1,13 @@
 <template>
-  <div v-if="sprintState === 'closed'" class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-    <h3 class="text-lg font-semibold text-gray-900 mb-3">Sprint Completion</h3>
+  <div v-if="sprintState === 'closed'" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Sprint Completion</h3>
 
     <div class="mb-4">
-      <div class="flex justify-between text-sm text-gray-700 mb-1">
+      <div class="flex justify-between text-sm text-gray-700 dark:text-gray-300 mb-1">
         <span>{{ displayCompleted }}/{{ displayTotal }} {{ unitLabel }} completed</span>
         <span class="font-medium">{{ completionPercent }}%</span>
       </div>
-      <div class="w-full bg-gray-200 rounded-full h-3">
+      <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
         <div
           data-testid="completion-bar"
           class="bg-green-500 h-3 rounded-full transition-all"
@@ -22,8 +22,8 @@
         :key="bucket.key"
         class="flex justify-between text-sm"
       >
-        <span class="text-gray-600">{{ bucket.label }}</span>
-        <span class="text-gray-900 font-medium">{{ bucket.displayCompleted }}/{{ bucket.displayValue }} {{ unitLabel }}</span>
+        <span class="text-gray-600 dark:text-gray-400">{{ bucket.label }}</span>
+        <span class="text-gray-900 dark:text-gray-100 font-medium">{{ bucket.displayCompleted }}/{{ bucket.displayValue }} {{ unitLabel }}</span>
       </div>
     </div>
   </div>
