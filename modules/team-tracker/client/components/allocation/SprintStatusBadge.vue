@@ -21,13 +21,13 @@ const capitalizedState = computed(() => {
 const badgeClasses = computed(() => {
   switch (props.state) {
     case 'active':
-      return 'bg-green-100 text-green-800'
+      return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
     case 'closed':
-      return 'bg-gray-100 text-gray-800'
+      return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
     case 'future':
-      return 'bg-blue-100 text-blue-800'
+      return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
     default:
-      return 'bg-gray-100 text-gray-800'
+      return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
   }
 })
 </script>

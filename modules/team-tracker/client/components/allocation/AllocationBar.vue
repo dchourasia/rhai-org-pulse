@@ -1,6 +1,6 @@
 <template>
   <div class="w-full">
-    <div v-if="total === 0" data-testid="no-data" class="h-6 bg-gray-100 rounded text-center text-xs text-gray-400 leading-6">
+    <div v-if="total === 0" data-testid="no-data" class="h-6 bg-gray-100 dark:bg-gray-700 rounded text-center text-xs text-gray-400 dark:text-gray-500 leading-6">
       {{ metricMode === 'counts' ? 'No issues' : 'No points' }}
     </div>
     <div v-else class="relative h-6 rounded overflow-visible flex">
