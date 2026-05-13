@@ -23,7 +23,7 @@ const emit = defineEmits(['select'])
         <div class="flex items-center gap-2 mb-1">
           <span class="font-mono text-xs text-gray-500 dark:text-gray-400">{{ plan.sourceKey }}</span>
         </div>
-        <h4 class="font-medium text-sm truncate dark:text-gray-200">{{ plan.featureName || plan.title }}</h4>
+        <h4 class="font-medium text-sm truncate dark:text-gray-200">{{ plan.feature || plan.featureName || plan.title }}</h4>
         <div class="flex items-center flex-wrap gap-2 mt-2">
           <span
             class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"

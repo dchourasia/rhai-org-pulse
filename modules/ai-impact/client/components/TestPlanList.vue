@@ -27,7 +27,7 @@ const sortedAndFilteredPlans = computed(() => {
   if (q) {
     items = items.filter(p =>
       (p.sourceKey || '').toLowerCase().includes(q) ||
-      (p.featureName || p.title || '').toLowerCase().includes(q) ||
+      (p.feature || p.featureName || p.title || '').toLowerCase().includes(q) ||
       (p.components || []).some(c => c.toLowerCase().includes(q))
     )
   }

@@ -5,6 +5,7 @@ import { useAIImpact } from '../composables/useAIImpact.js'
 import { PHASES } from '../constants.js'
 import TestPlanReviewContent from '../components/TestPlanReviewContent.vue'
 import TestPlanDetailPanel from '../components/TestPlanDetailPanel.vue'
+import AIImpactGuide from '../components/AIImpactGuide.vue'
 
 const moduleNav = inject('moduleNav')
 
@@ -98,5 +99,7 @@ watch(() => Object.keys(testPlans.value).length, () => {
       @navigateToFeature="handleNavigateToFeature"
       @navigateToRFE="handleNavigateToRFE"
     />
+
+    <AIImpactGuide />
   </div>
 </template>
