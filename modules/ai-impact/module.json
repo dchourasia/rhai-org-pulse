@@ -7,7 +7,8 @@
   "client": {
     "entry": "./client/index.js",
     "navItems": [
-      { "id": "rfe-review", "label": "RFE Review", "icon": "ClipboardList", "default": true },
+      { "id": "ai-factory-guide", "label": "AI Factory Guide", "icon": "BookOpen", "default": true },
+      { "id": "rfe-review", "label": "RFE Review", "icon": "ClipboardList", "separatorBefore": true },
       { "id": "feature-review", "label": "Feature Review", "icon": "Target" },
       { "id": "implementation", "label": "Implementation", "icon": "GitBranch", "disabled": true },
       { "id": "qe-validation", "label": "QE / Validation", "icon": "Activity", "disabled": true },
