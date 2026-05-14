@@ -64,10 +64,9 @@ const statCards = computed(() => {
   return items
 })
 
-// Build buckets for each team card from percentages + totals
+// Reconstruct bucket data from percentages when team.buckets is missing
 function teamBuckets(team) {
   if (team.buckets) return team.buckets
-  // Reconstruct approximate buckets from percentages and totals
   const buckets = {}
   const p = team.percentages || {}
   for (const key of ['tech-debt-quality', 'new-features', 'learning-enablement', 'uncategorized']) {
@@ -92,7 +91,6 @@ onMounted(() => {
   <div>
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
       <div>
-        <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">40/40/20 Allocation</h2>
         <p v-if="hasData" class="text-sm text-gray-500 dark:text-gray-400">
           {{ teams.length }} {{ teams.length === 1 ? 'team' : 'teams' }} across {{ summary?.boardCount || 0 }} boards
         </p>
@@ -109,7 +107,7 @@ onMounted(() => {
     />
 
     <!-- Loading -->
-    <div v-if="loading" class="flex items-center justify-center py-12">
+    <div v-if="loading" class="flex items-center justify-center py-12" role="status" aria-live="polite">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
     </div>
 

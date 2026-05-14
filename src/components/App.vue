@@ -576,7 +576,7 @@ export default {
         return
       }
       if (parts[0] === 'people') { window.location.replace('#/team-tracker/people'); return }
-      if (parts[0] === 'trends') { window.location.replace('#/team-tracker/trends'); return }
+      if (parts[0] === 'trends') { window.location.replace('#/team-tracker/reports?report=trends'); return }
       if (parts[0] === 'reports') { window.location.replace('#/team-tracker/reports'); return }
       // Redirect any org-roster bookmarks to team-tracker (modules merged)
       if (parts[0] === 'org-roster') {
@@ -655,6 +655,14 @@ export default {
         }
 
         // Legacy view redirects within team-tracker
+        if (manifest.slug === 'team-tracker' && parts[1] === 'trends') {
+          window.location.replace('#/team-tracker/reports?report=trends')
+          return
+        }
+        if (manifest.slug === 'team-tracker' && parts[1] === 'org-allocation') {
+          window.location.replace('#/team-tracker/reports?report=allocation')
+          return
+        }
         if (manifest.slug === 'team-tracker' && parts[1] === 'dashboard') {
           window.location.replace('#/team-tracker/home')
           return
@@ -671,7 +679,11 @@ export default {
 
         // Usage tracking beacon — fire-and-forget
         if (!this._trackingDisabled) {
-          const page = `${manifest.slug}::${viewId}`;
+          let page = `${manifest.slug}::${viewId}`;
+          // Per-report tracking granularity: append report ID when viewing a specific report
+          if (viewId === 'reports' && params.report) {
+            page = `${manifest.slug}::reports/${params.report}`;
+          }
           if (this._lastTrackedPage !== page || Date.now() - (this._lastTrackTime || 0) > 2000) {
             this._lastTrackedPage = page;
             this._lastTrackTime = Date.now();

@@ -9,10 +9,8 @@
     "navItems": [
       { "id": "home", "label": "Team Directory", "icon": "Users", "default": true },
       { "id": "people", "label": "People", "icon": "User" },
-      { "id": "trends", "label": "Trends", "icon": "TrendingUp" },
-      { "id": "reports", "label": "Reports", "icon": "FileText" },
+      { "id": "reports", "label": "Reports", "icon": "BarChart3" },
       { "id": "org-dashboard", "label": "Org Dashboard", "icon": "Building2" },
-      { "id": "org-allocation", "label": "40/40/20 Allocation", "icon": "PieChart" },
       { "id": "manager-dashboard", "label": "My Teams", "icon": "LayoutDashboard", "requireRole": "manager", "requireCondition": "in-app-mode" },
       { "id": "manage", "label": "Manage", "icon": "Settings", "requireRole": "team-admin", "requireCondition": "in-app-mode" }
     ],
