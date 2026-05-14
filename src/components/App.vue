@@ -361,6 +361,40 @@ export default {
         if (qs) hash += `?${qs}`
         window.location.hash = hash
       },
+      updateParams(newParams, { push = true } = {}) {
+        const hash = window.location.hash || '#/'
+        const raw = hash.slice(2)
+        const qIdx = raw.indexOf('?')
+        const pathPart = qIdx >= 0 ? raw.substring(0, qIdx) : raw
+        const queryPart = qIdx >= 0 ? raw.substring(qIdx + 1) : ''
+        const params = {}
+        if (queryPart) {
+          for (const pair of queryPart.split('&')) {
+            const eqIdx = pair.indexOf('=')
+            if (eqIdx >= 0) {
+              params[decodeURIComponent(pair.substring(0, eqIdx))] = decodeURIComponent(pair.substring(eqIdx + 1))
+            } else if (pair) {
+              params[decodeURIComponent(pair)] = ''
+            }
+          }
+        }
+        for (const [k, v] of Object.entries(newParams)) {
+          if (v === undefined || v === null) {
+            delete params[k]
+          } else {
+            params[k] = String(v)
+          }
+        }
+        let newHash = `#/${pathPart}`
+        const qs = Object.entries(params)
+          .filter(([, v]) => v !== undefined && v !== null)
+          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+          .join('&')
+        if (qs) newHash += `?${qs}`
+        routeParams.value = { ...params }
+        const method = push ? 'pushState' : 'replaceState'
+        history[method](null, '', newHash)
+      },
       goBack() {
         history.back()
       },
@@ -464,6 +498,7 @@ export default {
   },
   async mounted() {
     window.addEventListener('hashchange', this.onHashChange)
+    window.addEventListener('popstate', this.onPopState)
     window.addEventListener('keydown', this.onKeyDown)
     await this.loadBuiltInManifestsFromApi()
     if (this.authUser) {
@@ -472,6 +507,7 @@ export default {
   },
   beforeUnmount() {
     window.removeEventListener('hashchange', this.onHashChange)
+    window.removeEventListener('popstate', this.onPopState)
     window.removeEventListener('keydown', this.onKeyDown)
   },
   methods: {
@@ -540,7 +576,7 @@ export default {
         return
       }
       if (parts[0] === 'people') { window.location.replace('#/team-tracker/people'); return }
-      if (parts[0] === 'trends') { window.location.replace('#/team-tracker/trends'); return }
+      if (parts[0] === 'trends') { window.location.replace('#/team-tracker/reports?report=trends'); return }
       if (parts[0] === 'reports') { window.location.replace('#/team-tracker/reports'); return }
       // Redirect any org-roster bookmarks to team-tracker (modules merged)
       if (parts[0] === 'org-roster') {
@@ -619,6 +655,14 @@ export default {
         }
 
         // Legacy view redirects within team-tracker
+        if (manifest.slug === 'team-tracker' && parts[1] === 'trends') {
+          window.location.replace('#/team-tracker/reports?report=trends')
+          return
+        }
+        if (manifest.slug === 'team-tracker' && parts[1] === 'org-allocation') {
+          window.location.replace('#/team-tracker/reports?report=allocation')
+          return
+        }
         if (manifest.slug === 'team-tracker' && parts[1] === 'dashboard') {
           window.location.replace('#/team-tracker/home')
           return
@@ -635,7 +679,11 @@ export default {
 
         // Usage tracking beacon — fire-and-forget
         if (!this._trackingDisabled) {
-          const page = `${manifest.slug}::${viewId}`;
+          let page = `${manifest.slug}::${viewId}`;
+          // Per-report tracking granularity: append report ID when viewing a specific report
+          if (viewId === 'reports' && params.report) {
+            page = `${manifest.slug}::reports/${params.report}`;
+          }
           if (this._lastTrackedPage !== page || Date.now() - (this._lastTrackTime || 0) > 2000) {
             this._lastTrackedPage = page;
             this._lastTrackTime = Date.now();
@@ -688,6 +736,10 @@ export default {
     },
 
     onHashChange() {
+      this.restoreFromHash()
+    },
+
+    onPopState() {
       this.restoreFromHash()
     },
 
@@ -765,13 +817,13 @@ export default {
       this.isRefreshing = true
       try {
         const refreshes = [refreshMetrics({ scope: 'all', force, sources })]
-        if (this.enabledBuiltInSlugs?.includes('allocation-tracker')) {
+        if (this.enabledBuiltInSlugs?.includes('team-tracker')) {
           refreshes.push(
-            apiRequest('/modules/allocation-tracker/refresh', {
+            apiRequest('/modules/team-tracker/allocation/refresh', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ hardRefresh: force })
-            }).catch(err => console.error('Allocation tracker refresh failed:', err))
+            }).catch(err => console.error('Allocation refresh failed:', err))
           )
         }
         await Promise.all(refreshes)

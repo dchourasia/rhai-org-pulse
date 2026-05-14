@@ -114,7 +114,8 @@ function mountView(teamKey = 'AAET::Model Serving') {
         moduleNav: {
           params: ref({ teamKey }),
           goBack: vi.fn(),
-          navigateTo: vi.fn()
+          navigateTo: vi.fn(),
+          updateParams: vi.fn()
         }
       }
     }
@@ -165,11 +166,11 @@ describe('TeamRosterView', () => {
     expect(tabLabels).toContain('RFE Backlog')
   })
 
-  it('always shows all 3 tabs', async () => {
+  it('always shows all 4 tabs', async () => {
     const wrapper = mountView()
     await flushPromises()
     const tabLabels = wrapper.findAll('nav button').map(b => b.text())
-    expect(tabLabels).toHaveLength(3)
+    expect(tabLabels).toHaveLength(4)
   })
 
   it('switches tabs when tab buttons are clicked', async () => {

@@ -138,8 +138,9 @@ jobs:
                  post a comment explaining that no PR was found and exit.
                - Run `gh pr checkout <PR_NUMBER>` to switch to the PR branch.
 
-            2. **Review** the PR diff. Read `.github/instructions/review.instructions.md`
-               for the full review checklist. Apply all criteria from that file.
+            2. **Review** the PR diff. Read `AGENTS.md` (hard constraints and
+               conventions) and `.github/instructions/review.instructions.md`
+               (review checklist and verdict rules). Apply all criteria from both.
 
             3. **Fix** any issues you find by editing the files directly:
                - Use Edit/Write tools to modify the source files
@@ -170,17 +171,8 @@ jobs:
                  your autofix commit. Mention this in your summary so the PR author
                  knows to re-run CI if needed.
 
-            5. **Set review verdict**: After completing your review, write a result file
-               to signal whether the PR should be blocked:
-               ```
-               echo "PASS" > .claude-review-result    # No blocking issues remain
-               echo "FAIL" > .claude-review-result    # Critical unfixed issues
-               ```
-               Use **FAIL** only for issues you could NOT fix that are: security
-               vulnerabilities, clear bugs that will cause runtime errors, or breaking
-               changes. If you found issues but fixed them all, use PASS.
-               Use **PASS** for: clean code, minor suggestions, style nits, or when
-               all issues were fixed by your autofix commit.
+            5. **Set review verdict**: Follow the "Verdict rules" section in
+               `.github/instructions/review.instructions.md` to write your result file.
                Always write this file as your very last action.
 
             **Important rules:**
@@ -192,6 +184,7 @@ jobs:
               subjective, comment instead of changing code.
             - Do not modify files outside the scope of the PR unless necessary to
               fix an issue (e.g., a missing import in another file).
+
         env:
           ANTHROPIC_VERTEX_PROJECT_ID: "itpc-gcp-ai-eng-claude"
           CLOUD_ML_REGION: "us-east5"

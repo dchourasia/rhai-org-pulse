@@ -133,137 +133,47 @@
 
     <!-- Docs tab -->
     <template v-if="activeTab === 'docs'">
-      <!-- AI SDLC Materials -->
-      <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3">AI SDLC Materials</h2>
+      <template v-for="(section, sIdx) in docsSections" :key="section.id">
+        <h2
+          class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3"
+          :class="{ 'mt-8': sIdx > 0 }"
+        >
+          {{ section.label }}
+        </h2>
 
-      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          RFE Builder
-          <a href="https://app.slack.com/client/E030G10V24F/C0AMPLH0Y9G" target="_blank" rel="noopener" class="ml-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">#wg-rhai-rfe-builder</a>
-        </h3>
-        <div class="flex flex-wrap gap-4">
-          <a
-            v-for="link in rfeLinks"
-            :key="link.label"
-            :href="link.url"
-            target="_blank"
-            rel="noopener"
-            class="flex items-center gap-2.5 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-all duration-200"
-          >
-            <component :is="link.icon" :size="18" :stroke-width="1.7" class="flex-shrink-0 text-gray-500 dark:text-gray-400" />
-            <span>{{ link.label }}</span>
-            <ExternalLink :size="14" class="flex-shrink-0 text-gray-400 dark:text-gray-500" />
-          </a>
+        <div
+          v-for="cat in section.categories"
+          :key="cat.id"
+          class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6"
+        >
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            {{ cat.title }}
+            <a
+              v-if="cat.slackChannel"
+              :href="cat.slackChannel.url"
+              target="_blank"
+              rel="noopener"
+              class="ml-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              {{ cat.slackChannel.name }}
+            </a>
+          </h3>
+          <div class="flex flex-wrap gap-4">
+            <a
+              v-for="link in cat.resolvedLinks"
+              :key="link.url"
+              :href="link.url"
+              target="_blank"
+              rel="noopener"
+              class="flex items-center gap-2.5 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-all duration-200"
+            >
+              <component :is="link.icon" :size="18" :stroke-width="1.7" class="flex-shrink-0 text-gray-500 dark:text-gray-400" />
+              <span>{{ link.label }}</span>
+              <ExternalLink :size="14" class="flex-shrink-0 text-gray-400 dark:text-gray-500" />
+            </a>
+          </div>
         </div>
-      </div>
-
-      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          STRAT Builder
-          <a href="https://app.slack.com/client/E030G10V24F/C0APA0E2J3Z" target="_blank" rel="noopener" class="ml-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">#wg-rhai-strat-refine-review</a>
-        </h3>
-        <div class="flex flex-wrap gap-4">
-          <a
-            v-for="link in stratBuilderLinks"
-            :key="link.label"
-            :href="link.url"
-            target="_blank"
-            rel="noopener"
-            class="flex items-center gap-2.5 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-all duration-200"
-          >
-            <component :is="link.icon" :size="18" :stroke-width="1.7" class="flex-shrink-0 text-gray-500 dark:text-gray-400" />
-            <span>{{ link.label }}</span>
-            <ExternalLink :size="14" class="flex-shrink-0 text-gray-400 dark:text-gray-500" />
-          </a>
-        </div>
-      </div>
-
-      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          AI Quality
-          <a href="https://app.slack.com/client/E030G10V24F/C0ANMTUF5FW" target="_blank" rel="noopener" class="ml-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">#wg-rhai-quality-eng-builder</a>
-        </h3>
-        <div class="flex flex-wrap gap-4">
-          <a
-            v-for="link in aiQualityLinks"
-            :key="link.label"
-            :href="link.url"
-            target="_blank"
-            rel="noopener"
-            class="flex items-center gap-2.5 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-all duration-200"
-          >
-            <component :is="link.icon" :size="18" :stroke-width="1.7" class="flex-shrink-0 text-gray-500 dark:text-gray-400" />
-            <span>{{ link.label }}</span>
-            <ExternalLink :size="14" class="flex-shrink-0 text-gray-400 dark:text-gray-500" />
-          </a>
-        </div>
-      </div>
-
-      <!-- AI Workflows Enablement -->
-      <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 mt-8 mb-3">AI Workflows Enablement</h2>
-
-      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          Jira Autofix
-          <a href="https://app.slack.com/client/E030G10V24F/C0ASJ32PJ0N" target="_blank" rel="noopener" class="ml-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">#wg-rhai-ai-first-code-autofix</a>
-        </h3>
-        <div class="flex flex-wrap gap-4">
-          <a
-            v-for="link in jiraAutofixLinks"
-            :key="link.label"
-            :href="link.url"
-            target="_blank"
-            rel="noopener"
-            class="flex items-center gap-2.5 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-all duration-200"
-          >
-            <component :is="link.icon" :size="18" :stroke-width="1.7" class="flex-shrink-0 text-gray-500 dark:text-gray-400" />
-            <span>{{ link.label }}</span>
-            <ExternalLink :size="14" class="flex-shrink-0 text-gray-400 dark:text-gray-500" />
-          </a>
-        </div>
-      </div>
-
-      <!-- Other Enablement -->
-      <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 mt-8 mb-3">Other Enablement</h2>
-
-      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          Agent Eval Harness
-          <a href="https://app.slack.com/client/E030G10V24F/C0B01HA68KC" target="_blank" rel="noopener" class="ml-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">#wg-agent-eval-harness</a>
-        </h3>
-        <div class="flex flex-wrap gap-4">
-          <a
-            v-for="link in agentEvalHarnessLinks"
-            :key="link.label"
-            :href="link.url"
-            target="_blank"
-            rel="noopener"
-            class="flex items-center gap-2.5 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-all duration-200"
-          >
-            <component :is="link.icon" :size="18" :stroke-width="1.7" class="flex-shrink-0 text-gray-500 dark:text-gray-400" />
-            <span>{{ link.label }}</span>
-            <ExternalLink :size="14" class="flex-shrink-0 text-gray-400 dark:text-gray-500" />
-          </a>
-        </div>
-      </div>
-
-      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">RFE Builder Lessons Learned</h3>
-        <div class="flex flex-wrap gap-4">
-          <a
-            v-for="link in rfeBuilderLessonsLearnedLinks"
-            :key="link.label"
-            :href="link.url"
-            target="_blank"
-            rel="noopener"
-            class="flex items-center gap-2.5 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-all duration-200"
-          >
-            <component :is="link.icon" :size="18" :stroke-width="1.7" class="flex-shrink-0 text-gray-500 dark:text-gray-400" />
-            <span>{{ link.label }}</span>
-            <ExternalLink :size="14" class="flex-shrink-0 text-gray-400 dark:text-gray-500" />
-          </a>
-        </div>
-      </div>
+      </template>
     </template>
 
     <!-- Site Usage tab -->
@@ -526,6 +436,7 @@ import {
 } from 'lucide-vue-next'
 import { useAuth } from '@shared/client'
 import SiteUsageTab from './health-metrics/SiteUsageTab.vue'
+import { enablementCategories, enablementSections } from '@shared/client/enablement-links.js'
 
 const { isAdmin: authIsAdmin, roles } = useAuth()
 
@@ -590,42 +501,21 @@ const issueTemplates = [
   { label: 'Bug Report', icon: Bug, url: repoBase + '/issues/new?template=bug-report.yml' }
 ]
 
-const rfeLinks = [
-  { label: 'Enablement Recording', icon: Video, url: 'https://drive.google.com/file/d/1qZomlB-TK2FODtmvjzpMeH_g5qpuAOh-/view?usp=sharing' },
-  { label: 'Enablement Slides', icon: Presentation, url: 'https://docs.google.com/presentation/d/1O-F8naJxAfYtcXjTJHySYjeLtrKfb1OHhtyhoItya0s/edit?usp=sharing' },
-  { label: 'Enablement Notes', icon: StickyNote, url: 'https://docs.google.com/document/d/1pTpIvKkYns2aG5g0ueOxy6P8j1m_yNnD13XBB35NgWQ/edit?usp=sharing' },
-  { label: 'Demo', icon: Play, url: 'https://drive.google.com/file/d/1ANaZOeUorSMqlFm3WzfK1xRPvld2TGM-/view' }
-]
+const iconMap = { Video, Presentation, StickyNote, Play }
 
-const stratBuilderLinks = [
-  { label: 'Enablement Recording', icon: Video, url: 'https://drive.google.com/file/d/1dXtifXiAsbnZtfiU9-vKUCEvfLX5ANvg/view' },
-  { label: 'Enablement Slides', icon: Presentation, url: 'https://docs.google.com/presentation/d/1oBIyJo30MSuig9Q1Qokq-6yclm_OL9htbWV91_YWMFs/edit?slide=id.g3dc5b8ade0b_0_14#slide=id.g3dc5b8ade0b_0_14' },
-  { label: 'Enablement Notes', icon: StickyNote, url: 'https://docs.google.com/document/d/1n-UEt0RloVmEDmjO4E3EoEQPLJTNVwPvao4Uvf3XD4U/edit?tab=t.uwq8408i1mre' }
-]
+function resolveIcon(name) {
+  return iconMap[name] || Video
+}
 
-const aiQualityLinks = [
-  { label: 'Enablement Recording', icon: Video, url: 'https://drive.google.com/file/d/1jlsw8rVpRRo1Y1kkKhJ7LHDy3N6C_Uxp/view' },
-  { label: 'Enablement Slides', icon: Presentation, url: 'https://docs.google.com/presentation/d/1XuLna0_2DHX7EzepJHk03PpQF1urFoF39xaq9N-G6rY/edit?slide=id.g3d48d3b5671_0_5160#slide=id.g3d48d3b5671_0_5160' },
-  { label: 'Enablement Notes', icon: StickyNote, url: 'https://docs.google.com/document/d/1B006LrfEAUf_wb6Hr7PZJnpg2oW2bAQdxNmYcbLJo30/edit?tab=t.iqa6kux2ki3f' }
-]
-
-const jiraAutofixLinks = [
-  { label: 'Enablement Recording', icon: Video, url: 'https://drive.google.com/file/d/1b-PZD3OiPAA8LOZ8lWmfcNZBByUa0Nel/view?ts=69e8ff07' },
-  { label: 'Enablement Slides', icon: Presentation, url: 'https://docs.google.com/presentation/d/1_UaHAI65K1P5Y2pAhZ4ie2KY-tHiSrqbnWN0UUqvsYs/edit?slide=id.g3d84ce2c2ca_1_0#slide=id.g3d84ce2c2ca_1_0' },
-  { label: 'Enablement Notes', icon: StickyNote, url: 'https://docs.google.com/document/d/1O3i5Ijoo3fi-gPHG0e9ON70Nfij2EUdfU18KOrVQADY/edit?tab=t.4ih80ylpl5y1' }
-]
-
-const agentEvalHarnessLinks = [
-  { label: 'Enablement Recording', icon: Video, url: 'https://drive.google.com/file/d/1SVPwRZzo2U1ohnlTtgjlyOvXHrJB1Jxu/view' },
-  { label: 'Enablement Slides', icon: Presentation, url: 'https://docs.google.com/presentation/d/15vhrPqtu-uzxQC4v3whN8YQL1NK46kqNULhZff3uC8E/edit?slide=id.g3d8e714406d_0_0#slide=id.g3d8e714406d_0_0' },
-  { label: 'Enablement Notes', icon: StickyNote, url: 'https://docs.google.com/document/d/1HJJBt2Psnqy7JWx26UUP0fENJqDPAZBDhFcHpHt6sjM/edit?tab=t.tcc7ue9usok7' }
-]
-
-const rfeBuilderLessonsLearnedLinks = [
-  { label: 'Lessons Learned Recording', icon: Video, url: 'https://drive.google.com/file/d/15UWUdbITmkccmxeW8U1oIxlS3Wei2j3g/view' },
-  { label: 'Lessons Learned Slides', icon: Presentation, url: 'https://docs.google.com/presentation/d/1XhMa0hn6no4ALO2W7y8HthqF0iQh3b9z9vXja7BMKao/edit?slide=id.slide_01#slide=id.slide_01' },
-  { label: 'Lessons Learned Notes', icon: StickyNote, url: 'https://docs.google.com/document/d/1glUr8WhghdDmri1KKSCJutMjfzxnueoZuYGFjg2OwxI/edit?tab=t.q557l4ag5zjk' }
-]
+const docsSections = enablementSections.map(s => ({
+  ...s,
+  categories: enablementCategories
+    .filter(c => c.section === s.id)
+    .map(c => ({
+      ...c,
+      resolvedLinks: c.links.map(l => ({ ...l, icon: resolveIcon(l.icon) })),
+    })),
+}))
 
 // --- Backups state ---
 const backupsList = ref([])
