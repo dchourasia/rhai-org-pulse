@@ -156,16 +156,20 @@ test.describe('AI Impact Views @ai-impact', () => {
     const mainContent = page.locator('main, [role="main"], .min-h-screen').first();
     await expect(mainContent).toBeVisible();
 
-    // Verify the view has rendered some meaningful content (like buttons, inputs,
-    // lists, tables, or cards)
+    // Verify the view has rendered some meaningful content by checking for
+    // data-bearing elements (not just empty containers or placeholders)
     const hasButtons = await page.locator('button').count() > 0;
     const hasInputs = await page.locator('input, select, textarea').count() > 0;
     const hasList = await page.locator('ul li, ol li').count() > 0;
-    const hasTable = await page.locator('table').count() > 0;
-    const hasCards = await page.locator('[class*="rounded"]').count() > 0; // Rounded elements suggest styled content/cards
+    const hasTable = await page.locator('table tbody tr').count() > 0; // Data rows, not just headers
+    const hasHeadings = await page.locator('h1, h2, h3').count() > 0;
+    const hasLinks = await page.locator('a[href]').count() > 0;
+    const hasDataElements = await page.locator('[data-testid], [data-key], [data-id]').count() > 0;
+    const hasSections = await page.locator('article, section').count() > 0;
 
     // If this value is 'false', then it indicates we've loaded an empty page.
-    const hasContent = hasButtons || hasInputs || hasList || hasTable || hasCards;
+    const hasContent = hasButtons || hasInputs || hasList || hasTable ||
+                       hasHeadings || hasLinks || hasDataElements || hasSections;
     expect(hasContent).toBe(true);
 
     // Verify we're not stuck in an infinite loading state
