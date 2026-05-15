@@ -1,5 +1,6 @@
 const VALID_COMPLETION_STATUSES = ['completed', 'in-progress'];
 const VALID_PRODUCT_CONTEXTS = ['RHOAI', 'ODH'];
+const VALID_ONBOARDING_METHODS = ['automated', 'manual'];
 const VALID_KEY_PREFIXES = ['RHOAIENG-'];
 
 // Pipeline step keys in execution order (per onboarding skill doc)
@@ -144,6 +145,18 @@ function validateComponentOnboarding(body) {
     }
   }
 
+  // onboardingMethod: optional enum (automated/manual), defaults to "automated"
+  if (body.onboardingMethod !== undefined && !VALID_ONBOARDING_METHODS.includes(body.onboardingMethod)) {
+    errors.push(`onboardingMethod must be one of: ${VALID_ONBOARDING_METHODS.join(', ')}`);
+  }
+
+  // firstCommentDate: optional ISO 8601 or null
+  if (body.firstCommentDate !== undefined && body.firstCommentDate !== null) {
+    if (typeof body.firstCommentDate !== 'string' || isNaN(Date.parse(body.firstCommentDate))) {
+      errors.push('firstCommentDate must be a valid ISO 8601 date string or null');
+    }
+  }
+
   if (errors.length > 0) {
     return { valid: false, errors };
   }
@@ -168,9 +181,11 @@ function validateComponentOnboarding(body) {
       onboardingSteps: body.onboardingSteps || {},
       created: body.created || null,
       resolved: body.resolved || null,
-      validationDate: body.validationDate || null
+      validationDate: body.validationDate || null,
+      onboardingMethod: body.onboardingMethod || 'automated',
+      firstCommentDate: body.firstCommentDate || null
     }
   };
 }
 
-module.exports = { validateComponentOnboarding, VALID_COMPLETION_STATUSES, VALID_PRODUCT_CONTEXTS, ONBOARDING_STEP_KEYS };
+module.exports = { validateComponentOnboarding, VALID_COMPLETION_STATUSES, VALID_PRODUCT_CONTEXTS, VALID_ONBOARDING_METHODS, ONBOARDING_STEP_KEYS };

@@ -1,6 +1,6 @@
 {
   "fetchedAt": "2026-05-10T11:01:55.980Z",
-  "totalComponents": 10,
+  "totalComponents": 15,
   "components": {
     "RHOAIENG-61528": {
       "latest": {
@@ -51,6 +51,8 @@
           "autoMergeSetup": false,
           "renovateSetup": false
         },
+        "onboardingMethod": "automated",
+        "firstCommentDate": null,
         "syncedAt": "2026-05-10T11:01:55.977Z"
       },
       "history": []
@@ -104,6 +106,8 @@
           "autoMergeSetup": false,
           "renovateSetup": false
         },
+        "onboardingMethod": "automated",
+        "firstCommentDate": null,
         "syncedAt": "2026-05-10T11:01:55.980Z"
       },
       "history": []
@@ -162,6 +166,8 @@
           "autoMergeSetup": true,
           "renovateSetup": true
         },
+        "onboardingMethod": "automated",
+        "firstCommentDate": null,
         "syncedAt": "2026-05-10T11:01:55.980Z"
       },
       "history": []
@@ -220,6 +226,8 @@
           "autoMergeSetup": true,
           "renovateSetup": true
         },
+        "onboardingMethod": "automated",
+        "firstCommentDate": null,
         "syncedAt": "2026-05-10T11:01:55.980Z"
       },
       "history": []
@@ -266,6 +274,8 @@
           "autoMergeSetup": false,
           "renovateSetup": false
         },
+        "onboardingMethod": "automated",
+        "firstCommentDate": null,
         "syncedAt": "2026-05-10T11:01:55.980Z"
       },
       "history": []
@@ -321,6 +331,8 @@
           "autoMergeSetup": false,
           "renovateSetup": false
         },
+        "onboardingMethod": "automated",
+        "firstCommentDate": null,
         "syncedAt": "2026-05-10T11:01:55.980Z"
       },
       "history": []
@@ -372,6 +384,8 @@
           "autoMergeSetup": false,
           "renovateSetup": false
         },
+        "onboardingMethod": "automated",
+        "firstCommentDate": null,
         "syncedAt": "2026-05-10T11:01:55.980Z"
       },
       "history": []
@@ -430,6 +444,8 @@
           "autoMergeSetup": true,
           "renovateSetup": true
         },
+        "onboardingMethod": "automated",
+        "firstCommentDate": null,
         "syncedAt": "2026-05-10T11:01:55.980Z"
       },
       "history": []
@@ -485,6 +501,8 @@
           "autoMergeSetup": true,
           "renovateSetup": true
         },
+        "onboardingMethod": "automated",
+        "firstCommentDate": null,
         "syncedAt": "2026-05-10T11:01:55.980Z"
       },
       "history": []
@@ -540,6 +558,233 @@
           "autoMergeSetup": false,
           "renovateSetup": false
         },
+        "onboardingMethod": "automated",
+        "firstCommentDate": null,
+        "syncedAt": "2026-05-10T11:01:55.980Z"
+      },
+      "history": []
+    },
+    "RHOAIENG-42310": {
+      "latest": {
+        "key": "RHOAIENG-42310",
+        "summary": "RHOAI Konflux Onboarding odh-dashboard",
+        "status": "Closed",
+        "completionStatus": "completed",
+        "productContext": "RHOAI",
+        "componentName": "odh-dashboard",
+        "repoUrl": "https://github.com/opendatahub-io/odh-dashboard",
+        "branch": "main",
+        "dockerfilePath": "Dockerfile",
+        "contextPath": ".",
+        "isOperator": false,
+        "linkedFeatures": [
+          "RHAISTRAT-502"
+        ],
+        "featureTitles": {
+          "RHAISTRAT-502": "Migrate RHOAI build system to Konflux"
+        },
+        "labels": [
+          "devops-onboarding"
+        ],
+        "created": "2024-08-12T10:15:22.450+0000",
+        "resolved": "2024-11-04T14:30:18.771+0000",
+        "validationDate": null,
+        "onboardingSteps": {
+          "yamlValidated": false,
+          "quayRepoCreated": false,
+          "deliveryRepoProvisioned": false,
+          "konfluxOnboarded": false,
+          "pushPipelineConfigured": false,
+          "pullPipelineConfigured": false,
+          "odhKonfluxOnboarded": false,
+          "operatorIntegrated": false,
+          "bundleConfigured": false,
+          "productListingUpdated": false,
+          "autoMergeSetup": false,
+          "renovateSetup": false
+        },
+        "onboardingMethod": "manual",
+        "firstCommentDate": "2024-08-15T14:22:10.330+0000",
+        "syncedAt": "2026-05-10T11:01:55.980Z"
+      },
+      "history": []
+    },
+    "RHOAIENG-38755": {
+      "latest": {
+        "key": "RHOAIENG-38755",
+        "summary": "RHOAI Konflux Onboarding codeflare-operator",
+        "status": "Closed",
+        "completionStatus": "completed",
+        "productContext": "RHOAI",
+        "componentName": "codeflare-operator",
+        "repoUrl": "https://github.com/project-codeflare/codeflare-operator",
+        "branch": "main",
+        "dockerfilePath": "Dockerfile",
+        "contextPath": ".",
+        "isOperator": true,
+        "linkedFeatures": [
+          "RHAISTRAT-502"
+        ],
+        "featureTitles": {
+          "RHAISTRAT-502": "Migrate RHOAI build system to Konflux"
+        },
+        "labels": [
+          "devops-onboarding"
+        ],
+        "created": "2024-06-20T08:45:33.192+0000",
+        "resolved": "2024-09-18T11:22:47.385+0000",
+        "validationDate": null,
+        "onboardingSteps": {
+          "yamlValidated": false,
+          "quayRepoCreated": false,
+          "deliveryRepoProvisioned": false,
+          "konfluxOnboarded": false,
+          "pushPipelineConfigured": false,
+          "pullPipelineConfigured": false,
+          "odhKonfluxOnboarded": false,
+          "operatorIntegrated": false,
+          "bundleConfigured": false,
+          "productListingUpdated": false,
+          "autoMergeSetup": false,
+          "renovateSetup": false
+        },
+        "onboardingMethod": "manual",
+        "firstCommentDate": "2024-06-25T10:11:45.920+0000",
+        "syncedAt": "2026-05-10T11:01:55.980Z"
+      },
+      "history": []
+    },
+    "RHOAIENG-35901": {
+      "latest": {
+        "key": "RHOAIENG-35901",
+        "summary": "ODH Konflux CI Build Onboarding modelmesh-serving",
+        "status": "Closed",
+        "completionStatus": "completed",
+        "productContext": "ODH",
+        "componentName": "modelmesh-serving",
+        "repoUrl": "https://github.com/opendatahub-io/modelmesh-serving",
+        "branch": "main",
+        "dockerfilePath": "Dockerfile",
+        "contextPath": ".",
+        "isOperator": false,
+        "linkedFeatures": [
+          "RHAISTRAT-502"
+        ],
+        "featureTitles": {
+          "RHAISTRAT-502": "Migrate RHOAI build system to Konflux"
+        },
+        "labels": [
+          "devops-onboarding"
+        ],
+        "created": "2024-10-03T14:20:08.611+0000",
+        "resolved": "2025-01-15T09:44:55.803+0000",
+        "validationDate": null,
+        "onboardingSteps": {
+          "yamlValidated": false,
+          "quayRepoCreated": false,
+          "deliveryRepoProvisioned": false,
+          "konfluxOnboarded": false,
+          "pushPipelineConfigured": false,
+          "pullPipelineConfigured": false,
+          "odhKonfluxOnboarded": false,
+          "operatorIntegrated": false,
+          "bundleConfigured": false,
+          "productListingUpdated": false,
+          "autoMergeSetup": false,
+          "renovateSetup": false
+        },
+        "onboardingMethod": "manual",
+        "firstCommentDate": "2024-10-07T09:30:22.115+0000",
+        "syncedAt": "2026-05-10T11:01:55.980Z"
+      },
+      "history": []
+    },
+    "RHOAIENG-33480": {
+      "latest": {
+        "key": "RHOAIENG-33480",
+        "summary": "ODH Konflux CI Build Onboarding odh-notebook-controller",
+        "status": "Closed",
+        "completionStatus": "completed",
+        "productContext": "ODH",
+        "componentName": "odh-notebook-controller",
+        "repoUrl": "https://github.com/opendatahub-io/kubeflow",
+        "branch": "main",
+        "dockerfilePath": "components/notebook-controller/Dockerfile",
+        "contextPath": ".",
+        "isOperator": false,
+        "linkedFeatures": [
+          "RHAISTRAT-502"
+        ],
+        "featureTitles": {
+          "RHAISTRAT-502": "Migrate RHOAI build system to Konflux"
+        },
+        "labels": [
+          "devops-onboarding"
+        ],
+        "created": "2024-07-15T11:33:44.820+0000",
+        "resolved": "2024-10-28T16:15:32.994+0000",
+        "validationDate": null,
+        "onboardingSteps": {
+          "yamlValidated": false,
+          "quayRepoCreated": false,
+          "deliveryRepoProvisioned": false,
+          "konfluxOnboarded": false,
+          "pushPipelineConfigured": false,
+          "pullPipelineConfigured": false,
+          "odhKonfluxOnboarded": false,
+          "operatorIntegrated": false,
+          "bundleConfigured": false,
+          "productListingUpdated": false,
+          "autoMergeSetup": false,
+          "renovateSetup": false
+        },
+        "onboardingMethod": "manual",
+        "firstCommentDate": "2024-07-22T15:48:33.441+0000",
+        "syncedAt": "2026-05-10T11:01:55.980Z"
+      },
+      "history": []
+    },
+    "RHOAIENG-31200": {
+      "latest": {
+        "key": "RHOAIENG-31200",
+        "summary": "RHOAI Konflux Onboarding kserve",
+        "status": "Closed",
+        "completionStatus": "completed",
+        "productContext": "RHOAI",
+        "componentName": "kserve",
+        "repoUrl": "https://github.com/opendatahub-io/kserve",
+        "branch": "main",
+        "dockerfilePath": "Dockerfile",
+        "contextPath": ".",
+        "isOperator": false,
+        "linkedFeatures": [
+          "RHAISTRAT-502"
+        ],
+        "featureTitles": {
+          "RHAISTRAT-502": "Migrate RHOAI build system to Konflux"
+        },
+        "labels": [
+          "devops-onboarding"
+        ],
+        "created": "2024-09-10T09:05:17.340+0000",
+        "resolved": "2025-02-20T13:48:29.156+0000",
+        "validationDate": null,
+        "onboardingSteps": {
+          "yamlValidated": false,
+          "quayRepoCreated": false,
+          "deliveryRepoProvisioned": false,
+          "konfluxOnboarded": false,
+          "pushPipelineConfigured": false,
+          "pullPipelineConfigured": false,
+          "odhKonfluxOnboarded": false,
+          "operatorIntegrated": false,
+          "bundleConfigured": false,
+          "productListingUpdated": false,
+          "autoMergeSetup": false,
+          "renovateSetup": false
+        },
+        "onboardingMethod": "manual",
+        "firstCommentDate": "2024-09-18T11:05:47.220+0000",
         "syncedAt": "2026-05-10T11:01:55.980Z"
       },
       "history": []

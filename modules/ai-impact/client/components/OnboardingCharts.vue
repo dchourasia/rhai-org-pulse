@@ -42,11 +42,12 @@ const textColor = computed(() => isDark.value ? 'rgba(209,213,219,1)' : 'rgba(10
 const gridColor = computed(() => isDark.value ? 'rgba(75,85,99,0.5)' : 'rgba(229,231,235,1)')
 
 const componentList = computed(() => Object.values(props.components))
+const automatedList = computed(() => componentList.value.filter(c => (c.onboardingMethod || 'automated') === 'automated'))
 
 // ── Chart 1: Status distribution (Doughnut) ──
 const statusChartData = computed(() => {
-  const completed = componentList.value.filter(c => c.completionStatus === 'completed').length
-  const inProgress = componentList.value.filter(c => c.completionStatus === 'in-progress').length
+  const completed = automatedList.value.filter(c => c.completionStatus === 'completed').length
+  const inProgress = automatedList.value.filter(c => c.completionStatus === 'in-progress').length
   return {
     labels: ['Completed', 'In Progress'],
     datasets: [{
@@ -67,10 +68,10 @@ const statusChartOptions = computed(() => ({
 
 // ── Chart 2: By product context (Horizontal Bar) ──
 const productChartData = computed(() => {
-  const rhoaiCompleted = componentList.value.filter(c => c.productContext === 'RHOAI' && c.completionStatus === 'completed').length
-  const rhoaiInProgress = componentList.value.filter(c => c.productContext === 'RHOAI' && c.completionStatus === 'in-progress').length
-  const odhCompleted = componentList.value.filter(c => c.productContext === 'ODH' && c.completionStatus === 'completed').length
-  const odhInProgress = componentList.value.filter(c => c.productContext === 'ODH' && c.completionStatus === 'in-progress').length
+  const rhoaiCompleted = automatedList.value.filter(c => c.productContext === 'RHOAI' && c.completionStatus === 'completed').length
+  const rhoaiInProgress = automatedList.value.filter(c => c.productContext === 'RHOAI' && c.completionStatus === 'in-progress').length
+  const odhCompleted = automatedList.value.filter(c => c.productContext === 'ODH' && c.completionStatus === 'completed').length
+  const odhInProgress = automatedList.value.filter(c => c.productContext === 'ODH' && c.completionStatus === 'in-progress').length
   return {
     labels: ['RHOAI', 'ODH'],
     datasets: [
@@ -93,7 +94,7 @@ const productChartOptions = computed(() => ({
 
 // ── Chart 3: Onboarded over time (cumulative line) ──
 const timelineChartData = computed(() => {
-  const completed = componentList.value
+  const completed = automatedList.value
     .filter(c => c.completionStatus === 'completed' && c.resolved)
     .map(c => ({ month: c.resolved.slice(0, 7) }))
     .sort((a, b) => a.month.localeCompare(b.month))
@@ -139,7 +140,7 @@ const featureChartData = computed(() => {
   // Build feature → { components, latestCreated } map
   const featureMap = {}
 
-  for (const comp of componentList.value) {
+  for (const comp of automatedList.value) {
     for (const feat of (comp.linkedFeatures || [])) {
       if (!featureMap[feat]) {
         featureMap[feat] = { completed: 0, inProgress: 0, latestCreated: '' }
@@ -212,7 +213,59 @@ const featureChartOptions = computed(() => ({
   }
 }))
 
-const hasFeatureData = computed(() => componentList.value.some(c => c.linkedFeatures?.length > 0))
+const hasFeatureData = computed(() => automatedList.value.some(c => c.linkedFeatures?.length > 0))
+
+const hasManualData = computed(() => componentList.value.some(c => c.onboardingMethod === 'manual'))
+
+// ── Chart 5: Avg Duration Comparison (Horizontal Bar) ──
+function calcAvgDaysAutomated(list) {
+  const measurable = list.filter(c => c.completionStatus === 'completed' && c.resolved && (c.validationDate || c.created))
+  if (!measurable.length) return 0
+  return Math.round(
+    measurable.reduce((sum, c) => {
+      const start = c.validationDate || c.created
+      return sum + (new Date(c.resolved) - new Date(start)) / 86400000
+    }, 0) / measurable.length
+  )
+}
+
+function calcAvgDaysManual(list) {
+  const measurable = list.filter(c => c.completionStatus === 'completed' && c.resolved)
+  if (!measurable.length) return 0
+  return Math.round(
+    measurable.reduce((sum, c) => {
+      const start = c.firstCommentDate || c.created
+      return sum + (new Date(c.resolved) - new Date(start)) / 86400000
+    }, 0) / measurable.length
+  )
+}
+
+const durationChartData = computed(() => {
+  const automated = componentList.value.filter(c => (c.onboardingMethod || 'automated') === 'automated')
+  const manual = componentList.value.filter(c => c.onboardingMethod === 'manual')
+  return {
+    labels: ['AI-Automated', 'Manual'],
+    datasets: [{
+      label: 'Avg. Days',
+      data: [calcAvgDaysAutomated(automated), calcAvgDaysManual(manual)],
+      backgroundColor: ['#10b981', '#f59e0b'],
+      borderRadius: 4,
+      barThickness: 28
+    }]
+  }
+})
+
+const durationChartOptions = computed(() => ({
+  indexAxis: 'y',
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { beginAtZero: true, ticks: { color: textColor.value, font: { size: 10 } }, grid: { color: gridColor.value }, title: { display: true, text: 'Days', color: textColor.value } },
+    y: { ticks: { color: textColor.value, font: { size: 12, weight: 'bold' } }, grid: { display: false } }
+  }
+}))
+
 </script>
 
 <template>
@@ -260,6 +313,22 @@ const hasFeatureData = computed(() => componentList.value.some(c => c.linkedFeat
           <h3 class="text-sm font-medium dark:text-gray-300 mb-3">Onboarded Over Time</h3>
           <div class="h-[200px]">
             <Line :data="timelineChartData" :options="timelineChartOptions" />
+          </div>
+        </div>
+
+      </div>
+
+      <!-- AI Automation Impact section -->
+      <div v-if="hasManualData" class="w-full border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
+        <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-4">AI Automation Impact</h3>
+      </div>
+
+      <div class="flex flex-wrap gap-6" :class="{ 'mt-6': !hasManualData }">
+        <!-- Avg Duration Comparison -->
+        <div v-if="hasManualData" class="min-w-[240px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <h3 class="text-sm font-medium dark:text-gray-300 mb-3">Avg. Onboarding Duration</h3>
+          <div class="h-[140px]">
+            <Bar :data="durationChartData" :options="durationChartOptions" />
           </div>
         </div>
 

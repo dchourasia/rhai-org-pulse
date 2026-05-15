@@ -32,7 +32,6 @@ function sortIcon(key) {
 const search = ref('')
 const completionFilter = ref('all')
 const productFilter = ref('all')
-
 // ── Derived list ──────────────────────────────────────────────────────────────
 const selectedKey = ref(null)
 
@@ -53,6 +52,7 @@ const componentList = computed(() => {
   const q = search.value.toLowerCase()
 
   return Object.values(props.components)
+    .filter(c => (c.onboardingMethod || 'automated') === 'automated')
     .filter(c => {
       if (completionFilter.value !== 'all' && c.completionStatus !== completionFilter.value) return false
       if (productFilter.value !== 'all' && c.productContext !== productFilter.value) return false

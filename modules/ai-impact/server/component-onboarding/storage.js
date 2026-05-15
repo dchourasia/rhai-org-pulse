@@ -29,6 +29,7 @@ function trimForHistory(component) {
   return {
     completionStatus: component.completionStatus,
     onboardingSteps: component.onboardingSteps,
+    onboardingMethod: component.onboardingMethod,
     syncedAt: component.syncedAt
   };
 }
@@ -95,6 +96,8 @@ function getLatestProjection(data) {
       created: entry.latest.created,
       resolved: entry.latest.resolved,
       validationDate: entry.latest.validationDate || null,
+      onboardingMethod: entry.latest.onboardingMethod || 'automated',
+      firstCommentDate: entry.latest.firstCommentDate || null,
       syncedAt: entry.latest.syncedAt
     };
   }
