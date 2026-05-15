@@ -475,22 +475,6 @@ const quarterlyChartOptions = computed(() => ({
               <Bar :data="durationChartData" :options="durationChartOptions" />
             </div>
           </div>
-
-          <!-- Method Over Time -->
-          <div class="min-w-[300px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-            <h3 class="text-sm font-medium dark:text-gray-300 mb-3">Onboarding Method Over Time</h3>
-            <div class="h-[200px]">
-              <Line :data="methodTimelineData" :options="methodTimelineOptions" />
-            </div>
-          </div>
-
-          <!-- Quarterly Throughput -->
-          <div class="min-w-[300px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-            <h3 class="text-sm font-medium dark:text-gray-300 mb-3">Quarterly Throughput by Method</h3>
-            <div class="h-[200px]">
-              <Bar :data="throughputChartData" :options="throughputChartOptions" />
-            </div>
-          </div>
         </div>
       </template>
     </div>
