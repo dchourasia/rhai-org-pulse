@@ -60,7 +60,7 @@
           <tbody>
             <tr v-for="(dataset, i) in chartData.datasets" :key="i" class="border-b dark:border-gray-700">
               <td class="py-2">{{ dataset.label }}</td>
-              <td class="text-right">{{ dataset.data[dataset.data.length - 1] }}</td>
+              <td class="text-right">{{ dataset.data.length > 0 ? dataset.data[dataset.data.length - 1] : 0 }}</td>
               <td class="text-right">{{ chartData.labels.length - 1 }}</td>
             </tr>
           </tbody>
