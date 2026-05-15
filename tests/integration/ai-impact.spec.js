@@ -173,7 +173,8 @@ test.describe('AI Impact Views @ai-impact', () => {
     expect(hasContent).toBe(true);
 
     // Verify we're not stuck in an infinite loading state
-    const loadingSpinners = await page.locator('[role="status"], [aria-busy="true"], .loading').count();
+    // Use specific selectors to avoid matching legitimate status regions
+    const loadingSpinners = await page.locator('[aria-busy="true"], [role="progressbar"], .loading, .spinner, [aria-label*="loading" i]').count();
     expect(loadingSpinners).toBe(0);
     if (page.errors.length > 0) {
       console.error(`${viewName} errors:`, page.errors);

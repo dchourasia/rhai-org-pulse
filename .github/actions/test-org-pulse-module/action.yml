@@ -23,6 +23,7 @@ runs:
 
     - name: Run integration tests
       shell: bash
-      run: make test-module MODULE=${{ inputs.module }}
+      run: make test-module MODULE=$MODULE
       env:
         CONTAINER_RUNTIME: docker
+        MODULE: ${{ inputs.module }}
