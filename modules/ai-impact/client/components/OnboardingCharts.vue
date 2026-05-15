@@ -460,23 +460,6 @@ const quarterlyChartOptions = computed(() => ({
           </div>
         </div>
       </div>
-
-      <!-- AI Automation Impact section -->
-      <template v-if="hasManualData">
-        <div class="w-full border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
-          <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-4">AI Automation Impact</h3>
-        </div>
-
-        <div class="flex flex-wrap gap-6">
-          <!-- Avg Duration Comparison -->
-          <div class="min-w-[240px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-            <h3 class="text-sm font-medium dark:text-gray-300 mb-3">Avg. Onboarding Duration</h3>
-            <div class="h-[140px]">
-              <Bar :data="durationChartData" :options="durationChartOptions" />
-            </div>
-          </div>
-        </div>
-      </template>
     </div>
   </div>
 </template>
