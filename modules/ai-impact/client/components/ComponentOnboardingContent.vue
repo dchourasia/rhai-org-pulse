@@ -49,14 +49,11 @@ function calcAvgDaysManual(list) {
 
 const metrics = computed(() => {
   const list = Object.values(allComponents.value)
-  const completed = list.filter(c => c.completionStatus === 'completed')
-  const inProgress = list.filter(c => c.completionStatus === 'in-progress')
-  const total = list.length
-
   const automated = list.filter(c => (c.onboardingMethod || 'automated') === 'automated')
   const manual = list.filter(c => c.onboardingMethod === 'manual')
   const completedAutomated = automated.filter(c => c.completionStatus === 'completed')
   const completedManual = manual.filter(c => c.completionStatus === 'completed')
+  const inProgressAutomated = automated.filter(c => c.completionStatus === 'in-progress')
 
   const avgDaysAutomated = calcAvgDaysAutomated(completedAutomated)
   const avgDaysManual = calcAvgDaysManual(completedManual)
@@ -65,12 +62,12 @@ const metrics = computed(() => {
     : 0
 
   return {
-    totalOnboarded: completed.length,
-    totalInProgress: inProgress.length,
-    completionRate: total ? Math.round((completed.length / total) * 100) : 0,
-    rhoaiCount: list.filter(c => c.productContext === 'RHOAI').length,
-    odhCount: list.filter(c => c.productContext === 'ODH').length,
-    avgOnboardingDays: calcAvgDaysAutomated(completed.filter(c => (c.onboardingMethod || 'automated') === 'automated')),
+    totalOnboarded: completedAutomated.length,
+    totalInProgress: inProgressAutomated.length,
+    completionRate: automated.length ? Math.round((completedAutomated.length / automated.length) * 100) : 0,
+    rhoaiCount: automated.filter(c => c.productContext === 'RHOAI').length,
+    odhCount: automated.filter(c => c.productContext === 'ODH').length,
+    avgOnboardingDays: avgDaysAutomated,
     automatedCount: automated.length,
     manualCount: manual.length,
     avgDaysAutomated,
