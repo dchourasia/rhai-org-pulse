@@ -32,8 +32,6 @@ function sortIcon(key) {
 const search = ref('')
 const completionFilter = ref('all')
 const productFilter = ref('all')
-const methodFilter = ref('all')
-
 // ── Derived list ──────────────────────────────────────────────────────────────
 const selectedKey = ref(null)
 
@@ -54,10 +52,10 @@ const componentList = computed(() => {
   const q = search.value.toLowerCase()
 
   return Object.values(props.components)
+    .filter(c => (c.onboardingMethod || 'automated') === 'automated')
     .filter(c => {
       if (completionFilter.value !== 'all' && c.completionStatus !== completionFilter.value) return false
       if (productFilter.value !== 'all' && c.productContext !== productFilter.value) return false
-      if (methodFilter.value !== 'all' && (c.onboardingMethod || 'automated') !== methodFilter.value) return false
       if (!q) return true
       return (
         c.key.toLowerCase().includes(q) ||
@@ -75,8 +73,6 @@ const componentList = computed(() => {
           return dir * (a.componentName || a.summary).localeCompare(b.componentName || b.summary)
         case 'product':
           return dir * (a.productContext || '').localeCompare(b.productContext || '')
-        case 'method':
-          return dir * (a.onboardingMethod || 'automated').localeCompare(b.onboardingMethod || 'automated')
         case 'status':
           return dir * a.completionStatus.localeCompare(b.completionStatus)
         case 'steps': {
@@ -173,16 +169,6 @@ function stepsDone(component) {
         <option value="ODH">ODH</option>
       </select>
 
-      <!-- Method filter -->
-      <select
-        v-model="methodFilter"
-        class="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      >
-        <option value="all">All methods</option>
-        <option value="automated">AI Automated</option>
-        <option value="manual">Manual</option>
-      </select>
-
       <span class="ml-auto text-xs text-gray-400 dark:text-gray-500">
         {{ componentList.length }} component{{ componentList.length !== 1 ? 's' : '' }}
       </span>
@@ -209,12 +195,6 @@ function stepsDone(component) {
             @click="setSort('product')"
           >
             Product <span class="ml-1 opacity-60">{{ sortIcon('product') }}</span>
-          </th>
-          <th
-            class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20 cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200"
-            @click="setSort('method')"
-          >
-            Method <span class="ml-1 opacity-60">{{ sortIcon('method') }}</span>
           </th>
           <th
             class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28 cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200"
@@ -276,14 +256,6 @@ function stepsDone(component) {
             </td>
             <td class="px-4 py-3">
               <span
-                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                :class="(component.onboardingMethod || 'automated') === 'automated'
-                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
-                  : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300'"
-              >{{ (component.onboardingMethod || 'automated') === 'automated' ? 'AI' : 'Manual' }}</span>
-            </td>
-            <td class="px-4 py-3">
-              <span
                 class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
                 :class="component.completionStatus === 'completed'
                   ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
@@ -311,25 +283,20 @@ function stepsDone(component) {
               </div>
             </td>
             <td class="px-4 py-3">
-              <template v-if="component.onboardingMethod === 'manual'">
-                <span class="text-xs text-gray-400 dark:text-gray-500 italic">N/A</span>
-              </template>
-              <template v-else>
-                <div class="flex gap-0.5 flex-wrap">
-                  <span
-                    v-for="step in STEPS"
-                    :key="step.key"
-                    class="h-2.5 w-2.5 rounded-sm"
-                    :class="component.onboardingSteps?.[step.key]
-                      ? 'bg-green-500'
-                      : 'bg-gray-200 dark:bg-gray-700'"
-                    :title="`${step.title}: ${component.onboardingSteps?.[step.key] ? 'done' : 'pending'}`"
-                  />
-                </div>
-                <span class="text-xs text-gray-400 dark:text-gray-500 mt-0.5 block">
-                  {{ stepsDone(component) }}/{{ STEPS.length }}
-                </span>
-              </template>
+              <div class="flex gap-0.5 flex-wrap">
+                <span
+                  v-for="step in STEPS"
+                  :key="step.key"
+                  class="h-2.5 w-2.5 rounded-sm"
+                  :class="component.onboardingSteps?.[step.key]
+                    ? 'bg-green-500'
+                    : 'bg-gray-200 dark:bg-gray-700'"
+                  :title="`${step.title}: ${component.onboardingSteps?.[step.key] ? 'done' : 'pending'}`"
+                />
+              </div>
+              <span class="text-xs text-gray-400 dark:text-gray-500 mt-0.5 block">
+                {{ stepsDone(component) }}/{{ STEPS.length }}
+              </span>
             </td>
             <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{{ formatDate(component.created) }}</td>
             <td class="px-4 py-3 text-xs" :title="component.validationDate ? 'From validation to close' : 'From creation to close (no validation date)'">
@@ -344,7 +311,7 @@ function stepsDone(component) {
 
           <!-- Expanded detail row -->
           <tr v-if="selectedKey === component.key" class="bg-gray-50 dark:bg-gray-800/50">
-            <td colspan="9" class="px-6 py-5">
+            <td colspan="8" class="px-6 py-5">
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
 
                 <!-- Repo & metadata -->
@@ -387,7 +354,7 @@ function stepsDone(component) {
                 </div>
 
                 <!-- Pipeline steps with product indicators -->
-                <div v-if="(component.onboardingMethod || 'automated') === 'automated'" class="space-y-2">
+                <div class="space-y-2">
                   <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Pipeline Steps</p>
                   <div class="grid grid-cols-1 gap-y-1">
                     <div v-for="step in STEPS" :key="step.key" class="flex items-center gap-2 text-xs">
