@@ -153,6 +153,7 @@ describe('health routes', function() {
       storage: storage,
       requireAuth: function(req, res, next) { next() },
       requirePM: function(req, res, next) { next() },
+      requireScope: function() { return function(req, res, next) { next() } },
       refreshStates: refreshStates,
       MAX_CONCURRENT_REFRESHES: 2,
       sendJsonWithETag: function(req, res, data, statusCode) {

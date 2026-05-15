@@ -69,6 +69,7 @@ function healthRoutes(router, context) {
   var writeToStorage = storage.writeToStorage
   var requireAuth = context.requireAuth
   var requirePM = context.requirePM
+  var requireScope = context.requireScope
   var refreshStates = context.refreshStates
   var MAX_CONCURRENT_REFRESHES = context.MAX_CONCURRENT_REFRESHES
   var sendJsonWithETag = context.sendJsonWithETag
@@ -106,7 +107,7 @@ function healthRoutes(router, context) {
 
   // ─── GET /releases/:version/health ───
 
-  router.get('/releases/:version/health', requireAuth, function(req, res) {
+  router.get('/releases/:version/health', requireAuth, requireScope('release-planning:read'), function(req, res) {
     var version = req.params.version
     var phase = parsePhase(req)
     if (!isValidVersion(version)) {
@@ -175,7 +176,7 @@ function healthRoutes(router, context) {
 
   // ─── GET /releases/:version/health/summary ───
 
-  router.get('/releases/:version/health/summary', requireAuth, function(req, res) {
+  router.get('/releases/:version/health/summary', requireAuth, requireScope('release-planning:read'), function(req, res) {
     var version = req.params.version
     var phase = parsePhase(req)
     if (!isValidVersion(version)) {
@@ -221,7 +222,7 @@ function healthRoutes(router, context) {
 
   // ─── GET /releases/:version/health/feature/:key ───
 
-  router.get('/releases/:version/health/feature/:key', requireAuth, function(req, res) {
+  router.get('/releases/:version/health/feature/:key', requireAuth, requireScope('release-planning:read'), function(req, res) {
     var version = req.params.version
     var key = req.params.key
     var phase = parsePhase(req)
@@ -276,7 +277,7 @@ function healthRoutes(router, context) {
 
   // ─── PUT /releases/:version/health/override/:featureKey ───
 
-  router.put('/releases/:version/health/override/:featureKey', requirePM, function(req, res) {
+  router.put('/releases/:version/health/override/:featureKey', requirePM, requireScope('release-planning:write'), function(req, res) {
     var version = req.params.version
     var featureKey = req.params.featureKey
     if (!isValidVersion(version)) {
@@ -342,7 +343,7 @@ function healthRoutes(router, context) {
 
   // ─── DELETE /releases/:version/health/override/:featureKey ───
 
-  router.delete('/releases/:version/health/override/:featureKey', requirePM, function(req, res) {
+  router.delete('/releases/:version/health/override/:featureKey', requirePM, requireScope('release-planning:write'), function(req, res) {
     var version = req.params.version
     var featureKey = req.params.featureKey
     if (!isValidVersion(version)) {
@@ -379,7 +380,7 @@ function healthRoutes(router, context) {
 
   // ─── GET /releases/:version/health/snapshot/:phase ───
 
-  router.get('/releases/:version/health/snapshot/:phase', requireAuth, function(req, res) {
+  router.get('/releases/:version/health/snapshot/:phase', requireAuth, requireScope('release-planning:read'), function(req, res) {
     var version = req.params.version
     var phase = (req.params.phase || '').toUpperCase()
     if (!isValidVersion(version)) {
@@ -399,7 +400,7 @@ function healthRoutes(router, context) {
 
   // ─── POST /releases/:version/health/snapshot/:phase ───
 
-  router.post('/releases/:version/health/snapshot/:phase', requirePM, function(req, res) {
+  router.post('/releases/:version/health/snapshot/:phase', requirePM, requireScope('release-planning:write'), function(req, res) {
     var version = req.params.version
     var phase = (req.params.phase || '').toUpperCase()
     if (!isValidVersion(version)) {
@@ -454,7 +455,7 @@ function healthRoutes(router, context) {
 
   // ─── POST /releases/:version/health/refresh ───
 
-  router.post('/releases/:version/health/refresh', requirePM, function(req, res) {
+  router.post('/releases/:version/health/refresh', requirePM, requireScope('release-planning:write'), function(req, res) {
     var version = req.params.version
     var phase = parsePhase(req)
     if (!isValidVersion(version)) {
@@ -484,7 +485,7 @@ function healthRoutes(router, context) {
 
   // ─── GET /releases/:version/health/refresh/status ───
 
-  router.get('/releases/:version/health/refresh/status', requireAuth, function(req, res) {
+  router.get('/releases/:version/health/refresh/status', requireAuth, requireScope('release-planning:read'), function(req, res) {
     var version = req.params.version
     var phase = parsePhase(req)
     if (!isValidVersion(version)) {
@@ -661,7 +662,7 @@ function healthRoutes(router, context) {
     return fields
   }
 
-  router.get('/releases/health-admin/jira-fields', requirePM, async function(req, res) {
+  router.get('/releases/health-admin/jira-fields', requirePM, requireScope('release-planning:write'), async function(req, res) {
     var query = (req.query.query || '').toLowerCase()
     if (!query || query.length < 2) {
       return res.status(400).json({ error: 'Query must be at least 2 characters' })
@@ -693,7 +694,7 @@ function healthRoutes(router, context) {
 
   // ─── RICE admin: save config ───
 
-  router.put('/releases/health-admin/config', requirePM, function(req, res) {
+  router.put('/releases/health-admin/config', requirePM, requireScope('release-planning:write'), function(req, res) {
     var config = getConfig(readFromStorage)
 
     if (req.body.riceFieldIds) {
@@ -733,7 +734,7 @@ function healthRoutes(router, context) {
 
   // ─── RICE admin: test configured field IDs ───
 
-  router.post('/releases/health-admin/rice-test', requirePM, async function(req, res) {
+  router.post('/releases/health-admin/rice-test', requirePM, requireScope('release-planning:write'), async function(req, res) {
     var config = getConfig(readFromStorage)
     var ids = config.customFieldIds || {}
     var fieldIds = [ids.riceReach, ids.riceImpact, ids.riceConfidence, ids.riceEffort].filter(Boolean)
@@ -774,7 +775,7 @@ function healthRoutes(router, context) {
 
   // ─── RICE admin: get config ───
 
-  router.get('/releases/health-admin/config', requirePM, function(req, res) {
+  router.get('/releases/health-admin/config', requirePM, requireScope('release-planning:write'), function(req, res) {
     var config = getConfig(readFromStorage)
     res.json({
       customFieldIds: config.customFieldIds || {},
@@ -785,7 +786,7 @@ function healthRoutes(router, context) {
 
   // ─── GET /releases/:version/health/milestones/debug ───
 
-  router.get('/releases/:version/health/milestones/debug', requirePM, async function(req, res) {
+  router.get('/releases/:version/health/milestones/debug', requirePM, requireScope('release-planning:write'), async function(req, res) {
     var version = req.params.version
     if (!isValidVersion(version)) {
       return res.status(400).json({ error: 'Invalid version format' })

@@ -118,7 +118,8 @@ function createTestServer(storageData) {
   registerRoutes(router, {
     storage,
     requireAdmin: (_req, _res, next) => next(),
-    requireTeamAdmin: (_req, _res, next) => next()
+    requireTeamAdmin: (_req, _res, next) => next(),
+    requireScope: () => (_req, _res, next) => next()
   })
   app.use(router)
   return app

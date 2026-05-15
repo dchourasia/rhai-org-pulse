@@ -30,6 +30,7 @@ function registerIpaRegistryRoutes(router, context) {
   var storage = context.storage;
   var requireAdmin = context.requireAdmin;
   var requireTeamAdmin = context.requireTeamAdmin;
+  var requireScope = context.requireScope;
   var DEMO_MODE = process.env.DEMO_MODE === 'true';
 
   // Rate limiting state for LDAP search (per user, 5 req / 10s)
@@ -49,11 +50,31 @@ function registerIpaRegistryRoutes(router, context) {
 
   // ─── IPA Config ───
 
-  router.get('/ipa/config', requireAdmin, function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/ipa/config:
+   *   get:
+   *     tags: ['OR: Config']
+   *     summary: Get IPA/LDAP configuration and connection status
+   *     responses:
+   *       200:
+   *         description: Config and IPA status
+   */
+  router.get('/ipa/config', requireAdmin, requireScope('roster:write'), function(req, res) {
     res.json({ config: loadConfig(storage), ipa: ipaClient.getIpaStatus() });
   });
 
-  router.post('/ipa/config', requireAdmin, function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/ipa/config:
+   *   post:
+   *     tags: ['OR: Config']
+   *     summary: Update IPA/LDAP configuration
+   *     responses:
+   *       200:
+   *         description: Saved config
+   */
+  router.post('/ipa/config', requireAdmin, requireScope('roster:write'), function(req, res) {
     var config = loadConfig(storage) || {};
     var body = req.body;
     if (body.orgRoots !== undefined) config.orgRoots = body.orgRoots;
@@ -65,7 +86,17 @@ function registerIpaRegistryRoutes(router, context) {
     res.json({ status: 'saved', config: config });
   });
 
-  router.post('/ipa/test', requireAdmin, function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/ipa/test:
+   *   post:
+   *     tags: ['OR: Sync']
+   *     summary: Test IPA/LDAP connection
+   *     responses:
+   *       200:
+   *         description: Connection test result
+   */
+  router.post('/ipa/test', requireAdmin, requireScope('roster:write'), function(req, res) {
     ipaClient.testConnection().then(function(result) {
       res.json(result);
     }).catch(function(err) {
@@ -75,7 +106,17 @@ function registerIpaRegistryRoutes(router, context) {
 
   // ─── IPA Sync ───
 
-  router.post('/ipa/sync', requireAdmin, function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/ipa/sync:
+   *   post:
+   *     tags: ['OR: Sync']
+   *     summary: Trigger manual IPA/LDAP roster sync
+   *     responses:
+   *       200:
+   *         description: Sync result
+   */
+  router.post('/ipa/sync', requireAdmin, requireScope('roster:write'), function(req, res) {
     if (DEMO_MODE) {
       return res.json({ status: 'skipped', message: 'Sync disabled in demo mode' });
     }
@@ -86,14 +127,34 @@ function registerIpaRegistryRoutes(router, context) {
     });
   });
 
-  router.get('/ipa/sync/status', function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/ipa/sync/status:
+   *   get:
+   *     tags: ['OR: Sync']
+   *     summary: Get current sync status and last result
+   *     responses:
+   *       200:
+   *         description: Sync status
+   */
+  router.get('/ipa/sync/status', requireScope('roster:read'), function(req, res) {
     var log = loadSyncLog(storage);
     res.json({ running: isConsolidatedSyncInProgress(), startedAt: null, lastResult: log });
   });
 
   // ─── People Registry ───
 
-  router.get('/registry/people', function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/registry/people:
+   *   get:
+   *     tags: ['OR: People']
+   *     summary: List all people in the registry with optional filters
+   *     responses:
+   *       200:
+   *         description: Filtered list of people
+   */
+  router.get('/registry/people', requireScope('roster:read'), function(req, res) {
     var people = getPeopleMap();
     var result = [];
     var uids = Object.keys(people);
@@ -139,7 +200,26 @@ function registerIpaRegistryRoutes(router, context) {
     res.json({ people: result, total: result.length });
   });
 
-  router.get('/registry/people/:uid', function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/registry/people/{uid}:
+   *   get:
+   *     tags: ['OR: People']
+   *     summary: Get a single person by UID
+   *     parameters:
+   *       - in: path
+   *         name: uid
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: The person's UID
+   *     responses:
+   *       200:
+   *         description: Person detail with manager chain and direct reports
+   *       404:
+   *         description: Person not found
+   */
+  router.get('/registry/people/:uid', requireScope('roster:read'), function(req, res) {
     var people = getPeopleMap();
     var person = Object.prototype.hasOwnProperty.call(people, req.params.uid) ? people[req.params.uid] : undefined;
     // Fallback: if not found by UID key, try matching by name
@@ -184,7 +264,26 @@ function registerIpaRegistryRoutes(router, context) {
 
   var VALID_USERNAME = /^[a-zA-Z0-9_.-]{1,39}$/;
 
-  router.put('/registry/people/:uid/github', requireAdmin, function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/registry/people/{uid}/github:
+   *   put:
+   *     tags: ['OR: People']
+   *     summary: Set GitHub username for a person
+   *     parameters:
+   *       - in: path
+   *         name: uid
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: The person's UID
+   *     responses:
+   *       200:
+   *         description: Updated GitHub identity
+   *       404:
+   *         description: Person not found
+   */
+  router.put('/registry/people/:uid/github', requireAdmin, requireScope('roster:write'), function(req, res) {
     var username = req.body.username;
     if (!username || typeof username !== 'string' || !username.trim()) return res.status(400).json({ error: 'Username is required' });
     if (!VALID_USERNAME.test(username.trim())) return res.status(400).json({ error: 'Invalid username format (1-39 chars, alphanumeric/dash/underscore/dot)' });
@@ -193,7 +292,26 @@ function registerIpaRegistryRoutes(router, context) {
     res.json({ status: 'updated', github: updated.github });
   });
 
-  router.put('/registry/people/:uid/gitlab', requireAdmin, function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/registry/people/{uid}/gitlab:
+   *   put:
+   *     tags: ['OR: People']
+   *     summary: Set GitLab username for a person
+   *     parameters:
+   *       - in: path
+   *         name: uid
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: The person's UID
+   *     responses:
+   *       200:
+   *         description: Updated GitLab identity
+   *       404:
+   *         description: Person not found
+   */
+  router.put('/registry/people/:uid/gitlab', requireAdmin, requireScope('roster:write'), function(req, res) {
     var username = req.body.username;
     if (!username || typeof username !== 'string' || !username.trim()) return res.status(400).json({ error: 'Username is required' });
     if (!VALID_USERNAME.test(username.trim())) return res.status(400).json({ error: 'Invalid username format (1-39 chars, alphanumeric/dash/underscore/dot)' });
@@ -202,13 +320,51 @@ function registerIpaRegistryRoutes(router, context) {
     res.json({ status: 'updated', gitlab: updated.gitlab });
   });
 
-  router.delete('/registry/people/:uid/github', requireAdmin, function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/registry/people/{uid}/github:
+   *   delete:
+   *     tags: ['OR: People']
+   *     summary: Remove GitHub username from a person
+   *     parameters:
+   *       - in: path
+   *         name: uid
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: The person's UID
+   *     responses:
+   *       200:
+   *         description: GitHub identity removed
+   *       404:
+   *         description: Person not found
+   */
+  router.delete('/registry/people/:uid/github', requireAdmin, requireScope('roster:write'), function(req, res) {
     var updated = writePeopleUpdate(req.params.uid, function(p) { p.github = null; });
     if (!updated) return res.status(404).json({ error: 'Person not found' });
     res.json({ status: 'removed' });
   });
 
-  router.delete('/registry/people/:uid/gitlab', requireAdmin, function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/registry/people/{uid}/gitlab:
+   *   delete:
+   *     tags: ['OR: People']
+   *     summary: Remove GitLab username from a person
+   *     parameters:
+   *       - in: path
+   *         name: uid
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: The person's UID
+   *     responses:
+   *       200:
+   *         description: GitLab identity removed
+   *       404:
+   *         description: Person not found
+   */
+  router.delete('/registry/people/:uid/gitlab', requireAdmin, requireScope('roster:write'), function(req, res) {
     var updated = writePeopleUpdate(req.params.uid, function(p) { p.gitlab = null; });
     if (!updated) return res.status(404).json({ error: 'Person not found' });
     res.json({ status: 'removed' });
@@ -216,13 +372,51 @@ function registerIpaRegistryRoutes(router, context) {
 
   // ─── Lifecycle ───
 
-  router.post('/registry/people/:uid/reactivate', requireAdmin, function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/registry/people/{uid}/reactivate:
+   *   post:
+   *     tags: ['OR: People']
+   *     summary: Reactivate an inactive person
+   *     parameters:
+   *       - in: path
+   *         name: uid
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: The person's UID
+   *     responses:
+   *       200:
+   *         description: Person reactivated
+   *       404:
+   *         description: Person not found
+   */
+  router.post('/registry/people/:uid/reactivate', requireAdmin, requireScope('roster:write'), function(req, res) {
     var updated = writePeopleUpdate(req.params.uid, function(p) { p.status = 'active'; p.inactiveSince = null; });
     if (!updated) return res.status(404).json({ error: 'Person not found' });
     res.json({ status: 'reactivated', person: updated });
   });
 
-  router.delete('/registry/people/:uid', requireAdmin, function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/registry/people/{uid}:
+   *   delete:
+   *     tags: ['OR: People']
+   *     summary: Permanently purge a person from the registry
+   *     parameters:
+   *       - in: path
+   *         name: uid
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: The person's UID
+   *     responses:
+   *       200:
+   *         description: Person purged
+   *       404:
+   *         description: Person not found
+   */
+  router.delete('/registry/people/:uid', requireAdmin, requireScope('roster:write'), function(req, res) {
     var reg = loadRegistry(storage);
     if (!reg.people || !Object.prototype.hasOwnProperty.call(reg.people, req.params.uid)) return res.status(404).json({ error: 'Person not found' });
     delete reg.people[req.params.uid];
@@ -232,7 +426,17 @@ function registerIpaRegistryRoutes(router, context) {
 
   // ─── Org Trees ───
 
-  router.get('/registry/orgs', function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/registry/orgs:
+   *   get:
+   *     tags: ['OR: People']
+   *     summary: Get org trees rooted at configured org roots
+   *     responses:
+   *       200:
+   *         description: Org tree hierarchy
+   */
+  router.get('/registry/orgs', requireScope('roster:read'), function(req, res) {
     var reg = loadRegistry(storage);
     var people = reg.people || {};
     var meta = reg.meta || {};
@@ -261,7 +465,17 @@ function registerIpaRegistryRoutes(router, context) {
 
   // ─── Stats ───
 
-  router.get('/registry/stats', function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/registry/stats:
+   *   get:
+   *     tags: ['OR: People']
+   *     summary: Get registry statistics and identity coverage
+   *     responses:
+   *       200:
+   *         description: Registry stats including counts, coverage, and breakdowns
+   */
+  router.get('/registry/stats', requireScope('roster:read'), function(req, res) {
     var people = getPeopleMap();
     var uids = Object.keys(people);
     var active = 0, inactive = 0, auxiliaryCount = 0, byOrg = {}, byGeo = {};
@@ -345,7 +559,21 @@ function registerIpaRegistryRoutes(router, context) {
 
   // ─── LDAP Search ───
 
-  router.get('/registry/people/search/ldap', function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/registry/people/search/ldap:
+   *   get:
+   *     tags: ['OR: People']
+   *     summary: Search LDAP for people by name, UID, or email
+   *     responses:
+   *       200:
+   *         description: Search results with registry status
+   *       429:
+   *         description: Rate limit exceeded
+   *       503:
+   *         description: LDAP not available
+   */
+  router.get('/registry/people/search/ldap', requireScope('team-tracker:read'), function(req, res) {
     if (DEMO_MODE) {
       return res.status(503).json({ error: 'LDAP not available in demo mode', code: 'LDAP_UNAVAILABLE' });
     }
@@ -423,7 +651,21 @@ function registerIpaRegistryRoutes(router, context) {
 
   // ─── LDAP Import ───
 
-  router.post('/registry/people/ldap-import', requireTeamAdmin, function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/team-tracker/registry/people/ldap-import:
+   *   post:
+   *     tags: ['OR: People']
+   *     summary: Import an auxiliary person from LDAP into the registry
+   *     responses:
+   *       200:
+   *         description: Imported person (or existing if already present)
+   *       404:
+   *         description: Person not found in LDAP
+   *       503:
+   *         description: LDAP not available
+   */
+  router.post('/registry/people/ldap-import', requireTeamAdmin, requireScope('team-tracker:write'), function(req, res) {
     if (DEMO_MODE) {
       return res.status(503).json({ error: 'LDAP not available in demo mode', code: 'LDAP_UNAVAILABLE' });
     }

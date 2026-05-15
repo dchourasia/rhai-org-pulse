@@ -734,6 +734,7 @@ Stores hashed API tokens for bearer-token authentication. Created on first token
       "tokenHash": "sha256-hex-of-full-token",
       "tokenPrefix": "tt_a1b2c3d4",
       "ownerEmail": "user@redhat.com",
+      "scopes": ["roster:read", "metrics:read"],
       "createdAt": "2026-04-03T12:00:00Z",
       "expiresAt": "2026-07-03T12:00:00Z",
       "lastUsedAt": "2026-04-03T14:30:00Z"
@@ -745,6 +746,7 @@ Stores hashed API tokens for bearer-token authentication. Created on first token
 **Notes:**
 - Raw tokens are never stored — only SHA-256 hashes.
 - `tokenPrefix` stores the first 11 characters (e.g., `tt_a1b2c3d4`) for identification.
+- `scopes` controls which API endpoints the token can access. Values: an array of scope strings (e.g., `["roster:read", "metrics:write"]`), `["*"]` for wildcard full access, `[]` for no access (except `tokens:manage`), or `null` for legacy full access. Legacy tokens without a `scopes` field are treated as `null` (full access). `tokens:manage` is always implicitly granted.
 - `expiresAt` is `null` for non-expiring tokens.
 - `lastUsedAt` is `null` until first use, then updated (throttled to once per 60 seconds).
 
@@ -883,6 +885,60 @@ Metadata from the most recent fetch attempt.
 - `warnings` is only present when there were non-fatal issues (e.g., unparseable JSON files)
 - On error: `{ "status": "error", "message": "...", "timestamp": "..." }`
 - On artifact expiration: `{ "status": "artifact_expired", "message": "...", "timestamp": "..." }`
+
+---
+
+## Health Metrics — `data/health-metrics/`
+
+### Usage Events — `data/health-metrics/events/YYYY-MM.jsonl`
+
+JSON Lines format (one JSON object per line). Partitioned by month for efficient retention pruning.
+
+```
+{"ts":"2026-05-11T15:30:00.000Z","page":"team-tracker::org-dashboard","email":"user@redhat.com","userType":"Backend","permissionTier":"manager"}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ts` | ISO string | Timestamp of the page view |
+| `page` | string | `moduleSlug::viewId` composite key |
+| `email` | string | User email (for unique-user counting) |
+| `userType` | string | Value from configured person field at event time, or `"unknown"` |
+| `permissionTier` | string | `admin`, `team-admin`, `manager`, or `user` |
+
+### Monthly Aggregates — `data/health-metrics/aggregates/YYYY-MM.json`
+
+```json
+{
+  "month": "2026-05",
+  "generatedAt": "2026-06-01T06:00:00.000Z",
+  "pages": {
+    "team-tracker::org-dashboard": {
+      "views": 342,
+      "uniqueUsers": 28,
+      "byUserType": { "Backend": 12, "Frontend": 8, "unknown": 3 },
+      "byPermissionTier": { "admin": 3, "manager": 10, "user": 15 }
+    }
+  }
+}
+```
+
+### Configuration — `data/health-metrics/config.json`
+
+```json
+{
+  "userTypeFieldId": "field_rq0001",
+  "retentionDays": 90
+}
+```
+
+### Opt-Out List — `data/health-metrics/opted-out.json`
+
+```json
+{
+  "emails": ["user-who-opted-out@redhat.com"]
+}
+```
 
 ---
 

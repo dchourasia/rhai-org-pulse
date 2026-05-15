@@ -53,6 +53,7 @@ function createTestApp() {
     storage: { readFromStorage, writeToStorage },
     requireAdmin: (req, res, next) => next(),
     requireTeamAdmin: (req, res, next) => next(),
+    requireScope: () => (req, res, next) => next(),
     registerDiagnostics: vi.fn()
   }
   registerRoutes(router, context)

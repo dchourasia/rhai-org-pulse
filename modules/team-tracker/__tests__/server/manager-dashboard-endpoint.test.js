@@ -45,6 +45,7 @@ function setupRoutes(storageData) {
     storage,
     requireAdmin: (req, res, next) => next(),
     requireTeamAdmin: (req, res, next) => next(),
+    requireScope: () => (req, res, next) => next(),
     roleStore: mockRoleStore
   }
 

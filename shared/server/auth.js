@@ -162,6 +162,7 @@ function createAuthMiddleware(readFromStorage, writeToStorage, options = {}) {
         req.userEmail = tokenRecord.ownerEmail;
         req.isAdmin = isAdmin(tokenRecord.ownerEmail);
         req.authMethod = 'token';
+        req.tokenScopes = tokenRecord.scopes; // array, ['*'], null, or undefined
         // Update lastUsedAt (fire-and-forget, throttled)
         tokenValidator.touchLastUsed(tokenRecord.id);
         resolveUserUid(req);
@@ -217,7 +218,30 @@ function createAuthMiddleware(readFromStorage, writeToStorage, options = {}) {
     next()
   }
 
-  return { authMiddleware, requireAdmin, requireTeamAdmin, isAdmin, seedRoles }
+  function requireScope(scope) {
+    return function(req, res, next) {
+      // Only enforce scopes for token auth
+      if (req.authMethod !== 'token') return next();
+
+      const scopes = req.tokenScopes;
+
+      // null/undefined or ['*'] means full access (legacy / wildcard)
+      if (!scopes || (scopes.length === 1 && scopes[0] === '*')) return next();
+
+      // tokens:manage is always implicitly granted
+      if (scope === 'tokens:manage') return next();
+
+      if (!scopes.includes(scope)) {
+        return res.status(403).json({
+          error: 'Token scope insufficient',
+          requiredScope: scope
+        });
+      }
+      next();
+    };
+  }
+
+  return { authMiddleware, requireAdmin, requireTeamAdmin, requireScope, isAdmin, seedRoles }
 }
 
 let _emptySecretWarned = false;

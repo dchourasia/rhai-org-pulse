@@ -63,7 +63,7 @@ Core team owns `shared/` via CODEOWNERS. Changes require core team review.
 |--------|-------------|
 | `storage` | `{ readFromStorage, writeToStorage, listStorageFiles, deleteStorageDirectory }` — filesystem-backed JSON storage |
 | `demoStorage` | `{ readFromStorage, writeToStorage, listStorageFiles, deleteStorageDirectory }` — fixture-backed read-only storage for demo mode |
-| `createAuthMiddleware(readFromStorage, writeToStorage, options)` | Factory returning `{ authMiddleware, requireAdmin, requireTeamAdmin, isAdmin, seedRoles }`. Options: `{ tokenValidator, roleStore }` |
+| `createAuthMiddleware(readFromStorage, writeToStorage, options)` | Factory returning `{ authMiddleware, requireAdmin, requireTeamAdmin, requireScope, isAdmin, seedRoles }`. `requireScope(scopeName)` returns Express middleware that enforces the given scope for token-authenticated requests (browser/proxy auth is unrestricted). Options: `{ tokenValidator, roleStore }` |
 | `createRoleStore(readFromStorage, writeToStorage)` | Factory returning role CRUD: `{ getRoles, hasRole, assignRole, revokeRole, listAssignments, getAdminEmails, migrateFromAllowlist }` |
 | `blockDuringImpersonation` | Express middleware that returns 403 during impersonation. Exported from auth.js. |
 | `googleSheets` | `{ getAuth, discoverSheetNames, fetchRawSheet }` — Google Sheets auth and raw data fetching |
@@ -71,6 +71,18 @@ Core team owns `shared/` via CODEOWNERS. Changes require core team review.
 | `rosterSync` | `{ runSync, isSyncInProgress }` — barrel re-export of the consolidated sync pipeline (LDAP + Google Sheets + lifecycle tracking). `runSync` is an alias for `runConsolidatedSync` from `roster-sync/consolidated-sync`. Sub-modules: `roster-sync/consolidated-sync` (runConsolidatedSync, isSyncInProgress), `roster-sync/config` (loadConfig, saveConfig, isConfigured, getOrgDisplayNames, updateSyncStatus), `roster-sync/constants`, `roster-sync/ldap`, `roster-sync/sheets`, `roster-sync/merge`, `roster-sync/username-inference`, `roster-sync/lifecycle` (mergePerson) |
 | `jira` | `{ JIRA_HOST, getJiraAuth, jiraRequest, fetchAllJqlResults }` — Jira Cloud API helpers: auth (Basic via `JIRA_TOKEN`/`JIRA_EMAIL` env vars), request wrapper with 429 retry, cursor-based JQL pagination via `/rest/api/3/search/jql` |
 | `permissions` | `{ LDAP_FIELDS, buildManagerMap, getManagedUids, getDirectReports, isManager, getPermissionTier, canEditPerson }` — RBAC logic: manager subtree computation, direct reports, permission tier detection, authorization checks |
+
+## Cross-Module Data Access
+
+Modules cannot import code from other modules, but they **may read data files** that another module explicitly exports via the `export.files` array in its `module.json`. These reads go through `readFromStorage()`, which provides path-traversal safety.
+
+For example, the `health-metrics` module reads `team-data/registry.json` and `team-data/field-definitions.json` (exported by `team-tracker`) to resolve user types. The `shared/server/auth.js` middleware also reads `team-data/registry.json` directly, establishing prior precedent.
+
+**Rules:**
+- Only read files listed in the exporting module's `export.files` manifest
+- Use `readFromStorage()` — never construct raw filesystem paths
+- Treat exported data as read-only; do not write to another module's data files
+- If the exporting module changes its data format, coordinate via a shared PR
 
 ## Versioning
 

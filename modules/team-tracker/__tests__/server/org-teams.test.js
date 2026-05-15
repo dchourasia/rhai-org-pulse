@@ -71,7 +71,8 @@ function setupRoutes(storage) {
 
   const context = {
     storage,
-    requireAdmin: (req, res, next) => next()
+    requireAdmin: (req, res, next) => next(),
+    requireScope: () => (req, res, next) => next()
   }
 
   // Clear config cache before registering

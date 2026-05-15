@@ -62,7 +62,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(function(req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "*");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
   next();
 });
 
@@ -91,6 +91,13 @@ if (DEMO_MODE) {
         message: 'Token creation disabled in demo mode'
       });
     }
+    // Demo mode: block token scope editing
+    if (req.method === 'PATCH' && req.path.match(/^\/api\/(admin\/)?tokens\/[^/]+\/scopes$/)) {
+      return res.status(403).json({
+        status: 'skipped',
+        message: 'Token scope editing disabled in demo mode'
+      });
+    }
     next();
   });
 }
@@ -98,7 +105,7 @@ if (DEMO_MODE) {
 // ─── Auth (from shared package) ───
 
 const roleStore = createRoleStore(readFromStorage, writeToStorage);
-const { authMiddleware, requireAdmin, requireTeamAdmin, seedRoles } = createAuthMiddleware(readFromStorage, writeToStorage, {
+const { authMiddleware, requireAdmin, requireTeamAdmin, requireScope, seedRoles } = createAuthMiddleware(readFromStorage, writeToStorage, {
   tokenValidator: apiTokens,
   roleStore
 });
@@ -290,7 +297,7 @@ app.get('/api/site-config', function(req, res) {
  *       200:
  *         description: Updated site configuration
  */
-app.post('/api/site-config', requireAdmin, function(req, res) {
+app.post('/api/site-config', requireAdmin, requireScope('admin:manage'), function(req, res) {
   try {
     if (DEMO_MODE) {
       return res.json({ status: 'skipped', message: 'Configuration changes disabled in demo mode' });
@@ -333,7 +340,7 @@ app.get('/api/messages', async function(req, res) {
   }
 });
 
-app.post('/api/admin/messages', requireAdmin, function(req, res) {
+app.post('/api/admin/messages', requireAdmin, requireScope('admin:manage'), function(req, res) {
   const { type, text, link } = req.body || {};
 
   // Validate required fields
@@ -373,7 +380,7 @@ app.post('/api/admin/messages', requireAdmin, function(req, res) {
   res.status(201).json(message);
 });
 
-app.delete('/api/admin/messages/:id', requireAdmin, function(req, res) {
+app.delete('/api/admin/messages/:id', requireAdmin, requireScope('admin:manage'), function(req, res) {
   const stored = readFromStorage('messages.json') || [];
   const index = stored.findIndex(m => m.id === req.params.id);
 
@@ -385,6 +392,194 @@ app.delete('/api/admin/messages/:id', requireAdmin, function(req, res) {
   writeToStorage('messages.json', stored);
 
   res.status(204).end();
+});
+
+// ─── Routes: Backups ───
+
+const backup = require('../shared/server/backup');
+
+let backupRunning = false;
+
+/**
+ * @openapi
+ * /api/admin/backup:
+ *   post:
+ *     tags: [Backup]
+ *     summary: Trigger a data backup to S3 (admin only)
+ *     responses:
+ *       200:
+ *         description: Backup created successfully
+ *       409:
+ *         description: Backup already in progress
+ */
+app.post('/api/admin/backup', requireAdmin, requireScope('admin:manage'), async function(req, res) {
+  if (backupRunning) {
+    return res.status(409).json({ error: 'Backup already in progress' });
+  }
+  backupRunning = true;
+  try {
+    const result = await backup.createBackup();
+    const retention = await backup.applyRetention();
+    res.json({ ...result, deleted: retention.deleted });
+  } catch (error) {
+    console.error('[backup] Backup failed:', error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    backupRunning = false;
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/backup:
+ *   get:
+ *     tags: [Backup]
+ *     summary: List available backups (admin only)
+ *     responses:
+ *       200:
+ *         description: List of backups
+ */
+app.get('/api/admin/backup', requireAdmin, requireScope('admin:manage'), async function(req, res) {
+  try {
+    const backups = await backup.listBackups();
+    res.json({ backups });
+  } catch (error) {
+    console.error('[backup] List failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/backup/restore:
+ *   post:
+ *     tags: [Backup]
+ *     summary: Restore data from an S3 backup (admin only)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [key]
+ *             properties:
+ *               key:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Restore completed
+ *       400:
+ *         description: Invalid or missing key
+ */
+app.post('/api/admin/backup/restore', requireAdmin, requireScope('admin:manage'), blockDuringImpersonation, async function(req, res) {
+  const { key } = req.body || {};
+  if (!key || typeof key !== 'string') {
+    return res.status(400).json({ error: 'key is required' });
+  }
+  if (!key.startsWith('team-tracker/backup-')) {
+    return res.status(400).json({ error: 'Invalid backup key format' });
+  }
+  try {
+    const result = await backup.restoreBackup(key);
+    res.json(result);
+  } catch (error) {
+    console.error('[backup] Restore failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─── Routes: Token Scopes Catalog ───
+
+/**
+ * @openapi
+ * /api/token-scopes:
+ *   get:
+ *     tags: [Auth]
+ *     summary: Get available token scope catalog
+ *     description: Returns available scopes and presets for the UI. Requires authentication but no specific scope.
+ *     responses:
+ *       200:
+ *         description: Scope catalog with presets
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 scopes:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       key:
+ *                         type: string
+ *                       label:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       category:
+ *                         type: string
+ *                 presets:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       key:
+ *                         type: string
+ *                       label:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       scopes:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ */
+app.get('/api/token-scopes', function(req, res) {
+  res.json({
+    scopes: [
+      { key: 'roster:read', label: 'Roster (Read)', description: 'Read roster and org data', category: 'Roster' },
+      { key: 'roster:write', label: 'Roster (Write)', description: 'Trigger roster sync and refresh', category: 'Roster' },
+      { key: 'metrics:read', label: 'Metrics (Read)', description: 'Read person/team metrics and trends', category: 'Metrics' },
+      { key: 'metrics:write', label: 'Metrics (Write)', description: 'Refresh metrics', category: 'Metrics' },
+      { key: 'github:read', label: 'GitHub (Read)', description: 'Read GitHub contribution data', category: 'GitHub' },
+      { key: 'github:write', label: 'GitHub (Write)', description: 'Refresh GitHub data', category: 'GitHub' },
+      { key: 'gitlab:read', label: 'GitLab (Read)', description: 'Read GitLab contribution data', category: 'GitLab' },
+      { key: 'gitlab:write', label: 'GitLab (Write)', description: 'Refresh GitLab data', category: 'GitLab' },
+      { key: 'team-tracker:read', label: 'Team Tracker (Read)', description: 'Read team structure, fields, snapshots', category: 'Team Tracker' },
+      { key: 'team-tracker:write', label: 'Team Tracker (Write)', description: 'Mutate team structure, fields, snapshots', category: 'Team Tracker' },
+      { key: 'feature-traffic:read', label: 'Feature Traffic (Read)', description: 'Read feature traffic data', category: 'Feature Traffic' },
+      { key: 'feature-traffic:write', label: 'Feature Traffic (Write)', description: 'Refresh/configure feature traffic', category: 'Feature Traffic' },
+      { key: 'ai-impact:read', label: 'AI Impact (Read)', description: 'Read AI impact data', category: 'AI Impact' },
+      { key: 'ai-impact:write', label: 'AI Impact (Write)', description: 'Push/clear AI impact data', category: 'AI Impact' },
+      { key: 'release-analysis:read', label: 'Release Analysis (Read)', description: 'Read release analysis data', category: 'Release Analysis' },
+      { key: 'release-analysis:write', label: 'Release Analysis (Write)', description: 'Mutate release analysis data', category: 'Release Analysis' },
+      { key: 'release-planning:read', label: 'Release Planning (Read)', description: 'Read release planning / health data', category: 'Release Planning' },
+      { key: 'release-planning:write', label: 'Release Planning (Write)', description: 'Mutate release planning data', category: 'Release Planning' },
+      { key: 'upstream-pulse:read', label: 'Upstream Pulse (Read)', description: 'Read upstream pulse data', category: 'Upstream Pulse' },
+      { key: 'upstream-pulse:write', label: 'Upstream Pulse (Write)', description: 'Mutate upstream pulse data', category: 'Upstream Pulse' },
+      { key: 'health-metrics:read', label: 'Health Metrics (Read)', description: 'Read health metrics data', category: 'Health Metrics' },
+      { key: 'health-metrics:write', label: 'Health Metrics (Write)', description: 'Mutate health metrics data', category: 'Health Metrics' },
+      { key: 'admin:manage', label: 'Admin', description: 'Admin-only shell operations', category: 'Admin' },
+      { key: 'tokens:manage', label: 'Tokens', description: 'Manage own tokens (always implicitly granted)', category: 'Admin' }
+    ],
+    presets: [
+      {
+        key: 'read-only',
+        label: 'Read Only',
+        description: 'Read access to all data, no mutations',
+        scopes: ['roster:read', 'metrics:read', 'github:read', 'gitlab:read',
+                 'team-tracker:read', 'feature-traffic:read', 'ai-impact:read',
+                 'release-analysis:read', 'release-planning:read',
+                 'upstream-pulse:read', 'health-metrics:read']
+      },
+      {
+        key: 'full-access',
+        label: 'Full Access',
+        description: 'All scopes (same as no restrictions)',
+        scopes: ['*']
+      }
+    ]
+  });
 });
 
 // ─── Routes: API Tokens ───
@@ -408,7 +603,7 @@ app.delete('/api/admin/messages/:id', requireAdmin, function(req, res) {
  *                   items:
  *                     $ref: '#/components/schemas/ApiToken'
  */
-app.get('/api/tokens', blockDuringImpersonation, function(req, res) {
+app.get('/api/tokens', blockDuringImpersonation, requireScope('tokens:manage'), function(req, res) {
   try {
     const tokens = apiTokens.listUserTokens(req.userEmail);
     res.json({ tokens });
@@ -439,6 +634,12 @@ app.get('/api/tokens', blockDuringImpersonation, function(req, res) {
  *                 type: string
  *                 enum: [30d, 90d, 1y]
  *                 nullable: true
+ *               scopes:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 nullable: true
+ *                 description: Scope restrictions. Null or omitted for full access.
  *     responses:
  *       201:
  *         description: Token created (raw token shown only once)
@@ -453,6 +654,11 @@ app.get('/api/tokens', blockDuringImpersonation, function(req, res) {
  *                   type: string
  *                 name:
  *                   type: string
+ *                 scopes:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   nullable: true
  *                 expiresAt:
  *                   type: string
  *                   nullable: true
@@ -462,10 +668,16 @@ app.get('/api/tokens', blockDuringImpersonation, function(req, res) {
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
+ *       403:
+ *         description: Scope escalation attempt
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-app.post('/api/tokens', blockDuringImpersonation, async function(req, res) {
+app.post('/api/tokens', blockDuringImpersonation, requireScope('tokens:manage'), async function(req, res) {
   try {
-    const { name, expiresIn } = req.body;
+    const { name, expiresIn, scopes } = req.body;
 
     // Validate name
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -480,11 +692,23 @@ app.post('/api/tokens', blockDuringImpersonation, async function(req, res) {
       return res.status(400).json({ error: 'expiresIn must be one of: 30d, 90d, 1y, or null' });
     }
 
-    const result = await apiTokens.createToken(req.userEmail, name.trim(), expiresIn || null);
+    // Scope escalation guard for token-authenticated requests
+    if (req.authMethod === 'token') {
+      const validated = scopes != null ? apiTokens.validateScopes(scopes) : null;
+      const escalation = apiTokens.enforceTokenScopeCeiling(req.tokenScopes, validated);
+      if (escalation) {
+        return res.status(403).json({ error: escalation });
+      }
+    }
+
+    const result = await apiTokens.createToken(req.userEmail, name.trim(), expiresIn || null, scopes !== undefined ? scopes : null);
     res.status(201).json(result);
   } catch (error) {
     if (error.statusCode) {
       return res.status(error.statusCode).json({ error: error.message });
+    }
+    if (error.message && (error.message.includes('Invalid scopes') || error.message.includes('scopes must be'))) {
+      return res.status(400).json({ error: error.message });
     }
     console.error('Create token error:', error);
     res.status(500).json({ error: error.message });
@@ -509,7 +733,7 @@ app.post('/api/tokens', blockDuringImpersonation, async function(req, res) {
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-app.delete('/api/tokens/:id', blockDuringImpersonation, async function(req, res) {
+app.delete('/api/tokens/:id', blockDuringImpersonation, requireScope('tokens:manage'), async function(req, res) {
   try {
     const revoked = await apiTokens.revokeToken(req.params.id, req.userEmail);
     if (!revoked) {
@@ -518,6 +742,68 @@ app.delete('/api/tokens/:id', blockDuringImpersonation, async function(req, res)
     res.json({ success: true });
   } catch (error) {
     console.error('Revoke token error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/tokens/{id}/scopes:
+ *   patch:
+ *     tags: [Auth]
+ *     summary: Update scopes on own API token
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [scopes]
+ *             properties:
+ *               scopes:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 nullable: true
+ *     responses:
+ *       200:
+ *         description: Updated token record
+ *       400:
+ *         description: Invalid scopes
+ *       403:
+ *         description: Scope escalation or impersonation blocked
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+app.patch('/api/tokens/:id/scopes', blockDuringImpersonation, requireScope('tokens:manage'), async function(req, res) {
+  try {
+    const { scopes } = req.body;
+
+    // Scope escalation guard for token-authenticated requests
+    if (req.authMethod === 'token') {
+      const validated = scopes != null ? apiTokens.validateScopes(scopes) : null;
+      const escalation = apiTokens.enforceTokenScopeCeiling(req.tokenScopes, validated);
+      if (escalation) {
+        return res.status(403).json({ error: escalation });
+      }
+    }
+
+    const updated = await apiTokens.updateTokenScopes(req.params.id, req.userEmail, scopes);
+    if (!updated) {
+      return res.status(404).json({ error: 'Token not found' });
+    }
+    res.json(updated);
+  } catch (error) {
+    if (error.message && (error.message.includes('Invalid scopes') || error.message.includes('scopes must be'))) {
+      return res.status(400).json({ error: error.message });
+    }
+    console.error('Update token scopes error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -543,7 +829,7 @@ app.delete('/api/tokens/:id', blockDuringImpersonation, async function(req, res)
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  */
-app.get('/api/admin/tokens', requireAdmin, function(req, res) {
+app.get('/api/admin/tokens', requireAdmin, requireScope('admin:manage'), function(req, res) {
   try {
     const tokens = apiTokens.listAllTokens();
     res.json({ tokens });
@@ -573,7 +859,7 @@ app.get('/api/admin/tokens', requireAdmin, function(req, res) {
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-app.delete('/api/admin/tokens/:id', requireAdmin, blockDuringImpersonation, async function(req, res) {
+app.delete('/api/admin/tokens/:id', requireAdmin, requireScope('admin:manage'), blockDuringImpersonation, async function(req, res) {
   try {
     const revoked = await apiTokens.adminRevokeToken(req.params.id);
     if (!revoked) {
@@ -582,6 +868,68 @@ app.delete('/api/admin/tokens/:id', requireAdmin, blockDuringImpersonation, asyn
     res.json({ success: true });
   } catch (error) {
     console.error('Admin revoke token error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @openapi
+ * /api/admin/tokens/{id}/scopes:
+ *   patch:
+ *     tags: [Auth]
+ *     summary: Update scopes on any API token (admin)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [scopes]
+ *             properties:
+ *               scopes:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 nullable: true
+ *     responses:
+ *       200:
+ *         description: Updated token record
+ *       400:
+ *         description: Invalid scopes
+ *       403:
+ *         description: Admin access required or scope escalation
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+app.patch('/api/admin/tokens/:id/scopes', requireAdmin, requireScope('admin:manage'), blockDuringImpersonation, async function(req, res) {
+  try {
+    const { scopes } = req.body;
+
+    // Scope escalation guard for token-authenticated requests
+    if (req.authMethod === 'token') {
+      const validated = scopes != null ? apiTokens.validateScopes(scopes) : null;
+      const escalation = apiTokens.enforceTokenScopeCeiling(req.tokenScopes, validated);
+      if (escalation) {
+        return res.status(403).json({ error: escalation });
+      }
+    }
+
+    const updated = await apiTokens.updateTokenScopes(req.params.id, null, scopes);
+    if (!updated) {
+      return res.status(404).json({ error: 'Token not found' });
+    }
+    res.json(updated);
+  } catch (error) {
+    if (error.message && (error.message.includes('Invalid scopes') || error.message.includes('scopes must be'))) {
+      return res.status(400).json({ error: error.message });
+    }
+    console.error('Admin update token scopes error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -606,7 +954,7 @@ app.delete('/api/admin/tokens/:id', requireAdmin, blockDuringImpersonation, asyn
  *       500:
  *         $ref: '#/components/responses/ServerError'
  */
-app.get('/api/allowlist', requireAdmin, function(req, res) {
+app.get('/api/allowlist', requireAdmin, requireScope('admin:manage'), function(req, res) {
   try {
     res.json({ emails: roleStore.getAdminEmails() });
   } catch (error) {
@@ -656,7 +1004,7 @@ app.get('/api/allowlist', requireAdmin, function(req, res) {
  *       500:
  *         $ref: '#/components/responses/ServerError'
  */
-app.post('/api/allowlist', requireAdmin, blockDuringImpersonation, function(req, res) {
+app.post('/api/allowlist', requireAdmin, requireScope('admin:manage'), blockDuringImpersonation, function(req, res) {
   try {
     const { email } = req.body;
     if (!email || typeof email !== 'string') {
@@ -714,7 +1062,7 @@ app.post('/api/allowlist', requireAdmin, blockDuringImpersonation, function(req,
  *       500:
  *         $ref: '#/components/responses/ServerError'
  */
-app.delete('/api/allowlist/:email', requireAdmin, blockDuringImpersonation, function(req, res) {
+app.delete('/api/allowlist/:email', requireAdmin, requireScope('admin:manage'), blockDuringImpersonation, function(req, res) {
   try {
     const email = decodeURIComponent(req.params.email).toLowerCase();
 
@@ -740,7 +1088,7 @@ app.get('/api/roles/me', function(req, res) {
   res.json({ roles: roleStore.getRoles(req.userEmail) });
 });
 
-app.get('/api/roles', requireAdmin, function(req, res) {
+app.get('/api/roles', requireAdmin, requireScope('admin:manage'), function(req, res) {
   try {
     res.json({ assignments: roleStore.listAssignments() });
   } catch (error) {
@@ -749,7 +1097,7 @@ app.get('/api/roles', requireAdmin, function(req, res) {
   }
 });
 
-app.post('/api/roles/assign', requireAdmin, blockDuringImpersonation, function(req, res) {
+app.post('/api/roles/assign', requireAdmin, requireScope('admin:manage'), blockDuringImpersonation, function(req, res) {
   try {
     const { email, role } = req.body;
     if (!email || typeof email !== 'string') {
@@ -767,7 +1115,7 @@ app.post('/api/roles/assign', requireAdmin, blockDuringImpersonation, function(r
   }
 });
 
-app.post('/api/roles/revoke', requireAdmin, blockDuringImpersonation, function(req, res) {
+app.post('/api/roles/revoke', requireAdmin, requireScope('admin:manage'), blockDuringImpersonation, function(req, res) {
   try {
     const { email, role } = req.body;
     if (!email || typeof email !== 'string') {
@@ -828,7 +1176,41 @@ app.get('/api/modules', function(req, res) {
 
 const diagnosticsRegistry = {};
 const messageRegistry = require('../shared/server/message-registry');
-const moduleContext = { storage: storageModule, requireAuth: authMiddleware, requireAdmin, requireTeamAdmin, roleStore, registerDiagnostics: null };
+
+// Register backup staleness message provider (admin-only warning when latest backup > 48h old)
+const BACKUP_STALE_HOURS = 48;
+messageRegistry.registerProvider('backup-staleness', async function(userContext) {
+  if (!userContext.isAdmin) return [];
+  if (!process.env.AWS_BACKUP_BUCKET) return [];
+  try {
+    const backups = await backup.listBackups();
+    if (backups.length === 0) {
+      return [{
+        id: 'backup:no-backups',
+        type: 'warning',
+        text: 'No data backups found. Trigger a backup from About > Backups to protect against data loss.',
+        link: { label: 'Go to Backups', href: '#/about?tab=backups' }
+      }];
+    }
+    const latest = backups[0];
+    const ageMs = Date.now() - new Date(latest.lastModified).getTime();
+    const ageHours = ageMs / (1000 * 60 * 60);
+    if (ageHours > BACKUP_STALE_HOURS) {
+      const ageDays = Math.floor(ageHours / 24);
+      const ageLabel = ageDays >= 1 ? `${ageDays} day${ageDays === 1 ? '' : 's'}` : `${Math.floor(ageHours)} hours`;
+      return [{
+        id: 'backup:stale',
+        type: 'warning',
+        text: `Data backup is overdue — last backup was ${ageLabel} ago.`,
+        link: { label: 'Go to Backups', href: '#/about?tab=backups' }
+      }];
+    }
+    return [];
+  } catch {
+    return [];
+  }
+});
+const moduleContext = { storage: storageModule, requireAuth: authMiddleware, requireAdmin, requireTeamAdmin, requireScope, roleStore, registerDiagnostics: null };
 
 const persistedState = loadModuleState(storageModule);
 // Persist defaults for any newly discovered modules at startup (not in GET handlers).
@@ -870,6 +1252,9 @@ if (ttRouter && enabledSlugs.has('team-tracker')) {
     '/api/trend': '/trend',
     '/api/admin/roster-sync': '/admin/roster-sync',
     '/api/admin/jira-sync': '/admin/jira-sync',
+    '/api/modules/allocation-tracker/refresh': '/allocation/refresh',
+    '/api/modules/allocation-tracker/refresh/status': '/allocation/refresh/status',
+    '/api/modules/allocation-tracker/classify': '/allocation/classify',
   };
 
   for (const [legacyPath, modulePath] of Object.entries(LEGACY_FORWARDS)) {
@@ -881,6 +1266,10 @@ if (ttRouter && enabledSlugs.has('team-tracker')) {
 }
 
 mountModuleRouters(app, builtInModules, moduleRouters);
+
+// ─── Health Metrics (core feature, not a module) ───
+const { createHealthMetricsRouter } = require('./health-metrics/routes');
+app.use('/api/health-metrics', createHealthMetricsRouter(moduleContext));
 
 /**
  * @openapi
@@ -944,7 +1333,7 @@ app.get('/api/modules/:slug', function(req, res) {
  *         $ref: '#/components/responses/ServerError'
  */
 // Admin: list modules (with git fields, masked tokens)
-app.get('/api/admin/modules', requireAdmin, function(req, res) {
+app.get('/api/admin/modules', requireAdmin, requireScope('admin:manage'), function(req, res) {
   try {
     const config = modulesConfig.loadModulesConfig(storageModule) || { modules: [] };
     res.json({ modules: config.modules.map(modulesConfig.sanitizeForAdmin) });
@@ -985,7 +1374,7 @@ app.get('/api/admin/modules', requireAdmin, function(req, res) {
  *         $ref: '#/components/responses/ServerError'
  */
 // Admin: register new module
-app.post('/api/admin/modules', requireAdmin, function(req, res) {
+app.post('/api/admin/modules', requireAdmin, requireScope('admin:manage'), function(req, res) {
   try {
     const result = modulesConfig.addModule(storageModule, req.body);
     if (result.error) {
@@ -1038,7 +1427,7 @@ app.post('/api/admin/modules', requireAdmin, function(req, res) {
  *         $ref: '#/components/responses/ServerError'
  */
 // Admin: update module
-app.put('/api/admin/modules/:slug', requireAdmin, function(req, res) {
+app.put('/api/admin/modules/:slug', requireAdmin, requireScope('admin:manage'), function(req, res) {
   try {
     const result = modulesConfig.updateModule(storageModule, req.params.slug, req.body);
     if (result.error) {
@@ -1083,7 +1472,7 @@ app.put('/api/admin/modules/:slug', requireAdmin, function(req, res) {
  *         $ref: '#/components/responses/ServerError'
  */
 // Admin: remove module
-app.delete('/api/admin/modules/:slug', requireAdmin, function(req, res) {
+app.delete('/api/admin/modules/:slug', requireAdmin, requireScope('admin:manage'), function(req, res) {
   try {
     const result = modulesConfig.removeModule(storageModule, req.params.slug);
     if (result.error) {
@@ -1137,7 +1526,7 @@ app.delete('/api/admin/modules/:slug', requireAdmin, function(req, res) {
  *         $ref: '#/components/responses/ServerError'
  */
 // Admin: sync one module
-app.post('/api/admin/modules/:slug/sync', requireAdmin, async function(req, res) {
+app.post('/api/admin/modules/:slug/sync', requireAdmin, requireScope('admin:manage'), async function(req, res) {
   try {
     const mod = modulesConfig.getModule(storageModule, req.params.slug);
     if (!mod) {
@@ -1183,7 +1572,7 @@ app.post('/api/admin/modules/:slug/sync', requireAdmin, async function(req, res)
  *         $ref: '#/components/responses/ServerError'
  */
 // Admin: sync all git-static modules
-app.post('/api/admin/modules/sync', requireAdmin, async function(req, res) {
+app.post('/api/admin/modules/sync', requireAdmin, requireScope('admin:manage'), async function(req, res) {
   try {
     // Start sync in background
     gitSync.syncAllModules(storageModule).then(function(result) {
@@ -1220,7 +1609,7 @@ app.post('/api/admin/modules/sync', requireAdmin, async function(req, res) {
  *         $ref: '#/components/responses/ServerError'
  */
 // Admin: get sync status
-app.get('/api/admin/modules/sync/status', requireAdmin, function(req, res) {
+app.get('/api/admin/modules/sync/status', requireAdmin, requireScope('admin:manage'), function(req, res) {
   try {
     res.json(gitSync.getSyncStatus(storageModule));
   } catch (error) {
@@ -1230,6 +1619,26 @@ app.get('/api/admin/modules/sync/status', requireAdmin, function(req, res) {
 });
 
 const { handleExport } = require('./export');
+
+// Rate limiter for expensive export endpoints (per-user, 5 requests per 10 minutes)
+const EXPORT_RATE_MAX = 5;
+const EXPORT_RATE_WINDOW_MS = 10 * 60_000;
+const exportRateCounts = new Map();
+
+function exportRateLimit(req, res, next) {
+  const email = req.userEmail;
+  const now = Date.now();
+  const entry = exportRateCounts.get(email);
+  if (!entry || now - entry.windowStart >= EXPORT_RATE_WINDOW_MS) {
+    exportRateCounts.set(email, { windowStart: now, count: 1 });
+    return next();
+  }
+  entry.count++;
+  if (entry.count > EXPORT_RATE_MAX) {
+    return res.status(429).json({ error: 'Rate limit exceeded. Try again later.' });
+  }
+  return next();
+}
 
 /**
  * @openapi
@@ -1245,10 +1654,12 @@ const { handleExport } = require('./export');
  *             schema:
  *               type: string
  *               format: binary
+ *       429:
+ *         description: Rate limit exceeded
  *       500:
  *         $ref: '#/components/responses/ServerError'
  */
-app.get('/api/export/test-data', requireAdmin, function(req, res) {
+app.get('/api/export/test-data', requireAdmin, requireScope('admin:manage'), exportRateLimit, function(req, res) {
   handleExport(req, res, storageModule, builtInModules);
 });
 
@@ -1279,10 +1690,12 @@ const mustGather = require('./must-gather');
  *               type: object
  *       403:
  *         $ref: '#/components/responses/Forbidden'
+ *       429:
+ *         description: Rate limit exceeded
  *       500:
  *         $ref: '#/components/responses/ServerError'
  */
-app.get('/api/must-gather', requireAdmin, async function(req, res) {
+app.get('/api/must-gather', requireAdmin, requireScope('admin:manage'), exportRateLimit, async function(req, res) {
   try {
     const redact = req.query.redact === 'aggressive' ? 'aggressive' : 'minimal';
     const bundle = await mustGather.collect({
@@ -1341,7 +1754,7 @@ app.get('/api/must-gather', requireAdmin, async function(req, res) {
  *         $ref: '#/components/responses/ServerError'
  */
 // Admin: get all built-in modules with state
-app.get('/api/admin/modules/state', requireAdmin, function(req, res) {
+app.get('/api/admin/modules/state', requireAdmin, requireScope('admin:manage'), function(req, res) {
   try {
     const discovered = builtInModules;
     const currentState = loadModuleState(storageModule);
@@ -1407,7 +1820,7 @@ app.get('/api/admin/modules/state', requireAdmin, function(req, res) {
  *         $ref: '#/components/responses/ServerError'
  */
 // Admin: enable a built-in module
-app.post('/api/admin/modules/:slug/enable', requireAdmin, function(req, res) {
+app.post('/api/admin/modules/:slug/enable', requireAdmin, requireScope('admin:manage'), function(req, res) {
   try {
     if (DEMO_MODE) {
       return res.json({ status: 'skipped', message: 'Module state changes disabled in demo mode' });
@@ -1487,7 +1900,7 @@ app.post('/api/admin/modules/:slug/enable', requireAdmin, function(req, res) {
  *         $ref: '#/components/responses/ServerError'
  */
 // Admin: disable a built-in module
-app.post('/api/admin/modules/:slug/disable', requireAdmin, function(req, res) {
+app.post('/api/admin/modules/:slug/disable', requireAdmin, requireScope('admin:manage'), function(req, res) {
   try {
     if (DEMO_MODE) {
       return res.json({ status: 'skipped', message: 'Module state changes disabled in demo mode' });

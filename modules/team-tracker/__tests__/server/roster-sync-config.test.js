@@ -70,6 +70,7 @@ function createTestApp() {
     storage: { readFromStorage, writeToStorage },
     requireAdmin: (req, res, next) => next(), // Pass-through for tests
     requireTeamAdmin: (req, res, next) => next(),
+    requireScope: () => (req, res, next) => next(),
     registerDiagnostics: vi.fn()
   }
 
