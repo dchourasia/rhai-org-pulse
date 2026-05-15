@@ -150,6 +150,13 @@ function validateComponentOnboarding(body) {
     errors.push(`onboardingMethod must be one of: ${VALID_ONBOARDING_METHODS.join(', ')}`);
   }
 
+  // firstCommentDate: optional ISO 8601 or null
+  if (body.firstCommentDate !== undefined && body.firstCommentDate !== null) {
+    if (typeof body.firstCommentDate !== 'string' || isNaN(Date.parse(body.firstCommentDate))) {
+      errors.push('firstCommentDate must be a valid ISO 8601 date string or null');
+    }
+  }
+
   if (errors.length > 0) {
     return { valid: false, errors };
   }
@@ -175,7 +182,8 @@ function validateComponentOnboarding(body) {
       created: body.created || null,
       resolved: body.resolved || null,
       validationDate: body.validationDate || null,
-      onboardingMethod: body.onboardingMethod || 'automated'
+      onboardingMethod: body.onboardingMethod || 'automated',
+      firstCommentDate: body.firstCommentDate || null
     }
   };
 }

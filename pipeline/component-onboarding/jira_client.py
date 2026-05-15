@@ -92,6 +92,14 @@ class JiraClient:
         unique_keys = list(dict.fromkeys(keys))
         return unique_keys, {k: titles[k] for k in unique_keys if k in titles}
 
+    def get_first_comment_date(self, issue_key: str) -> str | None:
+        """Fetch the earliest comment date on the issue. Returns ISO 8601 string or None."""
+        data = self._get(f"/rest/api/3/issue/{issue_key}/comment", params={"maxResults": 1, "orderBy": "created"})
+        comments = data.get("comments", [])
+        if comments:
+            return comments[0].get("created")
+        return None
+
     def extract_validation_date(self, issue: dict, label: str = "validation-successful") -> str | None:
         """Find the earliest date the given label was added, from the issue changelog.
 

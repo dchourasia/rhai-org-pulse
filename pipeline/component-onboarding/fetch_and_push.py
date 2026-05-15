@@ -161,6 +161,7 @@ def build_component(
     feature_titles: dict[str, str],
     validation_date: str | None,
     synced_at: str,
+    first_comment_date: str | None = None,
 ) -> dict:
     fields      = issue.get("fields", {})
     status_name = fields.get("status", {}).get("name", "Unknown")
@@ -193,6 +194,7 @@ def build_component(
         "created":          fields.get("created"),
         "resolved":         fields.get("resolutiondate"),
         "validationDate":   validation_date,
+        "firstCommentDate": first_comment_date,
     }
 
     # Optional YAML fields
@@ -226,7 +228,7 @@ def push_to_api(backend_url: str, token: str, components: list[dict]) -> dict:
         "Accept": "application/json",
     }
     base   = backend_url.rstrip("/")
-    totals = {"created": 0, "updated": 0, "unchanged": 0, "errors": 0}
+    totals = {"created": 0, "updated": 0, "unchanged": 0, "errors": []}
 
     for i in range(0, len(components), CHUNK_SIZE):
         chunk = components[i : i + CHUNK_SIZE]
@@ -238,8 +240,9 @@ def push_to_api(backend_url: str, token: str, components: list[dict]) -> dict:
         )
         resp.raise_for_status()
         result = resp.json()
-        for key in totals:
+        for key in ("created", "updated", "unchanged"):
             totals[key] += result.get(key, 0)
+        totals["errors"].extend(result.get("errors", []))
         print(f"  Chunk {i // CHUNK_SIZE + 1}: {result}")
 
     return totals
@@ -257,7 +260,7 @@ def clear_existing(backend_url: str, token: str) -> None:
 
 
 def main() -> None:
-    jira_email  = env("JIRA_API_TOKEN")
+    jira_email  = env("JIRA_USER_EMAIL")
     jira_token  = env("JIRA_API_TOKEN")
     backend_url = env("ORG_PULSE_BACKEND_URL")
     api_token   = env("ORG_PULSE_API_TOKEN")
@@ -305,12 +308,19 @@ def main() -> None:
         linked_features, feature_titles = jira.get_linked_feature_keys(issue)
         validation_date  = jira.extract_validation_date(issue)
 
-        component = build_component(issue, yaml_data, linked_features, feature_titles, validation_date, synced_at)
+        issue_labels = [lb for lb in (issue.get("fields", {}).get("labels") or []) if isinstance(lb, str)]
+        onboarding_method = derive_onboarding_method(issue_labels)
+
+        first_comment_date = None
+        if onboarding_method == "manual":
+            first_comment_date = jira.get_first_comment_date(key)
+
+        component = build_component(issue, yaml_data, linked_features, feature_titles, validation_date, synced_at, first_comment_date)
         components.append(component)
 
         status_tag = f"{component['completionStatus']} / {component['productContext']}"
         vd_tag     = f"validated {validation_date[:10]}" if validation_date else "no validation date"
-        print(f" — {status_tag} — {vd_tag}")
+        print(f" — {status_tag} — {vd_tag} — {onboarding_method}")
 
     print(f"\n  Built {len(components)} component records")
 

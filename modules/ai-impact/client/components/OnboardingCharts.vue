@@ -42,11 +42,12 @@ const textColor = computed(() => isDark.value ? 'rgba(209,213,219,1)' : 'rgba(10
 const gridColor = computed(() => isDark.value ? 'rgba(75,85,99,0.5)' : 'rgba(229,231,235,1)')
 
 const componentList = computed(() => Object.values(props.components))
+const automatedList = computed(() => componentList.value.filter(c => (c.onboardingMethod || 'automated') === 'automated'))
 
 // ── Chart 1: Status distribution (Doughnut) ──
 const statusChartData = computed(() => {
-  const completed = componentList.value.filter(c => c.completionStatus === 'completed').length
-  const inProgress = componentList.value.filter(c => c.completionStatus === 'in-progress').length
+  const completed = automatedList.value.filter(c => c.completionStatus === 'completed').length
+  const inProgress = automatedList.value.filter(c => c.completionStatus === 'in-progress').length
   return {
     labels: ['Completed', 'In Progress'],
     datasets: [{
@@ -67,10 +68,10 @@ const statusChartOptions = computed(() => ({
 
 // ── Chart 2: By product context (Horizontal Bar) ──
 const productChartData = computed(() => {
-  const rhoaiCompleted = componentList.value.filter(c => c.productContext === 'RHOAI' && c.completionStatus === 'completed').length
-  const rhoaiInProgress = componentList.value.filter(c => c.productContext === 'RHOAI' && c.completionStatus === 'in-progress').length
-  const odhCompleted = componentList.value.filter(c => c.productContext === 'ODH' && c.completionStatus === 'completed').length
-  const odhInProgress = componentList.value.filter(c => c.productContext === 'ODH' && c.completionStatus === 'in-progress').length
+  const rhoaiCompleted = automatedList.value.filter(c => c.productContext === 'RHOAI' && c.completionStatus === 'completed').length
+  const rhoaiInProgress = automatedList.value.filter(c => c.productContext === 'RHOAI' && c.completionStatus === 'in-progress').length
+  const odhCompleted = automatedList.value.filter(c => c.productContext === 'ODH' && c.completionStatus === 'completed').length
+  const odhInProgress = automatedList.value.filter(c => c.productContext === 'ODH' && c.completionStatus === 'in-progress').length
   return {
     labels: ['RHOAI', 'ODH'],
     datasets: [
@@ -93,7 +94,7 @@ const productChartOptions = computed(() => ({
 
 // ── Chart 3: Onboarded over time (cumulative line) ──
 const timelineChartData = computed(() => {
-  const completed = componentList.value
+  const completed = automatedList.value
     .filter(c => c.completionStatus === 'completed' && c.resolved)
     .map(c => ({ month: c.resolved.slice(0, 7) }))
     .sort((a, b) => a.month.localeCompare(b.month))
@@ -139,7 +140,7 @@ const featureChartData = computed(() => {
   // Build feature → { components, latestCreated } map
   const featureMap = {}
 
-  for (const comp of componentList.value) {
+  for (const comp of automatedList.value) {
     for (const feat of (comp.linkedFeatures || [])) {
       if (!featureMap[feat]) {
         featureMap[feat] = { completed: 0, inProgress: 0, latestCreated: '' }
@@ -212,17 +213,28 @@ const featureChartOptions = computed(() => ({
   }
 }))
 
-const hasFeatureData = computed(() => componentList.value.some(c => c.linkedFeatures?.length > 0))
+const hasFeatureData = computed(() => automatedList.value.some(c => c.linkedFeatures?.length > 0))
 
 const hasManualData = computed(() => componentList.value.some(c => c.onboardingMethod === 'manual'))
 
 // ── Chart 5: Avg Duration Comparison (Horizontal Bar) ──
-function calcAvgDaysForList(list) {
+function calcAvgDaysAutomated(list) {
   const measurable = list.filter(c => c.completionStatus === 'completed' && c.resolved && (c.validationDate || c.created))
   if (!measurable.length) return 0
   return Math.round(
     measurable.reduce((sum, c) => {
       const start = c.validationDate || c.created
+      return sum + (new Date(c.resolved) - new Date(start)) / 86400000
+    }, 0) / measurable.length
+  )
+}
+
+function calcAvgDaysManual(list) {
+  const measurable = list.filter(c => c.completionStatus === 'completed' && c.resolved)
+  if (!measurable.length) return 0
+  return Math.round(
+    measurable.reduce((sum, c) => {
+      const start = c.firstCommentDate || c.created
       return sum + (new Date(c.resolved) - new Date(start)) / 86400000
     }, 0) / measurable.length
   )
@@ -235,7 +247,7 @@ const durationChartData = computed(() => {
     labels: ['AI-Automated', 'Manual'],
     datasets: [{
       label: 'Avg. Days',
-      data: [calcAvgDaysForList(automated), calcAvgDaysForList(manual)],
+      data: [calcAvgDaysAutomated(automated), calcAvgDaysManual(manual)],
       backgroundColor: ['#10b981', '#f59e0b'],
       borderRadius: 4,
       barThickness: 28
@@ -254,103 +266,6 @@ const durationChartOptions = computed(() => ({
   }
 }))
 
-// ── Chart 6: Method Over Time (Stacked Area) ──
-const methodTimelineData = computed(() => {
-  const automated = componentList.value.filter(c => (c.onboardingMethod || 'automated') === 'automated' && c.created)
-  const manual = componentList.value.filter(c => c.onboardingMethod === 'manual' && c.created)
-
-  const allMonths = new Set()
-  for (const c of [...automated, ...manual]) {
-    allMonths.add(c.created.slice(0, 7))
-  }
-  const months = [...allMonths].sort()
-  if (!months.length) return { labels: [], datasets: [] }
-
-  const autoCounts = {}
-  const manualCounts = {}
-  for (const m of months) { autoCounts[m] = 0; manualCounts[m] = 0 }
-  for (const c of automated) { const m = c.created.slice(0, 7); autoCounts[m] = (autoCounts[m] || 0) + 1 }
-  for (const c of manual) { const m = c.created.slice(0, 7); manualCounts[m] = (manualCounts[m] || 0) + 1 }
-
-  return {
-    labels: months,
-    datasets: [
-      {
-        label: 'AI-Automated',
-        data: months.map(m => autoCounts[m]),
-        borderColor: '#10b981',
-        backgroundColor: 'rgba(16,185,129,0.3)',
-        fill: true,
-        tension: 0.3,
-        pointRadius: 3
-      },
-      {
-        label: 'Manual',
-        data: months.map(m => manualCounts[m]),
-        borderColor: '#f59e0b',
-        backgroundColor: 'rgba(245,158,11,0.3)',
-        fill: true,
-        tension: 0.3,
-        pointRadius: 3
-      }
-    ]
-  }
-})
-
-const methodTimelineOptions = computed(() => ({
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: { legend: { position: 'bottom', labels: { color: textColor.value, font: { size: 11 }, padding: 10 } } },
-  scales: {
-    x: { stacked: true, ticks: { color: textColor.value, font: { size: 10 } }, grid: { color: gridColor.value } },
-    y: { stacked: true, beginAtZero: true, ticks: { precision: 0, color: textColor.value, font: { size: 10 } }, title: { display: true, text: 'Components', color: textColor.value }, grid: { color: gridColor.value } }
-  }
-}))
-
-// ── Chart 7: Quarterly Throughput (Grouped Bar) ──
-function toQuarter(isoDate) {
-  const d = new Date(isoDate)
-  const q = Math.ceil((d.getMonth() + 1) / 3)
-  return `Q${q} ${d.getFullYear()}`
-}
-
-const throughputChartData = computed(() => {
-  const completed = componentList.value.filter(c => c.completionStatus === 'completed' && c.resolved)
-  const quarters = new Set()
-  for (const c of completed) quarters.add(toQuarter(c.resolved))
-  const sorted = [...quarters].sort((a, b) => {
-    const [qa, ya] = a.split(' '); const [qb, yb] = b.split(' ')
-    return ya !== yb ? Number(ya) - Number(yb) : Number(qa[1]) - Number(qb[1])
-  })
-  if (!sorted.length) return { labels: [], datasets: [] }
-
-  const autoCounts = {}
-  const manualCounts = {}
-  for (const q of sorted) { autoCounts[q] = 0; manualCounts[q] = 0 }
-  for (const c of completed) {
-    const q = toQuarter(c.resolved)
-    if ((c.onboardingMethod || 'automated') === 'automated') { autoCounts[q] = (autoCounts[q] || 0) + 1 }
-    else { manualCounts[q] = (manualCounts[q] || 0) + 1 }
-  }
-
-  return {
-    labels: sorted,
-    datasets: [
-      { label: 'AI-Automated', data: sorted.map(q => autoCounts[q]), backgroundColor: '#10b981', borderRadius: 3 },
-      { label: 'Manual', data: sorted.map(q => manualCounts[q]), backgroundColor: '#f59e0b', borderRadius: 3 }
-    ]
-  }
-})
-
-const throughputChartOptions = computed(() => ({
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: { legend: { position: 'bottom', labels: { color: textColor.value, font: { size: 11 }, padding: 10 } } },
-  scales: {
-    x: { ticks: { color: textColor.value, font: { size: 10 } }, grid: { color: gridColor.value } },
-    y: { beginAtZero: true, ticks: { precision: 0, color: textColor.value, font: { size: 10 } }, title: { display: true, text: 'Components Completed', color: textColor.value }, grid: { color: gridColor.value } }
-  }
-}))
 </script>
 
 <template>
@@ -426,22 +341,6 @@ const throughputChartOptions = computed(() => ({
             <h3 class="text-sm font-medium dark:text-gray-300 mb-3">Avg. Onboarding Duration</h3>
             <div class="h-[140px]">
               <Bar :data="durationChartData" :options="durationChartOptions" />
-            </div>
-          </div>
-
-          <!-- Method Over Time -->
-          <div class="min-w-[300px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-            <h3 class="text-sm font-medium dark:text-gray-300 mb-3">Onboarding Method Over Time</h3>
-            <div class="h-[200px]">
-              <Line :data="methodTimelineData" :options="methodTimelineOptions" />
-            </div>
-          </div>
-
-          <!-- Quarterly Throughput -->
-          <div class="min-w-[300px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-            <h3 class="text-sm font-medium dark:text-gray-300 mb-3">Quarterly Throughput by Method</h3>
-            <div class="h-[200px]">
-              <Bar :data="throughputChartData" :options="throughputChartOptions" />
             </div>
           </div>
         </div>

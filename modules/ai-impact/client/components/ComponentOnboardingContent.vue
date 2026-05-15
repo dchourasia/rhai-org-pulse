@@ -25,12 +25,23 @@ const featureTitles = computed(() => {
   return merged
 })
 
-function calcAvgDays(list) {
+function calcAvgDaysAutomated(list) {
   const measurable = list.filter(c => c.resolved && (c.validationDate || c.created))
   if (!measurable.length) return 0
   return Math.round(
     measurable.reduce((sum, c) => {
       const start = c.validationDate || c.created
+      return sum + (new Date(c.resolved) - new Date(start)) / 86400000
+    }, 0) / measurable.length
+  )
+}
+
+function calcAvgDaysManual(list) {
+  const measurable = list.filter(c => c.completionStatus === 'completed' && c.resolved)
+  if (!measurable.length) return 0
+  return Math.round(
+    measurable.reduce((sum, c) => {
+      const start = c.firstCommentDate || c.created
       return sum + (new Date(c.resolved) - new Date(start)) / 86400000
     }, 0) / measurable.length
   )
@@ -47,8 +58,8 @@ const metrics = computed(() => {
   const completedAutomated = automated.filter(c => c.completionStatus === 'completed')
   const completedManual = manual.filter(c => c.completionStatus === 'completed')
 
-  const avgDaysAutomated = calcAvgDays(completedAutomated)
-  const avgDaysManual = calcAvgDays(completedManual)
+  const avgDaysAutomated = calcAvgDaysAutomated(completedAutomated)
+  const avgDaysManual = calcAvgDaysManual(completedManual)
   const timeSavingsPercent = avgDaysManual > 0 && avgDaysAutomated > 0
     ? Math.round(((avgDaysManual - avgDaysAutomated) / avgDaysManual) * 100)
     : 0
@@ -59,7 +70,7 @@ const metrics = computed(() => {
     completionRate: total ? Math.round((completed.length / total) * 100) : 0,
     rhoaiCount: list.filter(c => c.productContext === 'RHOAI').length,
     odhCount: list.filter(c => c.productContext === 'ODH').length,
-    avgOnboardingDays: calcAvgDays(completed),
+    avgOnboardingDays: calcAvgDaysAutomated(completed.filter(c => (c.onboardingMethod || 'automated') === 'automated')),
     automatedCount: automated.length,
     manualCount: manual.length,
     avgDaysAutomated,
