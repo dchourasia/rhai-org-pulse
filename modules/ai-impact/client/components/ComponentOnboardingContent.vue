@@ -25,21 +25,32 @@ const featureTitles = computed(() => {
   return merged
 })
 
+function calcAvgDays(list) {
+  const measurable = list.filter(c => c.resolved && (c.validationDate || c.created))
+  if (!measurable.length) return 0
+  return Math.round(
+    measurable.reduce((sum, c) => {
+      const start = c.validationDate || c.created
+      return sum + (new Date(c.resolved) - new Date(start)) / 86400000
+    }, 0) / measurable.length
+  )
+}
+
 const metrics = computed(() => {
   const list = Object.values(allComponents.value)
   const completed = list.filter(c => c.completionStatus === 'completed')
   const inProgress = list.filter(c => c.completionStatus === 'in-progress')
   const total = list.length
 
-  // Use validationDate→resolved for the onboarding clock; fall back to created if absent
-  const measurable = completed.filter(c => c.resolved && (c.validationDate || c.created))
-  const avgDays = measurable.length
-    ? Math.round(
-        measurable.reduce((sum, c) => {
-          const start = c.validationDate || c.created
-          return sum + (new Date(c.resolved) - new Date(start)) / 86400000
-        }, 0) / measurable.length
-      )
+  const automated = list.filter(c => (c.onboardingMethod || 'automated') === 'automated')
+  const manual = list.filter(c => c.onboardingMethod === 'manual')
+  const completedAutomated = automated.filter(c => c.completionStatus === 'completed')
+  const completedManual = manual.filter(c => c.completionStatus === 'completed')
+
+  const avgDaysAutomated = calcAvgDays(completedAutomated)
+  const avgDaysManual = calcAvgDays(completedManual)
+  const timeSavingsPercent = avgDaysManual > 0 && avgDaysAutomated > 0
+    ? Math.round(((avgDaysManual - avgDaysAutomated) / avgDaysManual) * 100)
     : 0
 
   return {
@@ -48,7 +59,12 @@ const metrics = computed(() => {
     completionRate: total ? Math.round((completed.length / total) * 100) : 0,
     rhoaiCount: list.filter(c => c.productContext === 'RHOAI').length,
     odhCount: list.filter(c => c.productContext === 'ODH').length,
-    avgOnboardingDays: avgDays
+    avgOnboardingDays: calcAvgDays(completed),
+    automatedCount: automated.length,
+    manualCount: manual.length,
+    avgDaysAutomated,
+    avgDaysManual,
+    timeSavingsPercent
   }
 })
 </script>

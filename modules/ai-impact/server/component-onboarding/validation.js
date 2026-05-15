@@ -1,5 +1,6 @@
 const VALID_COMPLETION_STATUSES = ['completed', 'in-progress'];
 const VALID_PRODUCT_CONTEXTS = ['RHOAI', 'ODH'];
+const VALID_ONBOARDING_METHODS = ['automated', 'manual'];
 const VALID_KEY_PREFIXES = ['RHOAIENG-'];
 
 // Pipeline step keys in execution order (per onboarding skill doc)
@@ -144,6 +145,11 @@ function validateComponentOnboarding(body) {
     }
   }
 
+  // onboardingMethod: optional enum (automated/manual), defaults to "automated"
+  if (body.onboardingMethod !== undefined && !VALID_ONBOARDING_METHODS.includes(body.onboardingMethod)) {
+    errors.push(`onboardingMethod must be one of: ${VALID_ONBOARDING_METHODS.join(', ')}`);
+  }
+
   if (errors.length > 0) {
     return { valid: false, errors };
   }
@@ -168,9 +174,10 @@ function validateComponentOnboarding(body) {
       onboardingSteps: body.onboardingSteps || {},
       created: body.created || null,
       resolved: body.resolved || null,
-      validationDate: body.validationDate || null
+      validationDate: body.validationDate || null,
+      onboardingMethod: body.onboardingMethod || 'automated'
     }
   };
 }
 
-module.exports = { validateComponentOnboarding, VALID_COMPLETION_STATUSES, VALID_PRODUCT_CONTEXTS, ONBOARDING_STEP_KEYS };
+module.exports = { validateComponentOnboarding, VALID_COMPLETION_STATUSES, VALID_PRODUCT_CONTEXTS, VALID_ONBOARDING_METHODS, ONBOARDING_STEP_KEYS };

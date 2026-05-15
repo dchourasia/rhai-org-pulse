@@ -213,6 +213,144 @@ const featureChartOptions = computed(() => ({
 }))
 
 const hasFeatureData = computed(() => componentList.value.some(c => c.linkedFeatures?.length > 0))
+
+const hasManualData = computed(() => componentList.value.some(c => c.onboardingMethod === 'manual'))
+
+// ── Chart 5: Avg Duration Comparison (Horizontal Bar) ──
+function calcAvgDaysForList(list) {
+  const measurable = list.filter(c => c.completionStatus === 'completed' && c.resolved && (c.validationDate || c.created))
+  if (!measurable.length) return 0
+  return Math.round(
+    measurable.reduce((sum, c) => {
+      const start = c.validationDate || c.created
+      return sum + (new Date(c.resolved) - new Date(start)) / 86400000
+    }, 0) / measurable.length
+  )
+}
+
+const durationChartData = computed(() => {
+  const automated = componentList.value.filter(c => (c.onboardingMethod || 'automated') === 'automated')
+  const manual = componentList.value.filter(c => c.onboardingMethod === 'manual')
+  return {
+    labels: ['AI-Automated', 'Manual'],
+    datasets: [{
+      label: 'Avg. Days',
+      data: [calcAvgDaysForList(automated), calcAvgDaysForList(manual)],
+      backgroundColor: ['#10b981', '#f59e0b'],
+      borderRadius: 4,
+      barThickness: 28
+    }]
+  }
+})
+
+const durationChartOptions = computed(() => ({
+  indexAxis: 'y',
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { beginAtZero: true, ticks: { color: textColor.value, font: { size: 10 } }, grid: { color: gridColor.value }, title: { display: true, text: 'Days', color: textColor.value } },
+    y: { ticks: { color: textColor.value, font: { size: 12, weight: 'bold' } }, grid: { display: false } }
+  }
+}))
+
+// ── Chart 6: Method Over Time (Stacked Area) ──
+const methodTimelineData = computed(() => {
+  const automated = componentList.value.filter(c => (c.onboardingMethod || 'automated') === 'automated' && c.created)
+  const manual = componentList.value.filter(c => c.onboardingMethod === 'manual' && c.created)
+
+  const allMonths = new Set()
+  for (const c of [...automated, ...manual]) {
+    allMonths.add(c.created.slice(0, 7))
+  }
+  const months = [...allMonths].sort()
+  if (!months.length) return { labels: [], datasets: [] }
+
+  const autoCounts = {}
+  const manualCounts = {}
+  for (const m of months) { autoCounts[m] = 0; manualCounts[m] = 0 }
+  for (const c of automated) { const m = c.created.slice(0, 7); autoCounts[m] = (autoCounts[m] || 0) + 1 }
+  for (const c of manual) { const m = c.created.slice(0, 7); manualCounts[m] = (manualCounts[m] || 0) + 1 }
+
+  return {
+    labels: months,
+    datasets: [
+      {
+        label: 'AI-Automated',
+        data: months.map(m => autoCounts[m]),
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16,185,129,0.3)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3
+      },
+      {
+        label: 'Manual',
+        data: months.map(m => manualCounts[m]),
+        borderColor: '#f59e0b',
+        backgroundColor: 'rgba(245,158,11,0.3)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3
+      }
+    ]
+  }
+})
+
+const methodTimelineOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { position: 'bottom', labels: { color: textColor.value, font: { size: 11 }, padding: 10 } } },
+  scales: {
+    x: { stacked: true, ticks: { color: textColor.value, font: { size: 10 } }, grid: { color: gridColor.value } },
+    y: { stacked: true, beginAtZero: true, ticks: { precision: 0, color: textColor.value, font: { size: 10 } }, title: { display: true, text: 'Components', color: textColor.value }, grid: { color: gridColor.value } }
+  }
+}))
+
+// ── Chart 7: Quarterly Throughput (Grouped Bar) ──
+function toQuarter(isoDate) {
+  const d = new Date(isoDate)
+  const q = Math.ceil((d.getMonth() + 1) / 3)
+  return `Q${q} ${d.getFullYear()}`
+}
+
+const throughputChartData = computed(() => {
+  const completed = componentList.value.filter(c => c.completionStatus === 'completed' && c.resolved)
+  const quarters = new Set()
+  for (const c of completed) quarters.add(toQuarter(c.resolved))
+  const sorted = [...quarters].sort((a, b) => {
+    const [qa, ya] = a.split(' '); const [qb, yb] = b.split(' ')
+    return ya !== yb ? Number(ya) - Number(yb) : Number(qa[1]) - Number(qb[1])
+  })
+  if (!sorted.length) return { labels: [], datasets: [] }
+
+  const autoCounts = {}
+  const manualCounts = {}
+  for (const q of sorted) { autoCounts[q] = 0; manualCounts[q] = 0 }
+  for (const c of completed) {
+    const q = toQuarter(c.resolved)
+    if ((c.onboardingMethod || 'automated') === 'automated') { autoCounts[q] = (autoCounts[q] || 0) + 1 }
+    else { manualCounts[q] = (manualCounts[q] || 0) + 1 }
+  }
+
+  return {
+    labels: sorted,
+    datasets: [
+      { label: 'AI-Automated', data: sorted.map(q => autoCounts[q]), backgroundColor: '#10b981', borderRadius: 3 },
+      { label: 'Manual', data: sorted.map(q => manualCounts[q]), backgroundColor: '#f59e0b', borderRadius: 3 }
+    ]
+  }
+})
+
+const throughputChartOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { position: 'bottom', labels: { color: textColor.value, font: { size: 11 }, padding: 10 } } },
+  scales: {
+    x: { ticks: { color: textColor.value, font: { size: 10 } }, grid: { color: gridColor.value } },
+    y: { beginAtZero: true, ticks: { precision: 0, color: textColor.value, font: { size: 10 } }, title: { display: true, text: 'Components Completed', color: textColor.value }, grid: { color: gridColor.value } }
+  }
+}))
 </script>
 
 <template>
@@ -275,6 +413,39 @@ const hasFeatureData = computed(() => componentList.value.some(c => c.linkedFeat
           </div>
         </div>
       </div>
+
+      <!-- AI Automation Impact section -->
+      <template v-if="hasManualData">
+        <div class="w-full border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
+          <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-4">AI Automation Impact</h3>
+        </div>
+
+        <div class="flex flex-wrap gap-6">
+          <!-- Avg Duration Comparison -->
+          <div class="min-w-[240px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+            <h3 class="text-sm font-medium dark:text-gray-300 mb-3">Avg. Onboarding Duration</h3>
+            <div class="h-[140px]">
+              <Bar :data="durationChartData" :options="durationChartOptions" />
+            </div>
+          </div>
+
+          <!-- Method Over Time -->
+          <div class="min-w-[300px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+            <h3 class="text-sm font-medium dark:text-gray-300 mb-3">Onboarding Method Over Time</h3>
+            <div class="h-[200px]">
+              <Line :data="methodTimelineData" :options="methodTimelineOptions" />
+            </div>
+          </div>
+
+          <!-- Quarterly Throughput -->
+          <div class="min-w-[300px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+            <h3 class="text-sm font-medium dark:text-gray-300 mb-3">Quarterly Throughput by Method</h3>
+            <div class="h-[200px]">
+              <Bar :data="throughputChartData" :options="throughputChartOptions" />
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
   </div>
 </template>

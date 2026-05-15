@@ -13,8 +13,8 @@ from jira_client import JiraClient
 
 JIRA_BASE_URL = "https://redhat.atlassian.net"
 
-# Only RHOAIENG; filter by label only (no ScriptRunner issueFunction dependency).
-JQL = 'project = RHOAIENG AND labels = "component-onboarding" ORDER BY created DESC'
+JQL_AUTOMATED = 'project = RHOAIENG AND labels = "component-onboarding" ORDER BY created DESC'
+JQL_MANUAL    = 'project = RHOAIENG AND labels = "devops-onboarding" ORDER BY created DESC'
 
 # changelog expand is needed to extract validationDate.
 JIRA_FIELDS = [
@@ -145,6 +145,15 @@ def derive_component_name(issue: dict, yaml_data: dict) -> str:
     return ""
 
 
+def derive_onboarding_method(labels: list[str]) -> str:
+    """Determine if the onboarding was automated or manual based on labels.
+    If the issue has the component-onboarding label, it used AI skills (automated).
+    If it only has devops-onboarding, it was done manually."""
+    if "component-onboarding" in labels:
+        return "automated"
+    return "manual"
+
+
 def build_component(
     issue: dict,
     yaml_data: dict,
@@ -178,6 +187,7 @@ def build_component(
         "syncedAt":         synced_at,
         "labels":           labels,
         "onboardingSteps":  onboarding_steps,
+        "onboardingMethod": derive_onboarding_method(labels),
         "linkedFeatures":   linked_features,
         "featureTitles":    feature_titles,
         "created":          fields.get("created"),
@@ -247,8 +257,8 @@ def clear_existing(backend_url: str, token: str) -> None:
 
 
 def main() -> None:
-    jira_email  = env("JIRA_EMAIL")
-    jira_token  = env("JIRA_TOKEN")
+    jira_email  = env("JIRA_API_TOKEN")
+    jira_token  = env("JIRA_API_TOKEN")
     backend_url = env("ORG_PULSE_BACKEND_URL")
     api_token   = env("ORG_PULSE_API_TOKEN")
 
@@ -256,13 +266,22 @@ def main() -> None:
 
     print("=== Component Onboarding Sync ===")
     print(f"Synced at : {synced_at}")
-    print(f"JQL       : {JQL}\n")
+    print(f"JQL (auto): {JQL_AUTOMATED}")
+    print(f"JQL (man) : {JQL_MANUAL}\n")
 
     jira = JiraClient(JIRA_BASE_URL, jira_email, jira_token)
 
     print("[1/4] Fetching issues from Jira (with changelog)…")
-    issues = jira.search_jql(JQL, JIRA_FIELDS, expand=JIRA_EXPAND)
-    print(f"  Found {len(issues)} issues")
+    auto_issues = jira.search_jql(JQL_AUTOMATED, JIRA_FIELDS, expand=JIRA_EXPAND)
+    print(f"  Found {len(auto_issues)} automated issues")
+
+    manual_issues = jira.search_jql(JQL_MANUAL, JIRA_FIELDS, expand=JIRA_EXPAND)
+    print(f"  Found {len(manual_issues)} manual issues")
+
+    seen_keys = {issue["key"] for issue in auto_issues}
+    merged_manual = [i for i in manual_issues if i["key"] not in seen_keys]
+    issues = auto_issues + merged_manual
+    print(f"  Merged total: {len(issues)} issues ({len(merged_manual)} manual-only added)")
 
     print("\n[2/4] Processing issues…")
     components = []
