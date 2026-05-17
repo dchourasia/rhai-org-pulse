@@ -5,8 +5,8 @@
   "releases": [
     {
       "version": "rhoai-3.4",
-      "gaDate": "2026-04-10",
-      "codeFreezeDate": "2026-03-20",
+      "gaDate": "2026-06-15",
+      "codeFreezeDate": "2026-05-25",
       "gaSnapshotCommits": {
         "fbc": "1fc85976a4db56f7e0c4abc1d2e3f4a5b6c7d8e9",
         "registry": "8f5786a5b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6"
@@ -21,31 +21,39 @@
           "volatileExcludes": [
             {
               "value": "test.no_erred_tests:fbc-fips-check-oci-ta",
-              "effectiveUntil": "2026-05-15T00:00:00Z",
+              "effectiveUntil": "2026-06-20T00:00:00Z",
               "reference": "https://redhat.atlassian.net/browse/OCPEXCEPT-63",
               "imageUrl": null,
-              "comment": "Konflux bug that causes fips check to fail when there's no x86 variant of the container image available. Extending the exception by 2 weeks to allow KONFLUX-10393 to be released."
+              "comment": "Konflux bug that causes fips check to fail when there's no x86 variant of the container image available. Extending the exception by 2 weeks to allow KONFLUX-10393 to be released.",
+              "extensionJiraKey": "RHOAIENG-63501",
+              "extensionJiraUrl": "https://redhat.atlassian.net/browse/RHOAIENG-63501"
             },
             {
               "value": "test.no_failed_tests:fbc-fips-check-oci-ta",
-              "effectiveUntil": "2026-05-15T00:00:00Z",
+              "effectiveUntil": "2026-06-20T00:00:00Z",
               "reference": "https://redhat.atlassian.net/browse/OCPEXCEPT-63",
               "imageUrl": null,
-              "comment": "Konflux bug that causes fips check to fail when there's no x86 variant of the container image available."
+              "comment": "Konflux bug that causes fips check to fail when there's no x86 variant of the container image available.",
+              "extensionJiraKey": "RHOAIENG-63502",
+              "extensionJiraUrl": "https://redhat.atlassian.net/browse/RHOAIENG-63502"
             },
             {
               "value": "tasks.required_tasks_found:fbc-fips-check-oci-ta",
-              "effectiveUntil": "2026-04-30T00:00:00Z",
+              "effectiveUntil": "2026-06-18T00:00:00Z",
               "reference": "https://redhat.atlassian.net/browse/OCPEXCEPT-64",
               "imageUrl": null,
-              "comment": "Adding exception to skip the fips checks for 2.25.5 dashboard issue release."
+              "comment": "Adding exception to skip the fips checks for 2.25.5 dashboard issue release.",
+              "extensionJiraKey": null,
+              "extensionJiraUrl": null
             },
             {
               "value": "schedule.weekday_restriction",
-              "effectiveUntil": "2026-04-27T00:00:00Z",
+              "effectiveUntil": "2026-06-17T00:00:00Z",
               "reference": "https://redhat.atlassian.net/browse/RHOAIENG-59732",
               "imageUrl": null,
-              "comment": "Weekday exception to cover 3.3.2 release and 2.25.5 dashboard issue."
+              "comment": "Weekday exception to cover 3.4 release.",
+              "extensionJiraKey": null,
+              "extensionJiraUrl": null
             }
           ]
         },
@@ -57,55 +65,186 @@
           "volatileExcludes": [
             {
               "value": "sbom_spdx.disallowed_package_attributes",
-              "effectiveUntil": "2026-06-30T00:00:00Z",
+              "effectiveUntil": "2026-08-30T00:00:00Z",
               "reference": "https://issues.redhat.com/browse/RHOAIENG-16260",
               "imageUrl": null,
-              "comment": "v2.16 uses deprecated nodejs-18 image. Seeking exception to meet SLA. To be updated in future release."
+              "comment": "v2.16 uses deprecated nodejs-18 image. Seeking exception to meet SLA. To be updated in future release.",
+              "extensionJiraKey": null,
+              "extensionJiraUrl": null
             },
             {
               "value": "hermetic_task.hermetic",
-              "effectiveUntil": "2026-06-30T00:00:00Z",
+              "effectiveUntil": "2026-08-30T00:00:00Z",
               "reference": "https://issues.redhat.com/browse/RHOAIENG-31398",
               "imageUrl": "quay.io/rhoai/odh-mlmd-grpc-server-rhel9",
-              "comment": "MLMD hermetic exception."
+              "comment": "MLMD hermetic exception.",
+              "extensionJiraKey": null,
+              "extensionJiraUrl": null
             },
             {
               "value": "hermetic_task",
-              "effectiveUntil": "2026-06-30T00:00:00Z",
+              "effectiveUntil": "2026-08-30T00:00:00Z",
               "reference": "https://issues.redhat.com/browse/KONFLUX-7552",
               "imageUrl": "quay.io/rhoai/odh-llama-stack-core-rhel9",
-              "comment": "llama stack hermetic exclusion. AIPCC team is working on hermetic builds of this image."
+              "comment": "llama stack hermetic exclusion. AIPCC team is working on hermetic builds of this image.",
+              "extensionJiraKey": null,
+              "extensionJiraUrl": null
             },
             {
               "value": "sbom_spdx.allowed_package_sources:pkg:generic/libtokenizers",
-              "effectiveUntil": "2026-06-30T00:00:00Z",
+              "effectiveUntil": "2026-08-30T00:00:00Z",
               "reference": "https://issues.redhat.com/browse/RHOAIENG-28098",
               "imageUrl": null,
-              "comment": "quay to registry.redhat.io migration exception for tokenizers library."
+              "comment": "quay to registry.redhat.io migration exception for tokenizers library.",
+              "extensionJiraKey": null,
+              "extensionJiraUrl": null
             },
             {
               "value": "rpm_signature.allowed:8a3872bf3228467c",
-              "effectiveUntil": "2026-05-31T00:00:00Z",
+              "effectiveUntil": "2026-06-20T00:00:00Z",
               "reference": "https://issues.redhat.com/browse/PSX-1042",
               "imageUrl": null,
-              "comment": "odh-vllm-gaudi was released with EPEL packages in previous rhoai releases. Exception needed while Gaudi team will document their usage of non-RH RPMs."
+              "comment": "odh-vllm-gaudi was released with EPEL packages in previous rhoai releases. Exception needed while Gaudi team will document their usage of non-RH RPMs.",
+              "extensionJiraKey": "RHOAIENG-63503",
+              "extensionJiraUrl": "https://redhat.atlassian.net/browse/RHOAIENG-63503"
             },
             {
               "value": "hermetic_task.hermetic",
-              "effectiveUntil": "2026-06-30T00:00:00Z",
+              "effectiveUntil": "2026-08-30T00:00:00Z",
               "reference": "https://issues.redhat.com/browse/RHOAIENG-28098",
               "imageUrl": "quay.io/rhoai/odh-kserve-controller-rhel9",
-              "comment": "quay to registry.redhat.io migration exception for kserve controller."
+              "comment": "quay to registry.redhat.io migration exception for kserve controller.",
+              "extensionJiraKey": null,
+              "extensionJiraUrl": null
             },
             {
               "value": "hermetic_task.hermetic",
-              "effectiveUntil": "2026-06-30T00:00:00Z",
+              "effectiveUntil": "2026-08-30T00:00:00Z",
               "reference": "https://issues.redhat.com/browse/RHOAIENG-28098",
               "imageUrl": "quay.io/rhoai/odh-kserve-storage-initializer-rhel9",
-              "comment": "quay to registry.redhat.io migration exception for kserve storage initializer."
+              "comment": "quay to registry.redhat.io migration exception for kserve storage initializer.",
+              "extensionJiraKey": null,
+              "extensionJiraUrl": null
             }
           ]
         }
+      },
+      "aiCategorization": {
+        "analyzedAt": "2026-05-15T10:00:00Z",
+        "exceptions": [
+          {
+            "fullName": "cve",
+            "policyFile": "fbc",
+            "type": "permanent",
+            "category": "always_expected",
+            "reasoning": "CVE checks are permanently excluded for FBC images as they are managed separately through Red Hat's vulnerability management process."
+          },
+          {
+            "fullName": "step_image_registries",
+            "policyFile": "fbc",
+            "type": "permanent",
+            "category": "always_expected",
+            "reasoning": "FBC builds use internal step images from registries not on the default allowlist. This is by design for the RHOAI FBC pipeline."
+          },
+          {
+            "fullName": "source_image.exists",
+            "policyFile": "fbc",
+            "type": "permanent",
+            "category": "always_expected",
+            "reasoning": "FBC catalog images do not ship source containers. This is standard for all FBC-based products."
+          },
+          {
+            "fullName": "test.no_erred_tests:fbc-fips-check-oci-ta",
+            "policyFile": "fbc",
+            "type": "volatile",
+            "category": "long_term_fix",
+            "reasoning": "FIPS check failures are tied to Konflux bug KONFLUX-10393. The fix requires Konflux platform changes to support FIPS checks without x86 image variants."
+          },
+          {
+            "fullName": "test.no_failed_tests:fbc-fips-check-oci-ta",
+            "policyFile": "fbc",
+            "type": "volatile",
+            "category": "long_term_fix",
+            "reasoning": "Same root cause as FIPS erred tests — Konflux platform needs to support FIPS validation for non-x86 architectures."
+          },
+          {
+            "fullName": "tasks.required_tasks_found:fbc-fips-check-oci-ta",
+            "policyFile": "fbc",
+            "type": "volatile",
+            "category": "quick_fix",
+            "reasoning": "The FIPS check task can be added to the pipeline definition. Once KONFLUX-10393 lands, the required_tasks check can include the FIPS task."
+          },
+          {
+            "fullName": "schedule.weekday_restriction",
+            "policyFile": "fbc",
+            "type": "volatile",
+            "category": "always_expected",
+            "reasoning": "Weekend releases occasionally require this exception. It is a standard operational override used for time-sensitive releases."
+          },
+          {
+            "fullName": "cve.cve_blockers",
+            "policyFile": "registry",
+            "type": "permanent",
+            "category": "always_expected",
+            "reasoning": "CVE blocker checks are managed by Red Hat's security response team through a separate process. The exception allows shipping while CVEs are being triaged."
+          },
+          {
+            "fullName": "rpm_signature.allowed:9cd0a493d42d0685",
+            "policyFile": "registry",
+            "type": "permanent",
+            "category": "always_expected",
+            "reasoning": "This RPM signing key is used by internal builds that haven't migrated to the standard signing infrastructure. Expected to remain permanent."
+          },
+          {
+            "fullName": "sbom_spdx.disallowed_package_attributes",
+            "policyFile": "registry",
+            "type": "volatile",
+            "category": "long_term_fix",
+            "reasoning": "The deprecated nodejs-18 base image needs migration to nodejs-20. Tracked in RHOAIENG-16260 but requires dashboard component rebuild and testing."
+          },
+          {
+            "fullName": "hermetic_task.hermetic:quay.io/rhoai/odh-mlmd-grpc-server-rhel9",
+            "policyFile": "registry",
+            "type": "volatile",
+            "category": "long_term_fix",
+            "reasoning": "MLMD gRPC server has network dependencies during build that prevent hermetic builds. Requires upstream changes to vendored dependencies (RHOAIENG-31398)."
+          },
+          {
+            "fullName": "hermetic_task:quay.io/rhoai/odh-llama-stack-core-rhel9",
+            "policyFile": "registry",
+            "type": "volatile",
+            "category": "long_term_fix",
+            "reasoning": "Llama Stack downloads model artifacts during build. AIPCC team is working on pre-caching approach (KONFLUX-7552) but requires significant build pipeline changes."
+          },
+          {
+            "fullName": "sbom_spdx.allowed_package_sources:pkg:generic/libtokenizers",
+            "policyFile": "registry",
+            "type": "volatile",
+            "category": "quick_fix",
+            "reasoning": "The tokenizers library needs its source reference updated from quay.io to registry.redhat.io. A simple Containerfile change tracked in RHOAIENG-28098."
+          },
+          {
+            "fullName": "rpm_signature.allowed:8a3872bf3228467c",
+            "policyFile": "registry",
+            "type": "volatile",
+            "category": "already_fixed",
+            "reasoning": "The Gaudi team has documented their EPEL RPM usage per PSX-1042. The exception can be removed once the current release ships and the signed RPMs are available."
+          },
+          {
+            "fullName": "hermetic_task.hermetic:quay.io/rhoai/odh-kserve-controller-rhel9",
+            "policyFile": "registry",
+            "type": "volatile",
+            "category": "quick_fix",
+            "reasoning": "The kserve controller's non-hermetic dependency is the registry migration tracked in RHOAIENG-28098. A straightforward Containerfile fix to use registry.redhat.io."
+          },
+          {
+            "fullName": "hermetic_task.hermetic:quay.io/rhoai/odh-kserve-storage-initializer-rhel9",
+            "policyFile": "registry",
+            "type": "volatile",
+            "category": "quick_fix",
+            "reasoning": "Same registry migration as kserve controller. A Containerfile change to reference registry.redhat.io instead of quay.io."
+          }
+        ]
       }
     },
     {

@@ -90,7 +90,14 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Horizontal bar: exceptions by category -->
         <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 p-5">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Exceptions by Rule Category</h3>
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Exceptions by Rule Category</h3>
+            <ConformaHelpText
+              good="Low total count across categories"
+              attention="High counts in test/tasks categories may indicate systemic build issues"
+              action="Review exception references for resolution paths"
+            />
+          </div>
           <div v-if="categoryChartData" style="height: 300px; position: relative;">
             <Bar :key="`bar-${chartKey}`" :data="categoryChartData" :options="categoryChartOptions" />
           </div>
@@ -99,7 +106,14 @@
 
         <!-- Donut: FBC vs Registry + volatile vs permanent -->
         <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 p-5">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Exception Distribution</h3>
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Exception Distribution</h3>
+            <ConformaHelpText
+              good="Balanced split with low volatile ratio"
+              attention="High volatile ratio means more time-bound risk before GA"
+              action="Focus on reducing volatile exceptions through permanent fixes"
+            />
+          </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
               <p class="text-xs text-center text-gray-500 dark:text-gray-400 mb-2">FBC vs Components</p>
@@ -121,7 +135,14 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Trend across releases -->
         <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 p-5">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Exception Trend Across Releases</h3>
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Exception Trend Across Releases</h3>
+            <ConformaHelpText
+              good="Decreasing trend across releases"
+              attention="Increasing trend means growing technical debt"
+              action="Investigate new exceptions added since last release"
+            />
+          </div>
           <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">All tracked releases, sorted by GA date</p>
           <div v-if="trendChartData" style="height: 240px; position: relative;">
             <Line :key="`line-${chartKey}`" :data="trendChartData" :options="trendChartOptions" />
@@ -131,7 +152,14 @@
 
         <!-- Expiry scatter for volatile exceptions -->
         <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 p-5">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Volatile Exception Expiry Timeline</h3>
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Volatile Exception Expiry Timeline</h3>
+            <ConformaHelpText
+              good="All dots are green (expire >60 days after GA)"
+              attention="Amber/red dots expire near or before GA — these need immediate extension"
+              action="Click actionable dots to create or view Jira extension issues"
+            />
+          </div>
           <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">
             <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>Expires &gt;60d after GA</span>
             &nbsp;
@@ -145,6 +173,13 @@
           <p v-else class="text-sm text-gray-400 py-8 text-center">No volatile exceptions for this release</p>
         </div>
       </div>
+
+      <!-- AI Category Chart (full-width, only for releases with AI data) -->
+      <ConformaAiCategoryChart
+        v-if="hasAiData"
+        :exceptions="flatExceptions"
+        :chart-key="chartKey"
+      />
 
       <!-- Detailed exceptions table -->
       <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 overflow-hidden">
@@ -163,6 +198,21 @@
 
           <!-- Search + filters -->
           <div class="flex flex-wrap items-center gap-2">
+            <!-- Actionable toggle -->
+            <button
+              v-if="isLatestUnshipped && actionableCount > 0"
+              @click="actionableOnly = !actionableOnly"
+              :class="actionableOnly
+                ? 'bg-red-600 text-white border-red-600 shadow-md'
+                : 'bg-white dark:bg-gray-800 text-red-600 border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20'"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+              </svg>
+              Actionable ({{ actionableCount }})
+            </button>
+
             <!-- Search -->
             <div class="relative flex-1 min-w-[180px]">
               <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -203,6 +253,16 @@
             >
               <option value="">All Categories</option>
               <option v-for="cat in activeCategories" :key="cat" :value="cat">{{ cat }}</option>
+            </select>
+
+            <!-- AI Category filter -->
+            <select
+              v-if="hasAiData"
+              v-model="tableFilterAiCategory"
+              class="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All AI Assessments</option>
+              <option v-for="(info, key) in AI_CATEGORIES" :key="key" :value="key">{{ info.label }}</option>
             </select>
 
             <!-- Clear filters -->
@@ -272,6 +332,16 @@
                     {{ ex.category }}
                   </span>
                 </td>
+                <!-- AI Assessment -->
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <span
+                    v-if="ex.aiCategory && AI_CATEGORIES[ex.aiCategory]"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-medium cursor-help"
+                    :class="AI_CATEGORIES[ex.aiCategory].badgeCls"
+                    :title="ex.aiCategoryReasoning || ''"
+                  >{{ AI_CATEGORIES[ex.aiCategory].label }}</span>
+                  <span v-else class="text-gray-300 dark:text-gray-600">—</span>
+                </td>
                 <!-- Image -->
                 <td class="px-4 py-3 font-mono text-gray-500 dark:text-gray-400 max-w-[180px]">
                   <span class="block truncate" :title="ex.imageUrl || ''">
@@ -297,6 +367,34 @@
                     :title="ex.reference"
                   >{{ refLabel(ex.reference) }}</a>
                   <span v-else class="text-gray-400">—</span>
+                </td>
+                <!-- Action -->
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <template v-if="ex.isActionable">
+                    <a
+                      v-if="ex.extensionJiraKey"
+                      :href="ex.extensionJiraUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 transition-colors"
+                      :title="`Extension Jira: ${ex.extensionJiraKey}`"
+                    >
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                      {{ ex.extensionJiraKey }}
+                    </a>
+                    <a
+                      v-else
+                      :href="EXTENSION_JIRA_TEMPLATE_URL"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors"
+                      title="Create extension Jira issue"
+                    >
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                      Extend
+                    </a>
+                  </template>
+                  <span v-else class="text-gray-300 dark:text-gray-600">—</span>
                 </td>
                 <!-- Docs -->
                 <td class="px-4 py-3 text-center">
@@ -356,48 +454,19 @@ import {
 } from 'chart.js'
 
 import { useConformaExceptions } from '../composables/useConformaExceptions'
+import ConformaHelpText from '../components/ConformaHelpText.vue'
+import ConformaAiCategoryChart from '../components/ConformaAiCategoryChart.vue'
+import {
+  KNOWN_CATEGORIES, CATEGORY_BADGE, CATEGORY_DOCS,
+  AI_CATEGORIES, EXTENSION_JIRA_TEMPLATE_URL, ACTIONABLE_DAYS_THRESHOLD,
+  extractCategory
+} from '../constants/conforma'
 
 ChartJS.register(
   CategoryScale, LinearScale,
   BarElement, PointElement, LineElement, ArcElement,
   Tooltip, Legend, Filler
 )
-
-// ─── Category definitions ───────────────────────────────────────────────────
-
-// FIPS is first because it is matched by keyword, not by value prefix.
-// It must take precedence over categories like 'test' or 'tasks' that share the same prefix.
-const KNOWN_CATEGORIES = [
-  'fips', 'hermetic_task', 'test', 'tasks', 'schedule',
-  'sbom_spdx', 'rpm_signature', 'cve', 'other'
-]
-
-const CATEGORY_BADGE = {
-  fips:                 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300',
-  hermetic_task:        'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300',
-  test:                 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
-  tasks:                'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
-  schedule:             'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
-  sbom_spdx:            'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
-  rpm_signature:        'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300',
-  cve:                  'bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300',
-  source_image:         'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300',
-  step_image_registries:'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300',
-  other:                'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-}
-
-const CATEGORY_DOCS = {
-  fips:                  'https://conforma.dev/docs/policy/packages/release_test.html',
-  hermetic_task:         'https://conforma.dev/docs/policy/packages/release_hermetic_task.html',
-  test:                  'https://conforma.dev/docs/policy/packages/release_test.html',
-  tasks:                 'https://conforma.dev/docs/policy/packages/release_tasks.html',
-  schedule:              'https://conforma.dev/docs/policy/packages/release_schedule.html',
-  sbom_spdx:             'https://conforma.dev/docs/policy/packages/release_sbom_spdx.html',
-  rpm_signature:         'https://conforma.dev/docs/policy/packages/release_rpm_signature.html',
-  cve:                   'https://conforma.dev/docs/policy/packages/release_cve.html',
-  source_image:          'https://conforma.dev/docs/policy/packages/release_source_image.html',
-  step_image_registries: 'https://conforma.dev/docs/policy/packages/task_step_image_registries.html',
-}
 
 // ─── Table column definitions ────────────────────────────────────────────────
 
@@ -406,10 +475,12 @@ const TABLE_COLUMNS = [
   { key: 'type',          label: 'Type',           sortable: true },
   { key: 'value',         label: 'Rule Value',     sortable: true },
   { key: 'category',      label: 'Category',       sortable: true },
+  { key: 'aiCategory',    label: 'AI Assessment',  sortable: true },
   { key: 'imageUrl',      label: 'Image',          sortable: false },
   { key: 'effectiveUntil',label: 'Effective Until',sortable: true },
   { key: 'daysAfterGa',   label: 'Days After GA',  sortable: true, width: 'w-20' },
   { key: 'reference',     label: 'Reference',      sortable: true },
+  { key: 'action',        label: 'Action',         sortable: false, width: 'w-24' },
   { key: 'docs',          label: 'Docs',           sortable: false, width: 'w-12' }
 ]
 
@@ -441,16 +512,29 @@ const selectedRelease = computed(() =>
   allReleases.value.find(r => r.version === selectedVersion.value) || null
 )
 
-// ─── Category extraction ─────────────────────────────────────────────────────
+// ─── Actionable exceptions ─────────────────────────────────────────────────
 
-function extractCategory(value) {
-  if (!value) return 'other'
-  // FIPS: keyword match takes priority over prefix-based categorisation
-  if (value.toLowerCase().includes('fips')) return 'fips'
-  const prefixKnown = ['hermetic_task', 'test', 'tasks', 'schedule', 'sbom_spdx', 'rpm_signature', 'cve', 'source_image', 'step_image_registries']
-  const prefix = value.split('.')[0].split(':')[0]
-  return prefixKnown.includes(prefix) ? prefix : 'other'
-}
+const isLatestUnshipped = computed(() => {
+  const r = selectedRelease.value
+  return r && r.gaDate > todayStr
+})
+
+const actionableOnly = ref(false)
+
+// ─── AI categorization ──────────────────────────────────────────────────────
+
+const aiCategoryMap = computed(() => {
+  const map = {}
+  const aiData = selectedRelease.value?.aiCategorization?.exceptions || []
+  for (const entry of aiData) {
+    map[entry.fullName] = { category: entry.category, reasoning: entry.reasoning }
+  }
+  return map
+})
+
+const hasAiData = computed(() =>
+  Object.keys(aiCategoryMap.value).length > 0
+)
 
 // ─── Flat exception list (all, used by charts) ───────────────────────────────
 
@@ -458,6 +542,8 @@ const flatExceptions = computed(() => {
   if (!selectedRelease.value) return []
   const r = selectedRelease.value
   const gaMs = r.gaDate ? new Date(r.gaDate).getTime() : null
+  const isUpcoming = r.gaDate > todayStr
+  const aiMap = aiCategoryMap.value
   const result = []
 
   for (const policyFile of ['fbc', 'registry']) {
@@ -465,11 +551,17 @@ const flatExceptions = computed(() => {
     if (!exc) continue
 
     for (const v of exc.configExcludes || []) {
+      const aiInfo = aiMap[v] || null
       result.push({
         policyFile, type: 'permanent', value: v,
+        fullName: v,
         category: extractCategory(v),
         imageUrl: null, effectiveUntil: null,
-        reference: null, comment: null, daysAfterGa: null
+        reference: null, comment: null, daysAfterGa: null,
+        extensionJiraKey: null, extensionJiraUrl: null,
+        isActionable: false,
+        aiCategory: aiInfo?.category || null,
+        aiCategoryReasoning: aiInfo?.reasoning || null
       })
     }
 
@@ -478,15 +570,24 @@ const flatExceptions = computed(() => {
       if (gaMs && ex.effectiveUntil) {
         daysAfterGa = Math.round((new Date(ex.effectiveUntil).getTime() - gaMs) / 86400000)
       }
+      const fullName = ex.imageUrl ? `${ex.value}:${ex.imageUrl}` : ex.value
+      const isActionable = isUpcoming && daysAfterGa !== null && daysAfterGa <= ACTIONABLE_DAYS_THRESHOLD
+      const aiInfo = aiMap[fullName] || aiMap[ex.value] || null
       result.push({
         policyFile, type: 'volatile',
         value: ex.value,
+        fullName,
         category: extractCategory(ex.value),
         imageUrl: ex.imageUrl || null,
         effectiveUntil: ex.effectiveUntil || null,
         reference: ex.reference || null,
         comment: ex.comment || null,
-        daysAfterGa
+        daysAfterGa,
+        extensionJiraKey: ex.extensionJiraKey || null,
+        extensionJiraUrl: ex.extensionJiraUrl || null,
+        isActionable,
+        aiCategory: aiInfo?.category || null,
+        aiCategoryReasoning: aiInfo?.reasoning || null
       })
     }
   }
@@ -497,12 +598,17 @@ const volatileExceptions = computed(() =>
   flatExceptions.value.filter(e => e.type === 'volatile' && e.effectiveUntil)
 )
 
+const actionableCount = computed(() =>
+  flatExceptions.value.filter(e => e.isActionable).length
+)
+
 // ─── Table: search / filter / sort state ────────────────────────────────────
 
 const tableSearch = ref('')
 const tableFilterPolicy = ref('')
 const tableFilterType = ref('')
 const tableFilterCategory = ref('')
+const tableFilterAiCategory = ref('')
 const tableSortKey = ref('')
 const tableSortDir = ref('asc')
 
@@ -512,8 +618,10 @@ watch(selectedVersion, async () => {
   tableFilterPolicy.value = ''
   tableFilterType.value = ''
   tableFilterCategory.value = ''
+  tableFilterAiCategory.value = ''
   tableSortKey.value = ''
   tableSortDir.value = 'asc'
+  actionableOnly.value = false
   await nextTick()
   chartKey.value++
 })
@@ -522,7 +630,9 @@ const hasActiveFilters = computed(() =>
   tableSearch.value.trim() !== '' ||
   tableFilterPolicy.value !== '' ||
   tableFilterType.value !== '' ||
-  tableFilterCategory.value !== ''
+  tableFilterCategory.value !== '' ||
+  tableFilterAiCategory.value !== '' ||
+  actionableOnly.value
 )
 
 function clearTableFilters() {
@@ -530,6 +640,8 @@ function clearTableFilters() {
   tableFilterPolicy.value = ''
   tableFilterType.value = ''
   tableFilterCategory.value = ''
+  tableFilterAiCategory.value = ''
+  actionableOnly.value = false
 }
 
 function toggleSort(key) {
@@ -551,10 +663,14 @@ const filteredSortedExceptions = computed(() => {
   const needle = tableSearch.value.trim().toLowerCase()
   let rows = flatExceptions.value
 
+  // Actionable filter
+  if (actionableOnly.value) rows = rows.filter(e => e.isActionable)
+
   // Filters
   if (tableFilterPolicy.value) rows = rows.filter(e => e.policyFile === tableFilterPolicy.value)
   if (tableFilterType.value)   rows = rows.filter(e => e.type === tableFilterType.value)
   if (tableFilterCategory.value) rows = rows.filter(e => e.category === tableFilterCategory.value)
+  if (tableFilterAiCategory.value) rows = rows.filter(e => e.aiCategory === tableFilterAiCategory.value)
 
   if (needle) {
     rows = rows.filter(e =>
@@ -566,14 +682,16 @@ const filteredSortedExceptions = computed(() => {
     )
   }
 
-  // Sort
-  if (tableSortKey.value) {
+  // Sort — actionable mode auto-sorts by daysAfterGa ascending
+  if (actionableOnly.value && !tableSortKey.value) {
+    rows = [...rows].sort((a, b) => (a.daysAfterGa ?? 999) - (b.daysAfterGa ?? 999))
+  } else if (tableSortKey.value) {
     const dir = tableSortDir.value === 'asc' ? 1 : -1
     rows = [...rows].sort((a, b) => {
       const av = a[tableSortKey.value]
       const bv = b[tableSortKey.value]
       if (av === null && bv === null) return 0
-      if (av === null) return dir        // nulls last for asc, first for desc
+      if (av === null) return dir
       if (bv === null) return -dir
       if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir
       return String(av).localeCompare(String(bv)) * dir
@@ -790,30 +908,91 @@ const scatterChartData = computed(() => {
   const gaMs = selectedRelease.value.gaDate ? new Date(selectedRelease.value.gaDate).getTime() : 0
   const catIndex = Object.fromEntries(KNOWN_CATEGORIES.map((c, i) => [c, i]))
 
-  const green = [], orange = [], red = []
-  for (const ex of volatileExceptions.value) {
+  const sourceExceptions = actionableOnly.value
+    ? volatileExceptions.value.filter(e => e.isActionable)
+    : volatileExceptions.value
+
+  const green = [], orange = [], red = [], actionable = []
+  for (const ex of sourceExceptions) {
     const expMs = new Date(ex.effectiveUntil).getTime()
     const daysAfter = (expMs - gaMs) / 86400000
     const y = catIndex[ex.category] ?? catIndex['other'] ?? 0
-    const point = { x: expMs, y, label: ex.value, ref: ex.reference }
+    const point = {
+      x: expMs, y, label: ex.value, ref: ex.reference,
+      extensionJiraKey: ex.extensionJiraKey,
+      extensionJiraUrl: ex.extensionJiraUrl,
+      isActionable: ex.isActionable,
+      daysAfterGa: ex.daysAfterGa
+    }
+    if (ex.isActionable) actionable.push(point)
     if (daysAfter < 0) red.push(point)
     else if (daysAfter <= 60) orange.push(point)
     else green.push(point)
   }
 
-  return {
-    datasets: [
-      { label: '>60d after GA', data: green, backgroundColor: 'rgba(16,185,129,0.85)', pointRadius: 7 },
-      { label: '0–60d after GA', data: orange, backgroundColor: 'rgba(245,158,11,0.85)', pointRadius: 7 },
-      { label: 'Before GA', data: red, backgroundColor: 'rgba(239,68,68,0.85)', pointRadius: 7 }
-    ]
+  const datasets = [
+    { label: '>60d after GA', data: green, backgroundColor: 'rgba(16,185,129,0.85)', pointRadius: 7 },
+    { label: '0-60d after GA', data: orange, backgroundColor: 'rgba(245,158,11,0.85)', pointRadius: 7 },
+    { label: 'Before GA', data: red, backgroundColor: 'rgba(239,68,68,0.85)', pointRadius: 7 }
+  ]
+  if (actionable.length) {
+    datasets.push({
+      label: 'Actionable',
+      data: actionable,
+      backgroundColor: 'rgba(239,68,68,0.95)',
+      borderColor: 'rgb(239,68,68)',
+      borderWidth: 2,
+      pointRadius: 10,
+      pointStyle: 'rectRounded'
+    })
   }
+  return { datasets }
 })
 
+function onScatterClick(_event, elements) {
+  if (!elements.length) return
+  const el = elements[0]
+  const ds = scatterChartData.value.datasets[el.datasetIndex]
+  if (!ds) return
+  const point = ds.data[el.index]
+  if (!point) return
+  if (point.extensionJiraUrl) {
+    window.open(point.extensionJiraUrl, '_blank', 'noopener')
+  } else if (point.isActionable) {
+    window.open(EXTENSION_JIRA_TEMPLATE_URL, '_blank', 'noopener')
+  }
+}
+
 const scatterChartOptions = computed(() => {
+  const actionablePoints = actionableOnly.value
+    ? volatileExceptions.value.filter(e => e.isActionable)
+    : null
+
+  const xScale = {
+    type: 'linear',
+    grid: { color: 'rgba(156,163,175,0.15)' },
+    ticks: {
+      callback: (v) => {
+        const d = new Date(v)
+        return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+      },
+      maxTicksLimit: 8
+    }
+  }
+
+  if (actionablePoints && actionablePoints.length) {
+    const times = actionablePoints.map(e => new Date(e.effectiveUntil).getTime())
+    const gaMs = selectedRelease.value?.gaDate ? new Date(selectedRelease.value.gaDate).getTime() : 0
+    const minT = Math.min(...times, gaMs) - 86400000 * 3
+    const maxT = Math.max(...times) + 86400000 * 7
+    xScale.min = minT
+    xScale.max = maxT
+  }
+
   return {
     responsive: true,
     maintainAspectRatio: false,
+    onClick: onScatterClick,
     plugins: {
       legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 10 } } },
       tooltip: {
@@ -822,23 +1001,22 @@ const scatterChartOptions = computed(() => {
           label: ctx => {
             const p = ctx.raw
             const date = new Date(p.x).toISOString().slice(0, 10)
-            return [`${p.label}`, `Expires: ${date}`]
+            const lines = [`${p.label}`, `Expires: ${date}`]
+            if (p.daysAfterGa !== null && p.daysAfterGa !== undefined) {
+              lines.push(`Days after GA: ${p.daysAfterGa}`)
+            }
+            if (p.isActionable) {
+              lines.push(p.extensionJiraKey
+                ? `Jira: ${p.extensionJiraKey} (click to open)`
+                : 'Click to create extension Jira')
+            }
+            return lines
           }
         }
       }
     },
     scales: {
-      x: {
-        type: 'linear',
-        grid: { color: 'rgba(156,163,175,0.15)' },
-        ticks: {
-          callback: (v) => {
-            const d = new Date(v)
-            return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-          },
-          maxTicksLimit: 8
-        }
-      },
+      x: xScale,
       y: {
         ticks: { callback: (v) => KNOWN_CATEGORIES[v] || v, stepSize: 1 },
         min: -0.5,
