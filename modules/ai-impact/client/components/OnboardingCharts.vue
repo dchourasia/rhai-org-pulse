@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useModuleLink } from '@shared/client/composables/useModuleLink'
 import { Doughnut, Bar, Line } from 'vue-chartjs'
 import {
   Chart as ChartJS,
@@ -27,6 +28,31 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['toggle'])
+
+const { navigateTo: navigateToModule } = useModuleLink()
+const featureChartRef = ref(null)
+
+function navigateToFeature(key) {
+  if (key) navigateToModule('feature-traffic', 'feature-detail', { key })
+}
+
+function handleFeatureChartClick(event) {
+  const chart = featureChartRef.value?.chart
+  if (!chart) return
+  const yScale = chart.scales.y
+  const rect = chart.canvas.getBoundingClientRect()
+  const x = event.clientX - rect.left
+  const y = event.clientY - rect.top
+  if (x >= yScale.right) return
+  const labels = featureChartData.value.labels
+  for (let i = 0; i < labels.length; i++) {
+    const tickY = yScale.getPixelForTick(i)
+    if (Math.abs(y - tickY) < 12) {
+      navigateToFeature(labels[i])
+      return
+    }
+  }
+}
 
 const isDark = ref(false)
 onMounted(() => {
@@ -185,6 +211,15 @@ const featureChartOptions = computed(() => ({
   indexAxis: 'y',
   responsive: true,
   maintainAspectRatio: false,
+  onClick(event, elements) {
+    if (!elements.length) return
+    const index = elements[0].index
+    const key = featureChartData.value.labels[index]
+    navigateToFeature(key)
+  },
+  onHover(event, elements) {
+    event.native.target.style.cursor = elements.length ? 'pointer' : 'default'
+  },
   plugins: {
     legend: { position: 'bottom', labels: { color: textColor.value, font: { size: 11 }, padding: 10 } },
     tooltip: {
@@ -207,7 +242,7 @@ const featureChartOptions = computed(() => ({
     },
     y: {
       stacked: true,
-      ticks: { color: textColor.value, font: { size: 11 } },
+      ticks: { color: '#3b82f6', font: { size: 11 } },
       grid: { color: gridColor.value }
     }
   }
@@ -337,7 +372,7 @@ const durationChartOptions = computed(() => ({
           <h3 class="text-sm font-medium dark:text-gray-300 mb-1">Components by Feature</h3>
           <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">Top {{ TOP_FEATURE_LIMIT }} features by most recent onboarding activity</p>
           <div v-if="hasFeatureData" class="h-[220px]">
-            <Bar :data="featureChartData" :options="featureChartOptions" />
+            <Bar ref="featureChartRef" :data="featureChartData" :options="featureChartOptions" @click="handleFeatureChartClick" />
           </div>
           <div v-else class="h-[220px] flex items-center justify-center text-xs text-gray-400 dark:text-gray-500">
             No feature links found
