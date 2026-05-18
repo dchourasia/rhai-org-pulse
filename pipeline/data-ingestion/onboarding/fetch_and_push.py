@@ -13,8 +13,8 @@ from jira_client import JiraClient
 
 JIRA_BASE_URL = "https://redhat.atlassian.net"
 
-# Only RHOAIENG; filter by label only (no ScriptRunner issueFunction dependency).
-JQL = 'project = RHOAIENG AND labels = "component-onboarding" ORDER BY created DESC'
+JQL_AUTOMATED = 'project = RHOAIENG AND labels = "component-onboarding" ORDER BY created DESC'
+JQL_MANUAL    = 'project = RHOAIENG AND labels = "devops-onboarding" ORDER BY created DESC'
 
 # changelog expand is needed to extract validationDate.
 JIRA_FIELDS = [
@@ -145,6 +145,15 @@ def derive_component_name(issue: dict, yaml_data: dict) -> str:
     return ""
 
 
+def derive_onboarding_method(labels: list[str]) -> str:
+    """Determine if the onboarding was automated or manual based on labels.
+    If the issue has the component-onboarding label, it used AI skills (automated).
+    If it only has devops-onboarding, it was done manually."""
+    if "component-onboarding" in labels:
+        return "automated"
+    return "manual"
+
+
 def build_component(
     issue: dict,
     yaml_data: dict,
@@ -152,6 +161,7 @@ def build_component(
     feature_titles: dict[str, str],
     validation_date: str | None,
     synced_at: str,
+    first_comment_date: str | None = None,
 ) -> dict:
     fields      = issue.get("fields", {})
     status_name = fields.get("status", {}).get("name", "Unknown")
@@ -178,11 +188,13 @@ def build_component(
         "syncedAt":         synced_at,
         "labels":           labels,
         "onboardingSteps":  onboarding_steps,
+        "onboardingMethod": derive_onboarding_method(labels),
         "linkedFeatures":   linked_features,
         "featureTitles":    feature_titles,
         "created":          fields.get("created"),
         "resolved":         fields.get("resolutiondate"),
         "validationDate":   validation_date,
+        "firstCommentDate": first_comment_date,
     }
 
     # Optional YAML fields
@@ -216,7 +228,7 @@ def push_to_api(backend_url: str, token: str, components: list[dict]) -> dict:
         "Accept": "application/json",
     }
     base   = backend_url.rstrip("/")
-    totals = {"created": 0, "updated": 0, "unchanged": 0, "errors": 0}
+    totals = {"created": 0, "updated": 0, "unchanged": 0, "errors": []}
 
     for i in range(0, len(components), CHUNK_SIZE):
         chunk = components[i : i + CHUNK_SIZE]
@@ -228,8 +240,9 @@ def push_to_api(backend_url: str, token: str, components: list[dict]) -> dict:
         )
         resp.raise_for_status()
         result = resp.json()
-        for key in totals:
+        for key in ("created", "updated", "unchanged"):
             totals[key] += result.get(key, 0)
+        totals["errors"].extend(result.get("errors", []))
         print(f"  Chunk {i // CHUNK_SIZE + 1}: {result}")
 
     return totals
@@ -247,8 +260,8 @@ def clear_existing(backend_url: str, token: str) -> None:
 
 
 def main() -> None:
-    jira_email  = env("JIRA_EMAIL")
-    jira_token  = env("JIRA_TOKEN")
+    jira_email  = env("JIRA_USER_EMAIL")
+    jira_token  = env("JIRA_API_TOKEN")
     backend_url = env("ORG_PULSE_BACKEND_URL")
     api_token   = env("ORG_PULSE_API_TOKEN")
 
@@ -256,13 +269,22 @@ def main() -> None:
 
     print("=== Component Onboarding Sync ===")
     print(f"Synced at : {synced_at}")
-    print(f"JQL       : {JQL}\n")
+    print(f"JQL (auto): {JQL_AUTOMATED}")
+    print(f"JQL (man) : {JQL_MANUAL}\n")
 
     jira = JiraClient(JIRA_BASE_URL, jira_email, jira_token)
 
     print("[1/4] Fetching issues from Jira (with changelog)…")
-    issues = jira.search_jql(JQL, JIRA_FIELDS, expand=JIRA_EXPAND)
-    print(f"  Found {len(issues)} issues")
+    auto_issues = jira.search_jql(JQL_AUTOMATED, JIRA_FIELDS, expand=JIRA_EXPAND)
+    print(f"  Found {len(auto_issues)} automated issues")
+
+    manual_issues = jira.search_jql(JQL_MANUAL, JIRA_FIELDS, expand=JIRA_EXPAND)
+    print(f"  Found {len(manual_issues)} manual issues")
+
+    seen_keys = {issue["key"] for issue in auto_issues}
+    merged_manual = [i for i in manual_issues if i["key"] not in seen_keys]
+    issues = auto_issues + merged_manual
+    print(f"  Merged total: {len(issues)} issues ({len(merged_manual)} manual-only added)")
 
     print("\n[2/4] Processing issues…")
     components = []
@@ -286,12 +308,19 @@ def main() -> None:
         linked_features, feature_titles = jira.get_linked_feature_keys(issue)
         validation_date  = jira.extract_validation_date(issue)
 
-        component = build_component(issue, yaml_data, linked_features, feature_titles, validation_date, synced_at)
+        issue_labels = [lb for lb in (issue.get("fields", {}).get("labels") or []) if isinstance(lb, str)]
+        onboarding_method = derive_onboarding_method(issue_labels)
+
+        first_comment_date = None
+        if onboarding_method == "manual":
+            first_comment_date = jira.get_first_comment_date(key)
+
+        component = build_component(issue, yaml_data, linked_features, feature_titles, validation_date, synced_at, first_comment_date)
         components.append(component)
 
         status_tag = f"{component['completionStatus']} / {component['productContext']}"
         vd_tag     = f"validated {validation_date[:10]}" if validation_date else "no validation date"
-        print(f" — {status_tag} — {vd_tag}")
+        print(f" — {status_tag} — {vd_tag} — {onboarding_method}")
 
     print(f"\n  Built {len(components)} component records")
 

@@ -306,6 +306,71 @@ def parse_policy_yaml(raw_text: str) -> dict:
     return {"configExcludes": config_excludes, "volatileExcludes": volatile_excludes}
 
 
+# ─── Jira extension detection ──────────────────────────────────────────────
+
+EXTENSION_TEMPLATE_KEY = "RHOAIENG-62569"
+
+def full_exception_name(exclude: dict) -> str:
+    value = exclude.get("value", "")
+    image = exclude.get("imageUrl") or ""
+    return f"{value}:{image}" if image else value
+
+
+def detect_extension_jira_issues(release: dict, jira_base_url: str, jira_email: str, jira_token: str) -> None:
+    """Find Jira issues cloned from EXTENSION_TEMPLATE_KEY that match volatile exceptions.
+
+    Matches by label 'Exception: <full-exception-name>'. Updates volatile excludes
+    in-place with extensionJiraKey and extensionJiraUrl.
+    """
+    all_volatiles = []
+    for pf in ["fbc", "registry"]:
+        for ex in (release.get("exceptions", {}).get(pf, {}).get("volatileExcludes") or []):
+            all_volatiles.append(ex)
+
+    if not all_volatiles:
+        print("    No volatile exceptions to check")
+        return
+
+    name_to_excludes: dict[str, list[dict]] = {}
+    for ex in all_volatiles:
+        name = full_exception_name(ex)
+        name_to_excludes.setdefault(name, []).append(ex)
+
+    jql = (
+        f'project = RHOAIENG AND issue in linkedIssues("{EXTENSION_TEMPLATE_KEY}", "is cloned by") '
+        f'AND status not in ("Closed", "Done", "Resolved")'
+    )
+    auth = (jira_email, jira_token)
+    url = f"{jira_base_url.rstrip('/')}/rest/api/3/search"
+    params = {"jql": jql, "fields": "key,labels", "maxResults": 200}
+
+    try:
+        resp = requests.get(url, params=params, auth=auth, timeout=TIMEOUT)
+        resp.raise_for_status()
+    except Exception as exc:
+        print(f"    WARN: Jira extension detection failed: {exc}")
+        return
+
+    issues = resp.json().get("issues", [])
+    print(f"    Found {len(issues)} open extension Jira issues")
+
+    matched = 0
+    for issue in issues:
+        key = issue["key"]
+        labels = issue.get("fields", {}).get("labels", [])
+        for label in labels:
+            if not label.startswith("Exception: "):
+                continue
+            exc_name = label[len("Exception: "):]
+            if exc_name in name_to_excludes:
+                for ex in name_to_excludes[exc_name]:
+                    ex["extensionJiraKey"] = key
+                    ex["extensionJiraUrl"] = f"{jira_base_url.rstrip('/')}/browse/{key}"
+                    matched += 1
+
+    print(f"    Matched {matched} volatile exception(s) to existing Jira issues")
+
+
 # ─── API calls ───────────────────────────────────────────────────────────────
 
 def api_headers(token: str) -> dict:
@@ -341,13 +406,17 @@ def main() -> None:
     gitlab_token  = env("GITLAB_TOKEN")
     min_date      = env("MIN_DATE", required=False) or "2024-01-01"
 
+    jira_base_url = env("JIRA_BASE_URL", required=False) or "https://redhat.atlassian.net"
+    jira_email    = env("JIRA_EMAIL", required=False)
+    jira_token    = env("JIRA_API_TOKEN", required=False)
+
     print("=== Conforma Exceptions Sync ===")
     print(f"Backend  : {backend_url}")
     print(f"Min date : {min_date}")
     print()
 
     # Step 1: Fetch smartsheet release schedule
-    print("[1/4] Fetching release schedule from Smartsheet…")
+    print("[1/5] Fetching release schedule from Smartsheet…")
     rows = fetch_smartsheet_rows(smartsheet_tk)
     print(f"  Fetched {len(rows)} rows total")
 
@@ -361,7 +430,7 @@ def main() -> None:
         return
 
     # Step 2: For each release, fetch GitLab snapshot and parse exceptions
-    print("\n[2/4] Fetching GitLab policy snapshots…")
+    print("\n[2/5] Fetching GitLab policy snapshots…")
     releases = []
 
     for meta in releases_meta:
@@ -411,12 +480,25 @@ def main() -> None:
             }
         })
 
-    # Step 3: Clear existing data
-    print(f"\n[3/4] Clearing existing data…")
+    # Step 3: Detect Jira extension issues for latest unshipped release
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    unshipped = [r for r in releases if r["gaDate"] > today_str]
+
+    if unshipped and jira_email and jira_token:
+        latest = unshipped[0]
+        print(f"\n[3/5] Detecting Jira extension issues for {latest['version']}…")
+        detect_extension_jira_issues(latest, jira_base_url, jira_email, jira_token)
+    elif unshipped and (not jira_email or not jira_token):
+        print("\n[3/5] Skipping Jira extension detection (JIRA_EMAIL / JIRA_API_TOKEN not set)")
+    else:
+        print("\n[3/5] Skipping Jira extension detection (no unshipped releases)")
+
+    # Step 4: Clear existing data
+    print(f"\n[4/5] Clearing existing data…")
     clear_existing(backend_url, api_token)
 
-    # Step 4: Push all releases
-    print(f"\n[4/4] Pushing {len(releases)} releases to API…")
+    # Step 5: Push all releases
+    print(f"\n[5/5] Pushing {len(releases)} releases to API…")
     result = push_bulk(backend_url, api_token, releases, min_date)
 
     print("\n=== Summary ===")
