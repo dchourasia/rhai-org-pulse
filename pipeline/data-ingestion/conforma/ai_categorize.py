@@ -13,8 +13,11 @@ Categories:
 
 import json
 import os
+import re
 import subprocess
 import sys
+import tempfile
+import time
 from datetime import datetime, timezone
 
 import requests
@@ -45,12 +48,16 @@ def fetch_releases(backend_url: str, token: str) -> list[dict]:
     return resp.json().get("releases", [])
 
 
-def find_latest_unshipped(releases: list[dict]) -> dict | None:
+def find_next_upcoming(releases: list[dict]) -> dict | None:
+    """Return the nearest upcoming release (earliest GA date after today).
+
+    Matches the frontend logic which auto-selects the closest upcoming release.
+    """
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    for r in sorted(releases, key=lambda x: x.get("gaDate", ""), reverse=True):
-        if r.get("gaDate", "") > today:
-            return r
-    return None
+    upcoming = [r for r in releases if r.get("gaDate", "") > today]
+    if not upcoming:
+        return None
+    return min(upcoming, key=lambda x: x.get("gaDate", ""))
 
 
 def collect_exceptions(release: dict) -> list[dict]:
@@ -139,68 +146,262 @@ Return ONLY valid JSON with this exact structure — no markdown, no explanation
 Include ALL {len(exceptions)} exceptions from the input. Do not skip any."""
 
 
-def run_claude(prompt: str) -> dict:
-    """Run claude CLI and parse JSON output."""
+def check_claude_env() -> None:
+    """Print diagnostic info about Claude CLI environment."""
+    print("  Claude CLI diagnostics:")
+    for var in (
+        "CLAUDE_CODE_USE_VERTEX", "ANTHROPIC_VERTEX_PROJECT_ID",
+        "CLOUD_ML_REGION", "GOOGLE_APPLICATION_CREDENTIALS",
+        "ANTHROPIC_API_KEY",
+    ):
+        val = os.environ.get(var, "")
+        if var == "ANTHROPIC_API_KEY" and val:
+            print(f"    {var} = {'*' * 8}...{val[-4:]}")
+        elif val:
+            print(f"    {var} = {val}")
+        else:
+            print(f"    {var} = (not set)")
+
+    creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
+    if creds_path:
+        print(f"    Credentials file exists: {os.path.exists(creds_path)}")
+
+    import shutil
+    claude_path = shutil.which("claude")
+    print(f"    claude binary: {claude_path or '(not in PATH)'}")
+
+
+def check_claude_health() -> None:
+    """Quick health check — verify Claude CLI can start and authenticate."""
+    print("  Running health check (echo 'say ok' | claude --max-turns 1)...")
     try:
         result = subprocess.run(
-            [
-                "claude",
-                "-p", prompt,
-                "--model", "claude-sonnet-4-6",
-                "--output-format", "json",
-                "--max-turns", "1",
-            ],
+            ["bash", "-c",
+             "echo 'Respond with exactly: ok' | claude"
+             " --model claude-sonnet-4-6"
+             " --output-format stream-json"
+             " --verbose"
+             " --max-turns 1"
+             " --dangerously-skip-permissions"],
             capture_output=True,
             text=True,
-            timeout=300,
+            timeout=60,
         )
-    except FileNotFoundError:
-        print("ERROR: 'claude' CLI not found. Is it installed?", file=sys.stderr)
-        sys.exit(1)
+        print(f"    Exit code: {result.returncode}")
+        if result.stderr:
+            print(f"    stderr (first 300 chars): {result.stderr[:300]}")
+        if result.stdout:
+            print(f"    stdout (first 300 chars): {result.stdout[:300]}")
+        if result.returncode != 0:
+            print("  ERROR: Health check failed — Claude CLI cannot authenticate or run.", file=sys.stderr)
+            sys.exit(1)
+        print("  Health check passed.")
     except subprocess.TimeoutExpired:
-        print("ERROR: Claude CLI timed out after 300s", file=sys.stderr)
+        print("  ERROR: Health check timed out after 60s — Claude CLI is hanging.", file=sys.stderr)
+        print("    This usually means Vertex AI authentication is not configured correctly.", file=sys.stderr)
+        sys.exit(1)
+    except FileNotFoundError:
+        print("  ERROR: 'claude' CLI not found in PATH.", file=sys.stderr)
         sys.exit(1)
 
-    if result.returncode != 0:
-        print(f"ERROR: Claude CLI exited with code {result.returncode}", file=sys.stderr)
-        print(f"  stderr: {result.stderr[:500]}", file=sys.stderr)
-        sys.exit(1)
 
-    raw = result.stdout.strip()
+def _stream_event(event: dict) -> None:
+    """Pretty-print a single stream-json event (mirrors stream-claude-output.py)."""
+    etype = event.get("type", "")
+
+    if etype == "assistant":
+        for block in event.get("message", {}).get("content", []):
+            bt = block.get("type")
+            if bt == "text":
+                print(f"    {block['text']}", flush=True)
+            elif bt == "tool_use":
+                name = block.get("name", "")
+                inp = block.get("input", {})
+                if name in ("Bash", "Shell"):
+                    print(f"    > [{name}] {inp.get('command', '')}", flush=True)
+                elif name in ("Edit", "Write", "Read", "StrReplace"):
+                    print(f"    > [{name}] {inp.get('file_path', '')}", flush=True)
+                else:
+                    print(f"    > [{name}]", flush=True)
+
+    elif etype == "result":
+        cost = event.get("cost_usd")
+        dur = event.get("duration_ms")
+        if cost is not None:
+            print(f"    Cost: ${cost:.4f}", flush=True)
+        if dur is not None:
+            print(f"    Duration: {dur / 1000:.1f}s", flush=True)
+
+
+def run_claude(prompt: str) -> dict:
+    """Run claude CLI with streaming output, mirroring run-claude.sh.
+
+    Writes prompt to a temp file, pipes it via stdin, uses stream-json
+    output format for real-time CI log visibility, then extracts the
+    final result JSON.
+    """
+    prompt_path = None
+    result_path = None
     try:
-        outer = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        print(f"ERROR: Could not parse Claude CLI output as JSON: {exc}", file=sys.stderr)
-        print(f"  Raw output (first 500 chars): {raw[:500]}", file=sys.stderr)
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", prefix="claude-prompt-", delete=False
+        ) as pf:
+            pf.write(prompt)
+            prompt_path = pf.name
+
+        result_fd, result_path = tempfile.mkstemp(
+            suffix=".jsonl", prefix="claude-result-"
+        )
+        os.close(result_fd)
+
+        print(f"  Prompt written to {prompt_path}")
+        print(f"  Result log: {result_path}")
+
+        # Launch Claude in background, writing stream-json to result file.
+        # Mirrors run-claude.sh: claude writes to file, tail -f streams to parser.
+        cmd = (
+            f'cat "{prompt_path}" | claude'
+            f" --model claude-sonnet-4-6"
+            f" --output-format stream-json"
+            f" --max-turns 1"
+            f" --verbose"
+            f" --dangerously-skip-permissions"
+            f' >> "{result_path}" 2>&1'
+        )
+
+        proc = subprocess.Popen(
+            ["bash", "-c", cmd],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+        # Stream and pretty-print events as they arrive (like tail -f | parser).
+        # Accumulate assistant text blocks — the result event may not contain
+        # the full response for large outputs.
+        last_size = 0
+        assistant_texts: list[str] = []
+        result_event = None
+        deadline = time.monotonic() + 600
+
+        def process_event(event: dict) -> None:
+            nonlocal result_event
+            _stream_event(event)
+            etype = event.get("type", "")
+            if etype == "assistant":
+                for block in event.get("message", {}).get("content", []):
+                    if block.get("type") == "text":
+                        assistant_texts.append(block["text"])
+            elif etype == "result":
+                result_event = event
+
+        def read_new_events(rf_path: str, from_pos: int) -> int:
+            try:
+                with open(rf_path, "r") as rf:
+                    rf.seek(from_pos)
+                    new_data = rf.read()
+                    if new_data:
+                        from_pos += len(new_data)
+                        for line in new_data.splitlines():
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                process_event(json.loads(line))
+                            except json.JSONDecodeError:
+                                pass
+            except FileNotFoundError:
+                pass
+            return from_pos
+
+        while proc.poll() is None:
+            if time.monotonic() > deadline:
+                proc.kill()
+                proc.wait()
+                print("ERROR: Claude CLI timed out after 600s", file=sys.stderr)
+                try:
+                    with open(result_path, "r") as rf:
+                        print(f"  Partial output:\n{rf.read()[:2000]}", file=sys.stderr)
+                except FileNotFoundError:
+                    pass
+                sys.exit(1)
+            time.sleep(0.5)
+            last_size = read_new_events(result_path, last_size)
+
+        # Read any remaining output after process exits
+        read_new_events(result_path, last_size)
+
+        rc = proc.returncode
+        if rc != 0:
+            print(f"ERROR: Claude CLI exited with code {rc}", file=sys.stderr)
+            try:
+                with open(result_path, "r") as rf:
+                    print(f"  Full output:\n{rf.read()[:2000]}", file=sys.stderr)
+            except FileNotFoundError:
+                pass
+            sys.exit(1)
+
+    finally:
+        if prompt_path and os.path.exists(prompt_path):
+            os.unlink(prompt_path)
+        if result_path and os.path.exists(result_path):
+            os.unlink(result_path)
+
+    # Build the full response text: prefer accumulated assistant text blocks,
+    # fall back to the result event's result field.
+    if assistant_texts:
+        text = "".join(assistant_texts)
+    elif result_event:
+        result_body = result_event.get("result", "")
+        if isinstance(result_body, dict):
+            parts = []
+            for block in result_body.get("content", []):
+                if block.get("type") == "text":
+                    parts.append(block["text"])
+            text = "\n".join(parts)
+        else:
+            text = str(result_body)
+    else:
+        print("ERROR: No assistant response or result event found", file=sys.stderr)
         sys.exit(1)
 
-    text = outer.get("result", raw)
     text = text.strip()
     if text.startswith("```"):
         text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
 
+    # Strip control characters that Claude may inject into JSON string values
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)
+
     try:
         return json.loads(text)
     except json.JSONDecodeError as exc:
-        print(f"ERROR: Could not parse Claude response text as JSON: {exc}", file=sys.stderr)
-        print(f"  Response text (first 500 chars): {text[:500]}", file=sys.stderr)
+        print(f"ERROR: Could not parse Claude response as JSON: {exc}", file=sys.stderr)
+        print(f"  Response text (first 200 chars): {text[:200]}", file=sys.stderr)
+        print(f"  Response text (last 200 chars): {text[-200:]}", file=sys.stderr)
         sys.exit(1)
 
 
 def push_ai_categorization(
-    backend_url: str, token: str, release: dict, ai_data: dict
+    backend_url: str, token: str, all_releases: list[dict],
+    target_version: str, ai_data: dict
 ) -> None:
-    """Push the release back with aiCategorization attached."""
-    release["aiCategorization"] = {
-        "analyzedAt": datetime.now(timezone.utc).isoformat(),
-        "exceptions": ai_data.get("exceptions", []),
-    }
+    """Attach aiCategorization to the target release and push ALL releases back.
+
+    The /conforma/bulk endpoint does a full replace, so we must include every
+    release — not just the one we categorized.
+    """
+    for release in all_releases:
+        if release.get("version") == target_version:
+            release["aiCategorization"] = {
+                "analyzedAt": datetime.now(timezone.utc).isoformat(),
+                "exceptions": ai_data.get("exceptions", []),
+            }
+            break
 
     url = f"{backend_url.rstrip('/')}/api/modules/release-analysis/conforma/bulk"
-    payload = {"releases": [release], "minDate": "2020-01-01"}
-    resp = requests.post(url, headers=api_headers(token), json=payload, timeout=60)
+    payload = {"releases": all_releases}
+    resp = requests.post(url, headers=api_headers(token), json=payload, timeout=120)
     resp.raise_for_status()
-    print(f"  Pushed AI categorization (HTTP {resp.status_code})")
+    print(f"  Pushed {len(all_releases)} releases with AI categorization (HTTP {resp.status_code})")
 
 
 VALID_CATEGORIES = {"always_expected", "long_term_fix", "quick_fix", "already_fixed"}
@@ -241,7 +442,7 @@ def main() -> None:
     print(f"  Found {len(releases)} releases")
 
     print("\n[2/4] Finding latest unshipped release…")
-    release = find_latest_unshipped(releases)
+    release = find_next_upcoming(releases)
     if not release:
         print("  No unshipped release found. Nothing to categorize.")
         return
@@ -257,7 +458,10 @@ def main() -> None:
         return
 
     print(f"\n[3/4] Running AI categorization via Claude CLI…")
+    check_claude_env()
+    check_claude_health()
     prompt = build_prompt(exceptions, version)
+    print(f"  Prompt size: {len(prompt)} chars")
     ai_data = run_claude(prompt)
 
     warnings = validate_ai_response(ai_data, len(exceptions))
@@ -276,7 +480,7 @@ def main() -> None:
         print(f"    {cat}: {count}")
 
     print(f"\n[4/4] Pushing AI categorization to API…")
-    push_ai_categorization(backend_url, api_token, release, ai_data)
+    push_ai_categorization(backend_url, api_token, releases, version, ai_data)
 
     print("\n=== Done ===")
 

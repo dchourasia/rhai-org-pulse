@@ -44,12 +44,12 @@ variables:
 
   # --- Org-pulse data ingestion ---
   # ORG_PULSE_API_TOKEN, SMARTSHEET_TOKEN, GITLAB_TOKEN — set as masked CI/CD variables in project settings
-  ORG_PULSE_OVERRIDE_BACKEND_URL:
-    value: ""
-    description: "Org-pulse backend URL (override for testing)"
-  ORG_PULSE_OVERRIDE_API_TOKEN:
-    value: ""
-    description: "Org-pulse API token (override for testing)"
+  # ORG_PULSE_OVERRIDE_BACKEND_URL:
+  #   value: ""
+  #   description: "Org-pulse backend URL (override for testing)"
+  # ORG_PULSE_OVERRIDE_API_TOKEN:
+  #   value: ""
+  #   description: "Org-pulse API token (override for testing)"
   MIN_DATE: "2025-04-01"  # Only process releases with GA date on or after this date
 
   # --- Pipeline selection ---
@@ -127,9 +127,9 @@ component-onboarding-sync:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $PIPELINE_MODE != "onboarding" && $PIPELINE_MODE != "conforma-sync"'
     - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "component-onboarding-sync"'
     - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "data-ingestion"'
-  before_script:
-    - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
-    - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
+  # before_script:
+  #   - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
+  #   - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
   script:
     - pip install -r data-ingestion/onboarding/requirements.txt -q
     - python data-ingestion/onboarding/fetch_and_push.py
@@ -145,9 +145,9 @@ conforma-sync:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $PIPELINE_MODE != "onboarding" && $PIPELINE_MODE != "component-onboarding-sync"'
     - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "conforma-sync"'
     - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "data-ingestion"'
-  before_script:
-    - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
-    - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
+  # before_script:
+    # - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
+    # - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
     - apt-get update -qq && apt-get install -y -qq ca-certificates curl > /dev/null
     - curl -sL https://certs.corp.redhat.com/certs/2022-IT-Root-CA.pem -o /usr/local/share/ca-certificates/RH-IT-Root-CA.crt
     - curl -sL https://certs.corp.redhat.com/certs/2015-IT-Root-CA.pem -o /usr/local/share/ca-certificates/RH-IT-Root-CA-2015.crt
@@ -180,9 +180,9 @@ conforma-ai-categorize:
     ANTHROPIC_VERTEX_PROJECT_ID: "$GCP_PROJECT_ID"
     CLOUD_ML_REGION: "global"
     GOOGLE_APPLICATION_CREDENTIALS: "/tmp/gcp-key.json"
-  before_script:
-    - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
-    - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
+  # before_script:
+  #   - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
+  #   - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
     - bash scripts/setup-claude-ci.sh
   script:
     - pip install -r data-ingestion/conforma/requirements.txt -q
@@ -197,6 +197,4 @@ conforma-ai-categorize:
         export ORG_PULSE_API_TOKEN="'"$ORG_PULSE_API_TOKEN"'"
         python '"$CI_PROJECT_DIR"'/data-ingestion/conforma/ai_categorize.py
       '
-  retry:
-    max: 1
-    when: script_failure
+  allow_failure: true
