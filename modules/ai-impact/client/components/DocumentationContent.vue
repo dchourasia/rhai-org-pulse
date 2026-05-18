@@ -215,6 +215,24 @@ const cumulativeJqls = computed(() => ({
   stratsResolvedContributed: 'project = "RHAISTRAT" AND status IN ("Resolved", "Closed") AND labels = "ai1st-doc-contributed"'
 }))
 
+const MR_STATUS_ICONS = {
+  merged: {
+    title: 'Merged',
+    color: 'text-purple-600 dark:text-purple-400',
+    path: 'M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218ZM4.25 13.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm8.5-4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM5 3.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z'
+  },
+  opened: {
+    title: 'Open',
+    color: 'text-green-600 dark:text-green-400',
+    path: 'M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z'
+  },
+  closed: {
+    title: 'Closed',
+    color: 'text-red-500 dark:text-red-400',
+    path: 'M3.25 1A2.25 2.25 0 0 1 4 5.372v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 3.25 1Zm9.5 5.5a.75.75 0 0 1 .75.75v3.378a2.251 2.251 0 1 1-1.5 0V7.25a.75.75 0 0 1 .75-.75Zm-2.03-5.273a.75.75 0 0 1 1.06 0l2 2a.75.75 0 0 1-1.06 1.06L12 3.56l-.72.72a.75.75 0 1 1-1.06-1.06l2-2ZM3.25 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm9.5 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z'
+  }
+}
+
 function mrLabel(url) {
   if (!url) return ''
   const match = url.match(/merge_requests\/(\d+)/)
@@ -459,9 +477,12 @@ function mrLabel(url) {
                             :href="mr"
                             target="_blank"
                             rel="noopener"
-                            class="text-primary-600 dark:text-blue-400 text-xs hover:underline"
+                            class="text-primary-600 dark:text-blue-400 text-xs hover:underline inline-flex items-center gap-0.5"
                             :title="mr"
-                          >{{ mrLabel(mr) }}</a><span v-if="idx < issue.mrLinks.length - 1" class="text-gray-300 dark:text-gray-600 mx-1">·</span>
+                          >
+                            <svg v-if="MR_STATUS_ICONS[issue.mrStatuses?.[mr]]" :class="['w-3 h-3 shrink-0', MR_STATUS_ICONS[issue.mrStatuses[mr]].color]" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><title>{{ MR_STATUS_ICONS[issue.mrStatuses[mr]].title }}</title><path :d="MR_STATUS_ICONS[issue.mrStatuses[mr]].path" /></svg>
+                            {{ mrLabel(mr) }}
+                          </a><span v-if="idx < issue.mrLinks.length - 1" class="text-gray-300 dark:text-gray-600 mx-1">·</span>
                         </span>
                       </template>
                       <span v-else class="text-gray-400 dark:text-gray-500">&mdash;</span>
@@ -539,9 +560,12 @@ function mrLabel(url) {
                             :href="mr"
                             target="_blank"
                             rel="noopener"
-                            class="text-primary-600 dark:text-blue-400 text-xs hover:underline"
+                            class="text-primary-600 dark:text-blue-400 text-xs hover:underline inline-flex items-center gap-0.5"
                             :title="mr"
-                          >{{ mrLabel(mr) }}</a><span v-if="idx < issue.mrLinks.length - 1" class="text-gray-300 dark:text-gray-600 mx-1">·</span>
+                          >
+                            <svg v-if="MR_STATUS_ICONS[issue.mrStatuses?.[mr]]" :class="['w-3 h-3 shrink-0', MR_STATUS_ICONS[issue.mrStatuses[mr]].color]" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><title>{{ MR_STATUS_ICONS[issue.mrStatuses[mr]].title }}</title><path :d="MR_STATUS_ICONS[issue.mrStatuses[mr]].path" /></svg>
+                            {{ mrLabel(mr) }}
+                          </a><span v-if="idx < issue.mrLinks.length - 1" class="text-gray-300 dark:text-gray-600 mx-1">·</span>
                         </span>
                       </template>
                       <span v-else class="text-gray-400 dark:text-gray-500">&mdash;</span>

@@ -15,7 +15,8 @@
       "docSkippedDate": null,
       "docInvokedDate": "2026-05-02T09:00:00Z",
       "ccsEpic": { "key": "RHOAIENG-70001", "summary": "[CCS] Model serving autoscaling docs", "status": "In Progress" },
-      "mrLinks": ["https://gitlab.example.com/docs/openshift-ai/-/merge_requests/1001"]
+      "mrLinks": ["https://gitlab.example.com/docs/openshift-ai/-/merge_requests/1001"],
+      "mrStatuses": { "https://gitlab.example.com/docs/openshift-ai/-/merge_requests/1001": "merged" }
     },
     {
       "key": "RHAISTRAT-2002",
@@ -31,7 +32,8 @@
       "docSkippedDate": null,
       "docInvokedDate": "2026-05-04T14:00:00Z",
       "ccsEpic": { "key": "RHOAIENG-70002", "summary": "[DOCS RHAISTRAT-2002] Pipeline SDK v2 docs", "status": "Done" },
-      "mrLinks": ["https://gitlab.example.com/docs/openshift-ai/-/merge_requests/1002"]
+      "mrLinks": ["https://gitlab.example.com/docs/openshift-ai/-/merge_requests/1002"],
+      "mrStatuses": { "https://gitlab.example.com/docs/openshift-ai/-/merge_requests/1002": "merged" }
     },
     {
       "key": "RHAISTRAT-2003",
@@ -95,7 +97,8 @@
       "docSkippedDate": null,
       "docInvokedDate": null,
       "ccsEpic": { "key": "RHOAIENG-70006", "summary": "[DOCS RHAISTRAT-2006] vLLM serving runtime", "status": "In Progress" },
-      "mrLinks": ["https://gitlab.example.com/docs/openshift-ai/-/merge_requests/1006"]
+      "mrLinks": ["https://gitlab.example.com/docs/openshift-ai/-/merge_requests/1006"],
+      "mrStatuses": { "https://gitlab.example.com/docs/openshift-ai/-/merge_requests/1006": "opened" }
     },
     {
       "key": "RHAISTRAT-2007",
