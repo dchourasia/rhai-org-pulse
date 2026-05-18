@@ -13,6 +13,7 @@ module.exports = function registerRoutes(router, context) {
   const { computeAllMetrics } = require('./metrics');
   const { fetchAutofixData, computeAutofixMetrics, buildTrendData: buildAutofixTrend } = require('./jira/autofix-fetcher');
   const { fetchDocData, fetchDocActivityEvents, fetchDocCumulativeStats, fetchDocCompletedData, computeDocMetrics, buildDocTrendData } = require('./jira/doc-fetcher');
+  const { enrichMRStatuses } = require('./mr-status');
 
   // Assessment routes (Phase 1: Storage + Ingest API)
   const registerAssessmentRoutes = require('./assessments/routes');
@@ -238,6 +239,12 @@ module.exports = function registerRoutes(router, context) {
           cumulativeStats = await fetchDocCumulativeStats(jiraRequest, config);
         } catch (statsErr) {
           console.error('[ai-impact] Documentation cumulative stats fetch failed:', statsErr.message);
+        }
+        try {
+          await enrichMRStatuses(docResult.issues);
+          await enrichMRStatuses(completedIssues);
+        } catch (mrErr) {
+          console.error('[ai-impact] MR status enrichment failed:', mrErr.message);
         }
         writeToStorage('ai-impact/doc-data.json', {
           fetchedAt: new Date().toISOString(),
