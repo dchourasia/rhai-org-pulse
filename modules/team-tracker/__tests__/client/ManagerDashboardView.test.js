@@ -11,6 +11,7 @@ const mockDirectReports = ref([])
 const mockIndirectReports = ref([])
 const mockTeams = ref([])
 const mockAllOrgTeams = ref([])
+const mockAllPeople = ref([])
 const mockReferencedPeople = ref({})
 const mockFieldDefinitions = ref({ person: [], team: [] })
 const mockLoading = ref(false)
@@ -25,6 +26,7 @@ vi.mock('../../client/composables/useManagerDashboard', () => ({
     indirectReports: mockIndirectReports,
     teams: mockTeams,
     allOrgTeams: mockAllOrgTeams,
+    allPeople: mockAllPeople,
     referencedPeople: mockReferencedPeople,
     fieldDefinitions: mockFieldDefinitions,
     loading: mockLoading,
@@ -81,7 +83,8 @@ function mountView() {
         AlertTriangle: { template: '<span class="alert-triangle-icon" />' },
         CircleQuestionMark: { template: '<span />' },
         ConstrainedAutocomplete: { template: '<div />', props: ['modelValue', 'options', 'multiValue'] },
-        PersonAutocomplete: { template: '<div />', props: ['modelValue', 'people'] }
+        PersonAutocomplete: { template: '<div />', props: ['modelValue', 'people'] },
+        FieldEditCell: { template: '<div class="field-edit-cell" />', props: ['field', 'modelValue', 'allPeople', 'referencedPeople', 'showButtons', 'disabled'] }
       }
     }
   })
@@ -93,6 +96,7 @@ beforeEach(() => {
   mockIndirectReports.value = []
   mockTeams.value = []
   mockAllOrgTeams.value = []
+  mockAllPeople.value = []
   mockReferencedPeople.value = {}
   mockFieldDefinitions.value = { person: [], team: [] }
   mockLoading.value = false

@@ -242,6 +242,7 @@ All routes prefixed with `/api`. Authenticated via OAuth proxy in production.
 - `/api/modules/team-tracker/org-teams/:teamKey/members` — team members
 - `/api/modules/team-tracker/permissions/me` — permission tier + managed UIDs
 - `/api/modules/team-tracker/manager/dashboard` — manager dashboard data
+- `/api/modules/team-tracker/admin/field-completeness` — all people/teams with field data for data quality auditing (team-admin/admin)
 - `/api/modules/team-tracker/structure/teams` — list teams
 - `/api/modules/team-tracker/structure/unassigned` — unassigned people
 - `/api/modules/team-tracker/structure/field-definitions` — field definitions

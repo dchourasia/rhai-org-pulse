@@ -587,65 +587,26 @@ module.exports = function registerRoutes(router, context) {
     }
 
     const teamStore = require('../../../shared/server/team-store');
-    const fieldStore = require('../../../shared/server/field-store');
     const fieldOptionsStore = require('./field-options-store');
+    const { enrichPerson, resolveFieldDefinitions, buildReferencedPeopleMap, buildAllPeopleList } = require('./field-payload');
     const teamsData = teamStore.readTeams(storage);
-    const fieldDefs = fieldStore.readFieldDefinitions(storage);
-    const personFieldDefs = fieldDefs ? fieldDefs.personFields.filter(f => !f.deleted) : [];
-    const teamFieldDefs = fieldDefs ? fieldDefs.teamFields.filter(f => !f.deleted) : [];
-
-    // Resolve optionsRef fields (e.g. Component) so allowedValues are populated
-    for (const field of [...personFieldDefs, ...teamFieldDefs]) {
-      if (field.optionsRef && !field.allowedValues) {
-        const values = fieldOptionsStore.getValues(storage, field.optionsRef);
-        if (values) {
-          field.allowedValues = values;
-          field._resolvedFromOptions = true;
-        }
-      }
-    }
+    const optionsResolver = (ref) => fieldOptionsStore.getValues(storage, ref);
+    const { personFieldDefs, teamFieldDefs } = resolveFieldDefinitions(storage, optionsResolver);
 
     const includeIndirect = req.query?.includeIndirect === 'true';
     const purview = getManagerPurview(req.userUid, registry, teamsData, { includeIndirect });
 
     // Build enriched direct reports with customFields
-    const directReports = purview.directReportUids.map(uid => {
-      const person = registry.people[uid];
-      if (!person) return null;
-      const customFields = {};
-      for (const fieldDef of personFieldDefs) {
-        customFields[fieldDef.id] = person._appFields?.[fieldDef.id] || null;
-      }
-      return {
-        uid: person.uid,
-        name: person.name || null,
-        email: person.email || null,
-        title: person.title || null,
-        teamIds: person.teamIds || [],
-        customFields
-      };
-    }).filter(Boolean);
+    const directReports = purview.directReportUids
+      .map(uid => enrichPerson(registry.people[uid], personFieldDefs))
+      .filter(Boolean);
 
     // Build enriched indirect reports when requested
     let indirectReports;
     if (includeIndirect && purview.indirectReportUids) {
-      indirectReports = purview.indirectReportUids.map(uid => {
-        const person = registry.people[uid];
-        if (!person) return null;
-        const customFields = {};
-        for (const fieldDef of personFieldDefs) {
-          customFields[fieldDef.id] = person._appFields?.[fieldDef.id] || null;
-        }
-        return {
-          uid: person.uid,
-          name: person.name || null,
-          email: person.email || null,
-          title: person.title || null,
-          teamIds: person.teamIds || [],
-          managerUid: person.managerUid || null,
-          customFields
-        };
-      }).filter(Boolean);
+      indirectReports = purview.indirectReportUids
+        .map(uid => enrichPerson(registry.people[uid], personFieldDefs, { includeManagerUid: true }))
+        .filter(Boolean);
     }
 
     // Collect distinct orgRoot values from direct reports to determine available teams
@@ -666,30 +627,8 @@ module.exports = function registerRoutes(router, context) {
           .map(t => ({ id: t.id, name: t.name, orgKey: t.orgKey }))
       : [];
 
-    // Build a uid->name map for person-reference-linked values in team metadata
-    const referencedPeople = {};
-    const personRefTeamFields = teamFieldDefs.filter(f => f.type === 'person-reference-linked');
-    if (personRefTeamFields.length > 0) {
-      for (const team of purview.teams) {
-        for (const field of personRefTeamFields) {
-          const val = team.metadata[field.id];
-          const uids = Array.isArray(val) ? val : (val ? [val] : []);
-          for (const uid of uids) {
-            if (uid && !referencedPeople[uid]) {
-              const person = registry.people[uid];
-              referencedPeople[uid] = person?.name || uid;
-            }
-          }
-        }
-      }
-    }
-
-    // Build slim people list from full registry for person-reference autocomplete
-    const allPeople = [];
-    for (const [uid, person] of Object.entries(registry.people)) {
-      if (person.status !== 'active') continue;
-      allPeople.push({ uid, name: person.name || uid, title: person.title || '' });
-    }
+    const referencedPeople = buildReferencedPeopleMap(purview.teams, teamFieldDefs, registry.people);
+    const allPeople = buildAllPeopleList(registry.people);
 
     // Enrich teams with org display names
     const orgDisplayNames = getOrgDisplayNames();
@@ -715,6 +654,90 @@ module.exports = function registerRoutes(router, context) {
     };
     if (includeIndirect) response.indirectReports = indirectReports || [];
     res.json(response);
+  });
+
+  // ─── Admin: Field Completeness (Data Quality) ───
+
+  /**
+   * @openapi
+   * /api/modules/team-tracker/admin/field-completeness:
+   *   get:
+   *     tags: ['TT: Admin']
+   *     summary: Get all people and teams with field data for completeness auditing
+   *     responses:
+   *       200:
+   *         description: All people/teams with field definitions and values
+   *       403:
+   *         description: Not a team-admin or admin
+   */
+  router.get('/admin/field-completeness', requireScope('roster:read'), function(req, res) {
+    if (req.permissionTier !== 'admin' && req.permissionTier !== 'team-admin') {
+      return res.status(403).json({ error: 'Requires team-admin or admin role' });
+    }
+
+    const teamStoreLocal = require('../../../shared/server/team-store');
+    const fieldOptionsStoreLocal = require('./field-options-store');
+    const { enrichPerson, resolveFieldDefinitions: resolveFieldDefs, buildReferencedPeopleMap, buildAllPeopleList } = require('./field-payload');
+
+    const registry = readFromStorage('team-data/registry.json');
+    if (!registry || !registry.people) {
+      return res.json({
+        people: [],
+        teams: [],
+        allPeople: [],
+        referencedPeople: {},
+        fieldDefinitions: { person: [], team: [] },
+        orgKeys: []
+      });
+    }
+
+    const teamsData = teamStoreLocal.readTeams(storage);
+    const localOptionsResolver = (ref) => fieldOptionsStoreLocal.getValues(storage, ref);
+    const { personFieldDefs, teamFieldDefs } = resolveFieldDefs(storage, localOptionsResolver);
+
+    // Build enriched people list (active engineering people only — excludes auxiliary)
+    const people = Object.values(registry.people)
+      .filter(p => p.status === 'active' && p.orgType !== 'auxiliary')
+      .map(p => enrichPerson(p, personFieldDefs))
+      .filter(Boolean);
+
+    // Build teams list with metadata
+    const orgDisplayNames = getOrgDisplayNames();
+    const teams = teamsData && teamsData.teams
+      ? Object.values(teamsData.teams).map(t => ({
+          id: t.id,
+          name: t.name,
+          orgKey: t.orgKey,
+          orgDisplayName: orgDisplayNames[t.orgKey] || t.orgKey,
+          metadata: t.metadata || {},
+          boards: t.boards || []
+        }))
+      : [];
+
+    const referencedPeople = buildReferencedPeopleMap(teams, teamFieldDefs, registry.people);
+    const allPeople = buildAllPeopleList(registry.people);
+
+    // Build org keys list
+    const orgKeySet = new Set();
+    for (const team of teams) {
+      if (team.orgKey) orgKeySet.add(team.orgKey);
+    }
+    const orgKeys = [...orgKeySet].map(key => ({
+      key,
+      displayName: orgDisplayNames[key] || key
+    }));
+
+    res.json({
+      people,
+      teams,
+      allPeople,
+      referencedPeople,
+      fieldDefinitions: {
+        person: personFieldDefs,
+        team: teamFieldDefs
+      },
+      orgKeys
+    });
   });
 
   // ─── Routes: Team Structure Management ───
@@ -4080,13 +4103,19 @@ module.exports = function registerRoutes(router, context) {
       const subject = parts.join(' and ');
       const verb = (incompletePersonCount + incompleteTeamCount) === 1 ? 'has' : 'have';
 
+      // Link admins/team-admins to data quality tab; managers to their dashboard
+      const isAdminLike = user.permissionTier === 'admin' || user.permissionTier === 'team-admin';
+      const href = isAdminLike
+        ? '#/team-tracker/manage?tab=data-quality'
+        : '#/team-tracker/manager-dashboard';
+
       return [{
         id: 'team-tracker:field-completeness',
         type: 'warning',
         text: `${subject} ${verb} incomplete fields.`,
         link: {
           label: 'Review',
-          href: '#/team-tracker/manager-dashboard'
+          href
         }
       }];
     });

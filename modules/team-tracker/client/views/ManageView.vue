@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-5xl mx-auto px-4 py-6">
+  <div class="max-w-7xl mx-auto px-4 py-6">
     <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Manage Teams & Fields</h2>
 
     <div v-if="!hasAccess" class="text-center py-12 text-gray-500 dark:text-gray-400">
@@ -24,6 +24,7 @@
       <TeamManagement v-if="activeTab === 'teams'" />
       <FieldDefinitionManager v-if="activeTab === 'fields'" />
       <FieldOptionsManager v-if="activeTab === 'field-options'" />
+      <DataQualityTab v-if="activeTab === 'data-quality'" />
     </template>
   </div>
 </template>
@@ -34,6 +35,7 @@ import { usePermissions } from '@shared/client/composables/usePermissions'
 import TeamManagement from '../components/TeamManagement.vue'
 import FieldDefinitionManager from '../components/FieldDefinitionManager.vue'
 import FieldOptionsManager from '../components/FieldOptionsManager.vue'
+import DataQualityTab from '../components/DataQualityTab.vue'
 
 const { isAdmin, isTeamAdmin, loading } = usePermissions()
 const moduleNav = inject('moduleNav')
@@ -41,10 +43,23 @@ const moduleNav = inject('moduleNav')
 const tabs = [
   { id: 'teams', label: 'Teams' },
   { id: 'fields', label: 'Fields' },
-  { id: 'field-options', label: 'Field Options' }
+  { id: 'field-options', label: 'Field Options' },
+  { id: 'data-quality', label: 'Data Quality' }
 ]
 
-const activeTab = ref('teams')
+// Support deep-linking via ?tab=data-quality
+const tabIds = tabs.map(t => t.id)
+const initialTab = moduleNav?.params?.value?.tab
+const activeTab = ref(tabIds.includes(initialTab) ? initialTab : 'teams')
+
+// Sync active tab to URL so deep links work both ways
+watch(activeTab, (tab) => {
+  if (tab === 'teams') {
+    moduleNav?.updateParams({ tab: null }, { push: false })
+  } else {
+    moduleNav?.updateParams({ tab }, { push: false })
+  }
+})
 
 const hasAccess = computed(() => isAdmin.value || isTeamAdmin.value)
 
