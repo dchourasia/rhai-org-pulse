@@ -17,12 +17,23 @@ const BULK_CAP = 5000;
  * Static routes BEFORE parameterized routes.
  */
 module.exports = function registerComponentOnboardingRoutes(router, context) {
-  const { storage, requireAdmin } = context;
+  const { storage, requireAdmin, requireScope } = context;
   const { readFromStorage } = storage;
 
   // ─── Static routes first ───
 
-  router.get('/component-onboarding/status', requireAdmin, function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/ai-impact/component-onboarding/status:
+   *   get:
+   *     summary: Get component onboarding data status
+   *     tags: [AI Impact - Component Onboarding]
+   *     security: [{ bearerAuth: [] }]
+   *     responses:
+   *       200:
+   *         description: Component onboarding data status
+   */
+  router.get('/component-onboarding/status', requireAdmin, requireScope('ai-impact:read'), function(req, res) {
     const data = readComponentOnboarding(readFromStorage);
     res.json({
       fetchedAt: data.fetchedAt,
@@ -31,7 +42,18 @@ module.exports = function registerComponentOnboardingRoutes(router, context) {
     });
   });
 
-  router.post('/component-onboarding/bulk', requireAdmin, jsonLimit, function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/ai-impact/component-onboarding/bulk:
+   *   post:
+   *     summary: Bulk upsert component onboarding data
+   *     tags: [AI Impact - Component Onboarding]
+   *     security: [{ bearerAuth: [] }]
+   *     responses:
+   *       200:
+   *         description: Bulk upsert result
+   */
+  router.post('/component-onboarding/bulk', requireAdmin, requireScope('ai-impact:write'), jsonLimit, function(req, res) {
     if (DEMO_MODE) {
       return res.json({ status: 'skipped', message: 'Component onboarding ingest disabled in demo mode' });
     }
@@ -77,7 +99,18 @@ module.exports = function registerComponentOnboardingRoutes(router, context) {
     });
   });
 
-  router.delete('/component-onboarding', requireAdmin, function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/ai-impact/component-onboarding:
+   *   delete:
+   *     summary: Clear all component onboarding data
+   *     tags: [AI Impact - Component Onboarding]
+   *     security: [{ bearerAuth: [] }]
+   *     responses:
+   *       200:
+   *         description: Data cleared
+   */
+  router.delete('/component-onboarding', requireAdmin, requireScope('ai-impact:write'), function(req, res) {
     if (DEMO_MODE) {
       return res.json({ status: 'skipped', message: 'Component onboarding ingest disabled in demo mode' });
     }
@@ -85,14 +118,42 @@ module.exports = function registerComponentOnboardingRoutes(router, context) {
     res.json({ status: 'cleared' });
   });
 
-  router.get('/component-onboarding', function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/ai-impact/component-onboarding:
+   *   get:
+   *     summary: Get all component onboarding data
+   *     tags: [AI Impact - Component Onboarding]
+   *     responses:
+   *       200:
+   *         description: All component onboarding data with latest projections
+   */
+  router.get('/component-onboarding', requireScope('ai-impact:read'), function(req, res) {
     const data = readComponentOnboarding(readFromStorage);
     res.json(getLatestProjection(data));
   });
 
   // ─── Parameterized routes after ───
 
-  router.get('/component-onboarding/:key', function(req, res) {
+  /**
+   * @openapi
+   * /api/modules/ai-impact/component-onboarding/{key}:
+   *   get:
+   *     summary: Get single component onboarding detail
+   *     tags: [AI Impact - Component Onboarding]
+   *     parameters:
+   *       - in: path
+   *         name: key
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       200:
+   *         description: Component latest data and history
+   *       404:
+   *         description: Component not found
+   */
+  router.get('/component-onboarding/:key', requireScope('ai-impact:read'), function(req, res) {
     const data = readComponentOnboarding(readFromStorage);
     const entry = data.components[req.params.key];
     if (!entry) {

@@ -22,7 +22,7 @@ export function useComponentOnboarding() {
   async function loadDetail(key) {
     if (detailCache.value[key]) return
     try {
-      detailCache.value[key] = await apiRequest(`/modules/ai-impact/component-onboarding/${key}`)
+      detailCache.value[key] = await apiRequest(`/modules/ai-impact/component-onboarding/${encodeURIComponent(key)}`)
     } catch (e) {
       console.error(`[component-onboarding] Failed to load detail for ${key}:`, e.message)
     }
