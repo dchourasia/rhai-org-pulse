@@ -94,6 +94,7 @@ function getLatestProjection(data) {
       featureTitles: entry.latest.featureTitles || {},
       onboardingSteps: entry.latest.onboardingSteps,
       created: entry.latest.created,
+      resolution: entry.latest.resolution || null,
       resolved: entry.latest.resolved,
       validationDate: entry.latest.validationDate || null,
       onboardingMethod: entry.latest.onboardingMethod || 'automated',

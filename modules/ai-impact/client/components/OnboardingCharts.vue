@@ -301,6 +301,76 @@ const durationChartOptions = computed(() => ({
   }
 }))
 
+// ── Chart 6: Quarterly Throughput (grouped bar) ──
+const quarterlyKeys = computed(() => {
+  const map = {}
+  const completed = componentList.value.filter(c => c.completionStatus === 'completed' && c.resolved && c.resolution === 'Done')
+  for (const c of completed) {
+    const d = new Date(c.resolved)
+    const q = `Q${Math.ceil((d.getMonth() + 1) / 3)} ${d.getFullYear()}`
+    if (!map[q]) map[q] = { automated: [], manual: [] }
+    const method = (c.onboardingMethod || 'automated') === 'automated' ? 'automated' : 'manual'
+    map[q][method].push(c.key)
+  }
+  return map
+})
+
+const quarterlyChartData = computed(() => {
+  const keys = quarterlyKeys.value
+  const quarters = Object.keys(keys)
+  if (!quarters.length) return { labels: [], datasets: [] }
+
+  const sorted = quarters.sort((a, b) => {
+    const [qa, ya] = [parseInt(a[1]), parseInt(a.slice(3))]
+    const [qb, yb] = [parseInt(b[1]), parseInt(b.slice(3))]
+    return ya !== yb ? ya - yb : qa - qb
+  })
+
+  return {
+    labels: sorted,
+    datasets: [
+      { label: 'AI-Automated', data: sorted.map(q => keys[q].automated.length), backgroundColor: '#10b981', borderRadius: 4 },
+      { label: 'Manual', data: sorted.map(q => keys[q].manual.length), backgroundColor: '#f59e0b', borderRadius: 4 }
+    ]
+  }
+})
+
+function openQuarterlyJiraLink(datasetIndex, barIndex) {
+  const quarter = quarterlyChartData.value.labels[barIndex]
+  const method = datasetIndex === 0 ? 'automated' : 'manual'
+  const keys = quarterlyKeys.value[quarter]?.[method] || []
+  if (!keys.length) return
+  const jql = `key in (${keys.join(',')})`
+  window.open(`https://redhat.atlassian.net/issues/?jql=${encodeURIComponent(jql)}`, '_blank')
+}
+
+const quarterlyChartOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  onClick(event, elements) {
+    if (!elements.length) return
+    openQuarterlyJiraLink(elements[0].datasetIndex, elements[0].index)
+  },
+  onHover(event, elements) {
+    event.native.target.style.cursor = elements.length ? 'pointer' : 'default'
+  },
+  plugins: {
+    legend: { position: 'bottom', labels: { color: textColor.value, font: { size: 11 }, padding: 10 } },
+    tooltip: {
+      callbacks: {
+        afterBody(items) {
+          if (!items.length) return ''
+          return 'Click to view in Jira'
+        }
+      }
+    }
+  },
+  scales: {
+    x: { ticks: { color: textColor.value, font: { size: 10 } }, grid: { color: gridColor.value } },
+    y: { beginAtZero: true, ticks: { precision: 0, color: textColor.value, font: { size: 10 } }, grid: { color: gridColor.value }, title: { display: true, text: 'Components Onboarded', color: textColor.value } }
+  }
+}))
+
 </script>
 
 <template>
@@ -359,14 +429,6 @@ const durationChartOptions = computed(() => ({
       </div>
 
       <div class="flex flex-wrap gap-6" :class="{ 'mt-6': !hasManualData }">
-        <!-- Avg Duration Comparison -->
-        <div v-if="hasManualData" class="min-w-[240px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-          <h3 class="text-sm font-medium dark:text-gray-300 mb-3">Avg. Onboarding Duration</h3>
-          <div class="h-[140px]">
-            <Bar :data="durationChartData" :options="durationChartOptions" />
-          </div>
-        </div>
-
         <!-- Components by Feature -->
         <div class="min-w-[300px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
           <h3 class="text-sm font-medium dark:text-gray-300 mb-1">Components by Feature</h3>
@@ -376,6 +438,25 @@ const durationChartOptions = computed(() => ({
           </div>
           <div v-else class="h-[220px] flex items-center justify-center text-xs text-gray-400 dark:text-gray-500">
             No feature links found
+          </div>
+        </div>
+
+        <!-- Avg Duration Comparison -->
+        <div v-if="hasManualData" class="min-w-[240px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <h3 class="text-sm font-medium dark:text-gray-300 mb-3">Avg. Onboarding Duration</h3>
+          <div class="h-[140px]">
+            <Bar :data="durationChartData" :options="durationChartOptions" />
+          </div>
+        </div>
+
+        <!-- Quarterly Throughput -->
+        <div class="min-w-[280px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <h3 class="text-sm font-medium dark:text-gray-300 mb-3">Quarterly Throughput</h3>
+          <div v-if="quarterlyChartData.labels.length" class="h-[200px]">
+            <Bar :data="quarterlyChartData" :options="quarterlyChartOptions" />
+          </div>
+          <div v-else class="h-[200px] flex items-center justify-center text-xs text-gray-400 dark:text-gray-500">
+            No completed onboardings yet
           </div>
         </div>
       </div>

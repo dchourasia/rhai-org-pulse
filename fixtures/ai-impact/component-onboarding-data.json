@@ -53,7 +53,8 @@
         },
         "onboardingMethod": "automated",
         "firstCommentDate": null,
-        "syncedAt": "2026-05-10T11:01:55.977Z"
+        "syncedAt": "2026-05-10T11:01:55.977Z",
+        "resolution": "Done"
       },
       "history": []
     },
@@ -108,7 +109,8 @@
         },
         "onboardingMethod": "automated",
         "firstCommentDate": null,
-        "syncedAt": "2026-05-10T11:01:55.980Z"
+        "syncedAt": "2026-05-10T11:01:55.980Z",
+        "resolution": null
       },
       "history": []
     },
@@ -168,7 +170,8 @@
         },
         "onboardingMethod": "automated",
         "firstCommentDate": null,
-        "syncedAt": "2026-05-10T11:01:55.980Z"
+        "syncedAt": "2026-05-10T11:01:55.980Z",
+        "resolution": "Done"
       },
       "history": []
     },
@@ -228,7 +231,8 @@
         },
         "onboardingMethod": "automated",
         "firstCommentDate": null,
-        "syncedAt": "2026-05-10T11:01:55.980Z"
+        "syncedAt": "2026-05-10T11:01:55.980Z",
+        "resolution": "Done"
       },
       "history": []
     },
@@ -276,7 +280,8 @@
         },
         "onboardingMethod": "automated",
         "firstCommentDate": null,
-        "syncedAt": "2026-05-10T11:01:55.980Z"
+        "syncedAt": "2026-05-10T11:01:55.980Z",
+        "resolution": "Done"
       },
       "history": []
     },
@@ -333,7 +338,8 @@
         },
         "onboardingMethod": "automated",
         "firstCommentDate": null,
-        "syncedAt": "2026-05-10T11:01:55.980Z"
+        "syncedAt": "2026-05-10T11:01:55.980Z",
+        "resolution": "Done"
       },
       "history": []
     },
@@ -386,7 +392,8 @@
         },
         "onboardingMethod": "automated",
         "firstCommentDate": null,
-        "syncedAt": "2026-05-10T11:01:55.980Z"
+        "syncedAt": "2026-05-10T11:01:55.980Z",
+        "resolution": "Done"
       },
       "history": []
     },
@@ -446,7 +453,8 @@
         },
         "onboardingMethod": "automated",
         "firstCommentDate": null,
-        "syncedAt": "2026-05-10T11:01:55.980Z"
+        "syncedAt": "2026-05-10T11:01:55.980Z",
+        "resolution": "Done"
       },
       "history": []
     },
@@ -503,7 +511,8 @@
         },
         "onboardingMethod": "automated",
         "firstCommentDate": null,
-        "syncedAt": "2026-05-10T11:01:55.980Z"
+        "syncedAt": "2026-05-10T11:01:55.980Z",
+        "resolution": "Done"
       },
       "history": []
     },
@@ -560,7 +569,8 @@
         },
         "onboardingMethod": "automated",
         "firstCommentDate": null,
-        "syncedAt": "2026-05-10T11:01:55.980Z"
+        "syncedAt": "2026-05-10T11:01:55.980Z",
+        "resolution": "Done"
       },
       "history": []
     },
@@ -605,7 +615,8 @@
         },
         "onboardingMethod": "manual",
         "firstCommentDate": "2024-08-15T14:22:10.330+0000",
-        "syncedAt": "2026-05-10T11:01:55.980Z"
+        "syncedAt": "2026-05-10T11:01:55.980Z",
+        "resolution": "Done"
       },
       "history": []
     },
@@ -650,7 +661,8 @@
         },
         "onboardingMethod": "manual",
         "firstCommentDate": "2024-06-25T10:11:45.920+0000",
-        "syncedAt": "2026-05-10T11:01:55.980Z"
+        "syncedAt": "2026-05-10T11:01:55.980Z",
+        "resolution": "Done"
       },
       "history": []
     },
@@ -695,7 +707,8 @@
         },
         "onboardingMethod": "manual",
         "firstCommentDate": "2024-10-07T09:30:22.115+0000",
-        "syncedAt": "2026-05-10T11:01:55.980Z"
+        "syncedAt": "2026-05-10T11:01:55.980Z",
+        "resolution": "Done"
       },
       "history": []
     },
@@ -740,7 +753,8 @@
         },
         "onboardingMethod": "manual",
         "firstCommentDate": "2024-07-22T15:48:33.441+0000",
-        "syncedAt": "2026-05-10T11:01:55.980Z"
+        "syncedAt": "2026-05-10T11:01:55.980Z",
+        "resolution": "Duplicate"
       },
       "history": []
     },
@@ -785,7 +799,8 @@
         },
         "onboardingMethod": "manual",
         "firstCommentDate": "2024-09-18T11:05:47.220+0000",
-        "syncedAt": "2026-05-10T11:01:55.980Z"
+        "syncedAt": "2026-05-10T11:01:55.980Z",
+        "resolution": "Won't Do"
       },
       "history": []
     }

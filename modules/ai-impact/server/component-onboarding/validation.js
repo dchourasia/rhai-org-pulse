@@ -131,6 +131,11 @@ function validateComponentOnboarding(body) {
     errors.push('created must be a valid ISO 8601 date string');
   }
 
+  // resolution: optional string or null (e.g. "Done", "Won't Do", "Duplicate")
+  if (body.resolution !== undefined && body.resolution !== null && typeof body.resolution !== 'string') {
+    errors.push('resolution must be a string or null');
+  }
+
   // resolved: optional ISO 8601 or null
   if (body.resolved !== undefined && body.resolved !== null) {
     if (typeof body.resolved !== 'string' || isNaN(Date.parse(body.resolved))) {
@@ -180,6 +185,7 @@ function validateComponentOnboarding(body) {
       labels: body.labels || [],
       onboardingSteps: body.onboardingSteps || {},
       created: body.created || null,
+      resolution: body.resolution || null,
       resolved: body.resolved || null,
       validationDate: body.validationDate || null,
       onboardingMethod: body.onboardingMethod || 'automated',
