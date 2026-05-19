@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { apiRequest } from '@shared/client/services/api'
 
-const API_BASE = '/modules/releases/planning'
+const API_BASE = '/modules/releases'
 
 export function useAuditLog() {
   const entries = ref([])
@@ -16,6 +16,7 @@ export function useAuditLog() {
     const params = new URLSearchParams()
     if (options && options.version) params.set('version', options.version)
     if (options && options.action) params.set('action', options.action)
+    if (options && options.domain) params.set('domain', options.domain)
     if (options && options.limit) params.set('limit', String(options.limit))
     if (options && options.offset) params.set('offset', String(options.offset))
 
