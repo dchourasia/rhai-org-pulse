@@ -81,6 +81,7 @@ function getLatestProjection(data) {
       linkedFeatures: entry.latest.linkedFeatures,
       featureTitles: entry.latest.featureTitles || {},
       onboardingSteps: entry.latest.onboardingSteps,
+      contextPath: entry.latest.contextPath || '',
       created: entry.latest.created,
       resolution: entry.latest.resolution || null,
       resolved: entry.latest.resolved,

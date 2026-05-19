@@ -83,6 +83,11 @@ function validateComponentOnboarding(body) {
     errors.push('dockerfilePath must be a string');
   }
 
+  // contextPath: optional string
+  if (body.contextPath !== undefined && typeof body.contextPath !== 'string') {
+    errors.push('contextPath must be a string');
+  }
+
   // isOperator: optional boolean
   if (body.isOperator !== undefined && typeof body.isOperator !== 'boolean') {
     errors.push('isOperator must be a boolean');
@@ -184,6 +189,7 @@ function validateComponentOnboarding(body) {
       repoUrl: body.repoUrl || '',
       branch: body.branch || '',
       dockerfilePath: body.dockerfilePath || '',
+      contextPath: body.contextPath || '',
       isOperator: body.isOperator || false,
       linkedFeatures: body.linkedFeatures || [],
       featureTitles: body.featureTitles || {},
