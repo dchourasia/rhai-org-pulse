@@ -1,0 +1,203 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GitLab Pipeline Schedules — configure in Settings > CI/CD > Schedules
+#
+#   Name : org-pulse daily ingestion
+#   Cron : 0 0 * * *   (daily at 00:00 UTC)
+#   Ref  : main
+#   Var  : PIPELINE_MODE = data-ingestion
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Running stages independently (set PIPELINE_MODE when triggering via web):
+#   onboarding               →  component onboarding CI (fetch-jira + child pipelines)
+#   component-onboarding-sync→  org-pulse sync for component onboarding data only
+#   conforma-sync            →  org-pulse sync for Conforma release data only
+#   data-ingestion           →  both sync jobs (default for scheduled runs)
+# ─────────────────────────────────────────────────────────────────────────────
+
+variables:
+  # --- Component onboarding: Jira issue discovery ---
+  JIRA_BASE_URL:
+    value: "https://redhat.atlassian.net"
+    description: "Jira Cloud base URL"
+  JIRA_PROJECT:
+    value: "RHOAIENG"
+    description: "Jira project key to search"
+  JIRA_PARENT_ISSUES:
+    value: "RHOAIENG-17225,RHOAIENG-35683"
+    description: "Comma-separated parent issue keys; clones of these are onboarded"
+  JIRA_LABEL:
+    value: "component-onboarding"
+    description: "Jira label that marks issues eligible for onboarding"
+
+  # --- aiops-infra clone (used by child pipelines) ---
+  AIOPS_INFRA_REPO:
+    value: "https://github.com/opendatahub-io/aiops-infra"
+    description: "GitHub repository containing Claude skills to install"
+  AIOPS_INFRA_BRANCH:
+    value: "review"
+    description: "Branch of aiops-infra to clone"
+
+  # --- Pipeline generation ---
+  GENERATED_PIPELINE_FILE:
+    value: "generated-child-pipelines.yml"
+    description: "Artifact filename for the dynamically generated child pipeline"
+
+  # --- Org-pulse data ingestion ---
+  # ORG_PULSE_API_TOKEN, SMARTSHEET_TOKEN, GITLAB_TOKEN — set as masked CI/CD variables in project settings
+  ORG_PULSE_OVERRIDE_BACKEND_URL:
+    value: ""
+    description: "Org-pulse backend URL (override for testing)"
+  ORG_PULSE_OVERRIDE_API_TOKEN:
+    value: ""
+    description: "Org-pulse API token (override for testing)"
+  MIN_DATE: "2025-04-01"  # Only process releases with GA date on or after this date
+
+  # --- Pipeline selection ---
+  PIPELINE_MODE:
+    value: "onboarding"
+    options:
+      - "onboarding"
+      - "component-onboarding-sync"
+      - "conforma-sync"
+      - "data-ingestion"
+    description: "onboarding=CI pipeline | component-onboarding-sync=onboarding data only | conforma-sync=Conforma data+AI categorize | data-ingestion=both sync jobs"
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "api"
+    - when: never
+
+include:
+  - project: "redhat/rhel-ai/agentic-ci/ai-agentic-lib"
+    file: "ci/claude-runner.gitlab-ci.yml"
+    ref: main
+
+stages:
+  - generate
+  - trigger
+  - org-pulse-data-ingestion
+
+# ─── Component Onboarding ────────────────────────────────────────────────────
+
+# Discover open component-onboarding Jira issues and emit a child pipeline YAML
+# with one trigger job per issue.
+fetch-jira-issues:
+  stage: generate
+  image: quay.io/fedora/fedora:latest
+  tags:
+    - aipcc-small-x86_64
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "api" && $PIPELINE_MODE == "onboarding"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "onboarding"'
+  before_script:
+    - dnf install -y --nodocs curl git-core jq python3 which
+  script:
+    - bash scripts/fetch-jira-issues.sh
+  artifacts:
+    paths:
+      - "$GENERATED_PIPELINE_FILE"
+    when: always
+    expire_in: 1 day
+
+# Trigger one grandchild pipeline per discovered Jira issue.
+trigger-onboarding-pipelines:
+  stage: trigger
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "api" && $PIPELINE_MODE == "onboarding"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "onboarding"'
+  needs:
+    - job: fetch-jira-issues
+      artifacts: true
+  trigger:
+    include:
+      - job: fetch-jira-issues
+        artifact: "$GENERATED_PIPELINE_FILE"
+    strategy: depend
+
+# ─── Org-pulse Data Ingestion ─────────────────────────────────────────────────
+
+# Fetch component-onboarding data from Jira and push to the data-ingestion backend.
+# Runs automatically on the daily schedule; can also be triggered manually via web.
+component-onboarding-sync:
+  stage: org-pulse-data-ingestion
+  image: python:3.11-slim
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $PIPELINE_MODE != "onboarding" && $PIPELINE_MODE != "conforma-sync"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "component-onboarding-sync"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "data-ingestion"'
+  before_script:
+    - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
+    - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
+    - apt-get update -qq && apt-get install -y -qq ca-certificates curl > /dev/null
+    - curl -sL https://certs.corp.redhat.com/certs/2022-IT-Root-CA.pem -o /usr/local/share/ca-certificates/RH-IT-Root-CA.crt
+    - curl -sL https://certs.corp.redhat.com/certs/2015-IT-Root-CA.pem -o /usr/local/share/ca-certificates/RH-IT-Root-CA-2015.crt
+    - update-ca-certificates
+    - export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+  script:
+    - pip install -r data-ingestion/onboarding/requirements.txt -q
+    - python data-ingestion/onboarding/fetch_and_push.py
+  retry:
+    max: 2
+    when: script_failure
+
+# Fetch Conforma release data from Smartsheet/GitLab and push to the org-pulse backend.
+conforma-sync:
+  stage: org-pulse-data-ingestion
+  image: python:3.11-slim
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $PIPELINE_MODE != "onboarding" && $PIPELINE_MODE != "component-onboarding-sync"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "conforma-sync"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "data-ingestion"'
+  before_script:
+    - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
+    - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
+    - apt-get update -qq && apt-get install -y -qq ca-certificates curl > /dev/null
+    - curl -sL https://certs.corp.redhat.com/certs/2022-IT-Root-CA.pem -o /usr/local/share/ca-certificates/RH-IT-Root-CA.crt
+    - curl -sL https://certs.corp.redhat.com/certs/2015-IT-Root-CA.pem -o /usr/local/share/ca-certificates/RH-IT-Root-CA-2015.crt
+    - update-ca-certificates
+    - export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+  script:
+    - pip install -r data-ingestion/conforma/requirements.txt -q
+    - python data-ingestion/conforma/fetch_and_push.py
+  retry:
+    max: 2
+    when: script_failure
+
+# Run AI-powered categorization of exceptions for the latest unshipped release.
+conforma-ai-categorize:
+  stage: org-pulse-data-ingestion
+  image: quay.io/fedora/fedora:latest
+  tags:
+    - aipcc-small-x86_64
+  timeout: 30 minutes
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $PIPELINE_MODE != "onboarding" && $PIPELINE_MODE != "component-onboarding-sync"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "conforma-sync"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "data-ingestion"'
+  needs:
+    - job: conforma-sync
+  variables:
+    CLAUDE_CODE_USE_VERTEX: "1"
+    ANTHROPIC_VERTEX_PROJECT_ID: "$GCP_PROJECT_ID"
+    CLOUD_ML_REGION: "global"
+    GOOGLE_APPLICATION_CREDENTIALS: "/tmp/gcp-key.json"
+  before_script:
+    - bash scripts/setup-claude-ci.sh
+    - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
+    - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
+  script:
+    - pip install -r data-ingestion/conforma/requirements.txt -q
+    - |
+      runuser -u claude-ci -- bash -c '
+        export PATH="$HOME/.local/bin:$PATH"
+        export CLAUDE_CODE_USE_VERTEX=1
+        export ANTHROPIC_VERTEX_PROJECT_ID="'"$GCP_PROJECT_ID"'"
+        export CLOUD_ML_REGION=global
+        export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json
+        export ORG_PULSE_BACKEND_URL="'"$ORG_PULSE_BACKEND_URL"'"
+        export ORG_PULSE_API_TOKEN="'"$ORG_PULSE_API_TOKEN"'"
+        python '"$CI_PROJECT_DIR"'/data-ingestion/conforma/ai_categorize.py
+      '
+  allow_failure: true
