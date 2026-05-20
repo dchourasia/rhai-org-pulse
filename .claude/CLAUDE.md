@@ -420,3 +420,7 @@ All routes prefixed with `/api`. Authenticated via OAuth proxy in production.
 - `/api/health-metrics/tracking/opt-out` — opt back in (authenticated)
 - `/api/health-metrics/events` — purge raw events (admin)
 - `/api/health-metrics/viewers/:email` — remove viewer (admin)
+
+## Journal Plugin
+
+This project uses journal-plugin for session logging. Run `/log` to capture insights.

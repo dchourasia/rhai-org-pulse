@@ -1258,14 +1258,32 @@ module.exports = function registerRoutes(router, context) {
   const { fetchVersions: fetchQualityVersions, fetchBugs } = require('./quality/data-fetcher.js')
   const { computeCumulativeBugData } = require('./quality/calculations.js')
 
-  const QUALITY_PROJECTS = ['RHOAIENG', 'AIPCC', 'RHAIENG', 'INFERENG']
+  // In-memory cache for loadAllBugs() with 5-minute TTL
+  let bugsCache = { data: null, timestamp: 0, projectsKey: '' }
+  const BUGS_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
-  function loadAllBugs() {
+  function loadAllBugs(projects) {
+    const projectsKey = projects.join(',')
+    const now = Date.now()
+
+    // Return cached data if valid and for the same project set
+    if (
+      bugsCache.data &&
+      bugsCache.projectsKey === projectsKey &&
+      (now - bugsCache.timestamp) < BUGS_CACHE_TTL_MS
+    ) {
+      return bugsCache.data
+    }
+
+    // Cache miss or stale - read from storage
     const allBugs = []
-    for (const project of QUALITY_PROJECTS) {
+    for (const project of projects) {
       const bugs = readFromStorage(`releases/delivery/quality/bugs-${project}.json`) || []
       allBugs.push(...bugs)
     }
+
+    // Update cache
+    bugsCache = { data: allBugs, timestamp: now, projectsKey }
     return allBugs
   }
 
@@ -1286,10 +1304,11 @@ module.exports = function registerRoutes(router, context) {
    */
   router.get('/quality/versions', requireAuth, requireScope('releases:read'), function(req, res) {
     try {
+      const config = getConfig(readFromStorage)
       const versions = readFromStorage('releases/delivery/quality/versions.json') || []
       const componentFilter = req.query.component || null
 
-      const allBugs = loadAllBugs()
+      const allBugs = loadAllBugs(config.projectKeys)
 
       const filteredBugs = componentFilter
         ? allBugs.filter(bug => bug.components.includes(componentFilter))
@@ -1333,6 +1352,7 @@ module.exports = function registerRoutes(router, context) {
    */
   router.get('/quality/bugs', requireAuth, requireScope('releases:read'), function(req, res) {
     try {
+      const config = getConfig(readFromStorage)
       const versions = (req.query.versions || '').split(',').filter(Boolean)
       const component = req.query.component || null
 
@@ -1340,7 +1360,7 @@ module.exports = function registerRoutes(router, context) {
         return res.json({ labels: [], datasets: [] })
       }
 
-      const allBugs = loadAllBugs()
+      const allBugs = loadAllBugs(config.projectKeys)
 
       const versionSet = new Set(versions)
       let filteredBugs = allBugs.filter(bug =>
@@ -1376,7 +1396,8 @@ module.exports = function registerRoutes(router, context) {
    */
   router.get('/quality/components', requireAuth, requireScope('releases:read'), function(req, res) {
     try {
-      const allBugs = loadAllBugs()
+      const config = getConfig(readFromStorage)
+      const allBugs = loadAllBugs(config.projectKeys)
 
       const componentCounts = {}
       for (const bug of allBugs) {
@@ -1413,10 +1434,11 @@ module.exports = function registerRoutes(router, context) {
       return res.json({ status: 'skipped', message: 'Refresh disabled in demo mode' })
     }
     try {
-      const versions = await fetchQualityVersions(QUALITY_PROJECTS)
+      const config = getConfig(readFromStorage)
+      const versions = await fetchQualityVersions(config.projectKeys)
       writeToStorage('releases/delivery/quality/versions.json', versions)
 
-      for (const project of QUALITY_PROJECTS) {
+      for (const project of config.projectKeys) {
         const bugs = await fetchBugs(project, versions)
         writeToStorage(`releases/delivery/quality/bugs-${project}.json`, bugs)
       }
