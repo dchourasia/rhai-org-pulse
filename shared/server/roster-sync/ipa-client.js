@@ -155,26 +155,80 @@ function searchEntries(client, baseDn, filter, attrs, options) {
   });
 }
 
-function extractGithubUsername(entry) {
+/**
+ * Extract all GitHub URL candidates from rhatSocialUrl.
+ * IPA stores both personal profiles and org associations, so we
+ * return all matches and let the caller pick the right one.
+ */
+function extractAllGithubCandidates(entry) {
   var urls = entry.rhatSocialUrl;
-  if (!urls) return null;
+  if (!urls) return [];
   var list = Array.isArray(urls) ? urls : [urls];
+  var candidates = [];
   for (var i = 0; i < list.length; i++) {
     var match = list[i].match(/^Github->https?:\/\/github\.com\/([^/\s]+)\/?$/);
-    if (match) return match[1];
+    if (match) candidates.push(match[1]);
   }
-  return null;
+  return candidates;
+}
+
+/**
+ * Extract all GitLab URL candidates from rhatSocialUrl.
+ */
+function extractAllGitlabCandidates(entry) {
+  var urls = entry.rhatSocialUrl;
+  if (!urls) return [];
+  var list = Array.isArray(urls) ? urls : [urls];
+  var candidates = [];
+  for (var i = 0; i < list.length; i++) {
+    var match = list[i].match(/^Gitlab->https?:\/\/gitlab\.com\/([^/\s]+)\/?$/);
+    if (match) candidates.push(match[1]);
+  }
+  return candidates;
+}
+
+/**
+ * Pick the best candidate from a list of GitHub/GitLab usernames
+ * by preferring one that resembles the person's uid or name.
+ * Returns { username, needsValidation } — needsValidation is true
+ * when we had multiple candidates and couldn't confidently pick one.
+ */
+function pickBestCandidate(candidates, entry) {
+  if (candidates.length === 0) return { username: null, needsValidation: false };
+
+  var uid = (entry.uid || '').toLowerCase();
+  var nameParts = (entry.cn || '').toLowerCase().split(/\s+/);
+  var firstName = nameParts[0] || '';
+  var lastName = nameParts[nameParts.length - 1] || '';
+
+  for (var i = 0; i < candidates.length; i++) {
+    var c = candidates[i].toLowerCase();
+    // Match against uid
+    if (c === uid) return { username: candidates[i], needsValidation: false };
+    // Match against name-based patterns
+    if (firstName && lastName) {
+      if (c === firstName + lastName ||
+          c === firstName + '-' + lastName ||
+          c === firstName + '.' + lastName ||
+          c === firstName[0] + lastName) {
+        return { username: candidates[i], needsValidation: false };
+      }
+    }
+  }
+
+  // No heuristic match — flag all candidates for API validation.
+  // This catches single-entry cases where the URL is an org, not a user.
+  return { username: candidates[0], needsValidation: true, candidates: candidates };
+}
+
+function extractGithubUsername(entry) {
+  var candidates = extractAllGithubCandidates(entry);
+  return pickBestCandidate(candidates, entry).username;
 }
 
 function extractGitlabUsername(entry) {
-  var urls = entry.rhatSocialUrl;
-  if (!urls) return null;
-  var list = Array.isArray(urls) ? urls : [urls];
-  for (var i = 0; i < list.length; i++) {
-    var match = list[i].match(/^Gitlab->https?:\/\/gitlab\.com\/([^/\s]+)\/?$/);
-    if (match) return match[1];
-  }
-  return null;
+  var candidates = extractAllGitlabCandidates(entry);
+  return pickBestCandidate(candidates, entry).username;
 }
 
 function extractManagerUid(entry) {
@@ -185,7 +239,10 @@ function extractManagerUid(entry) {
 }
 
 function entryToPerson(entry) {
-  return {
+  var ghResult = pickBestCandidate(extractAllGithubCandidates(entry), entry);
+  var glResult = pickBestCandidate(extractAllGitlabCandidates(entry), entry);
+
+  var person = {
     uid: entry.uid || '',
     name: entry.cn || '',
     email: entry.mail || '',
@@ -197,9 +254,22 @@ function entryToPerson(entry) {
     officeLocation: entry.rhatOfficeLocation || '',
     costCenter: entry.rhatCostCenter || '',
     managerUid: extractManagerUid(entry),
-    githubUsername: extractGithubUsername(entry),
-    gitlabUsername: extractGitlabUsername(entry)
+    githubUsername: ghResult.username,
+    gitlabUsername: glResult.username
   };
+
+  // Attach validation metadata for the sync pipeline to resolve via API
+  if (ghResult.needsValidation || glResult.needsValidation) {
+    person._usernameValidation = {};
+    if (ghResult.needsValidation) {
+      person._usernameValidation.github = ghResult.candidates;
+    }
+    if (glResult.needsValidation) {
+      person._usernameValidation.gitlab = glResult.candidates;
+    }
+  }
+
+  return person;
 }
 
 /**
@@ -305,5 +375,8 @@ module.exports = {
   entryToPerson,
   escapeLdapFilter,
   extractGithubUsername,
-  extractGitlabUsername
+  extractGitlabUsername,
+  extractAllGithubCandidates,
+  extractAllGitlabCandidates,
+  pickBestCandidate
 };

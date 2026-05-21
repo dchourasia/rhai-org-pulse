@@ -1,6 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
 
-const { escapeLdapFilter, searchPeople } = require('../ipa-client')
+const {
+  escapeLdapFilter,
+  searchPeople,
+  extractAllGithubCandidates,
+  extractAllGitlabCandidates,
+  pickBestCandidate,
+  extractGithubUsername,
+  entryToPerson
+} = require('../ipa-client')
 
 describe('escapeLdapFilter', () => {
   it('returns empty string for falsy input', () => {
@@ -124,5 +132,191 @@ describe('searchPeople', () => {
     var filter = client.search.mock.calls[0][1].filter
     expect(filter).toContain('a\\2ab\\28c\\29')
     expect(filter).not.toContain('a*b(c)')
+  })
+})
+
+describe('extractAllGithubCandidates', () => {
+  it('returns empty array when no rhatSocialUrl', () => {
+    expect(extractAllGithubCandidates({})).toEqual([])
+  })
+
+  it('extracts single GitHub username', () => {
+    var entry = { rhatSocialUrl: 'Github->https://github.com/jdoe' }
+    expect(extractAllGithubCandidates(entry)).toEqual(['jdoe'])
+  })
+
+  it('extracts multiple GitHub candidates from array', () => {
+    var entry = {
+      rhatSocialUrl: [
+        'Github->https://github.com/project-koku',
+        'Github->https://github.com/chambridge'
+      ]
+    }
+    expect(extractAllGithubCandidates(entry)).toEqual(['project-koku', 'chambridge'])
+  })
+
+  it('ignores non-GitHub social URLs', () => {
+    var entry = {
+      rhatSocialUrl: [
+        'Gitlab->https://gitlab.com/jdoe',
+        'Github->https://github.com/jdoe',
+        'Twitter->https://twitter.com/jdoe'
+      ]
+    }
+    expect(extractAllGithubCandidates(entry)).toEqual(['jdoe'])
+  })
+
+  it('handles trailing slash', () => {
+    var entry = { rhatSocialUrl: 'Github->https://github.com/jdoe/' }
+    expect(extractAllGithubCandidates(entry)).toEqual(['jdoe'])
+  })
+})
+
+describe('extractAllGitlabCandidates', () => {
+  it('returns empty array when no rhatSocialUrl', () => {
+    expect(extractAllGitlabCandidates({})).toEqual([])
+  })
+
+  it('extracts GitLab username', () => {
+    var entry = { rhatSocialUrl: 'Gitlab->https://gitlab.com/jdoe' }
+    expect(extractAllGitlabCandidates(entry)).toEqual(['jdoe'])
+  })
+
+  it('extracts multiple GitLab candidates', () => {
+    var entry = {
+      rhatSocialUrl: [
+        'Gitlab->https://gitlab.com/some-group',
+        'Gitlab->https://gitlab.com/jdoe'
+      ]
+    }
+    expect(extractAllGitlabCandidates(entry)).toEqual(['some-group', 'jdoe'])
+  })
+})
+
+describe('pickBestCandidate', () => {
+  it('returns null for empty candidates', () => {
+    var result = pickBestCandidate([], { uid: 'jdoe', cn: 'John Doe' })
+    expect(result).toEqual({ username: null, needsValidation: false })
+  })
+
+  it('flags single candidate for validation when it does not match uid/name', () => {
+    var result = pickBestCandidate(['project-koku'], { uid: 'chambrid', cn: 'Chris Hambridge' })
+    expect(result.username).toBe('project-koku')
+    expect(result.needsValidation).toBe(true)
+    expect(result.candidates).toEqual(['project-koku'])
+  })
+
+  it('accepts single candidate without validation when it matches uid', () => {
+    var result = pickBestCandidate(['chambrid'], { uid: 'chambrid', cn: 'Chris Hambridge' })
+    expect(result).toEqual({ username: 'chambrid', needsValidation: false })
+  })
+
+  it('picks candidate matching uid from multiple options', () => {
+    var result = pickBestCandidate(
+      ['project-koku', 'chambrid'],
+      { uid: 'chambrid', cn: 'Chris Hambridge' }
+    )
+    expect(result).toEqual({ username: 'chambrid', needsValidation: false })
+  })
+
+  it('picks candidate matching firstname+lastname pattern', () => {
+    var result = pickBestCandidate(
+      ['some-org', 'chrishambridge'],
+      { uid: 'chambrid', cn: 'Chris Hambridge' }
+    )
+    expect(result).toEqual({ username: 'chrishambridge', needsValidation: false })
+  })
+
+  it('picks candidate matching first initial + lastname', () => {
+    var result = pickBestCandidate(
+      ['some-org', 'chambridge'],
+      { uid: 'chambrid', cn: 'Chris Hambridge' }
+    )
+    expect(result).toEqual({ username: 'chambridge', needsValidation: false })
+  })
+
+  it('picks candidate matching firstname-lastname pattern', () => {
+    var result = pickBestCandidate(
+      ['some-org', 'chris-hambridge'],
+      { uid: 'chambrid', cn: 'Chris Hambridge' }
+    )
+    expect(result).toEqual({ username: 'chris-hambridge', needsValidation: false })
+  })
+
+  it('flags for validation when no candidate matches heuristics', () => {
+    var result = pickBestCandidate(
+      ['project-koku', 'cost-management'],
+      { uid: 'chambrid', cn: 'Chris Hambridge' }
+    )
+    expect(result.needsValidation).toBe(true)
+    expect(result.candidates).toEqual(['project-koku', 'cost-management'])
+  })
+
+  it('is case-insensitive for matching', () => {
+    var result = pickBestCandidate(
+      ['CHAMBRID'],
+      { uid: 'chambrid', cn: 'Chris Hambridge' }
+    )
+    expect(result).toEqual({ username: 'CHAMBRID', needsValidation: false })
+  })
+})
+
+describe('entryToPerson - username validation metadata', () => {
+  it('attaches _usernameValidation when GitHub candidates are ambiguous', () => {
+    var entry = {
+      uid: 'chambrid',
+      cn: 'Chris Hambridge',
+      mail: 'chambrid@redhat.com',
+      rhatSocialUrl: ['Github->https://github.com/project-koku']
+    }
+    var person = entryToPerson(entry)
+    expect(person._usernameValidation).toBeDefined()
+    expect(person._usernameValidation.github).toEqual(['project-koku'])
+    expect(person.githubUsername).toBe('project-koku')
+  })
+
+  it('does not attach _usernameValidation when candidate matches uid', () => {
+    var entry = {
+      uid: 'jdoe',
+      cn: 'John Doe',
+      mail: 'jdoe@test.com',
+      rhatSocialUrl: 'Github->https://github.com/jdoe'
+    }
+    var person = entryToPerson(entry)
+    expect(person._usernameValidation).toBeUndefined()
+    expect(person.githubUsername).toBe('jdoe')
+  })
+
+  it('does not attach _usernameValidation when no social URLs', () => {
+    var entry = { uid: 'jdoe', cn: 'John Doe' }
+    var person = entryToPerson(entry)
+    expect(person._usernameValidation).toBeUndefined()
+    expect(person.githubUsername).toBeNull()
+  })
+})
+
+describe('extractGithubUsername (backward compat)', () => {
+  it('returns username when it matches uid', () => {
+    var entry = {
+      uid: 'jdoe',
+      cn: 'John Doe',
+      rhatSocialUrl: 'Github->https://github.com/jdoe'
+    }
+    expect(extractGithubUsername(entry)).toBe('jdoe')
+  })
+
+  it('returns first candidate when ambiguous (legacy behavior)', () => {
+    var entry = {
+      uid: 'chambrid',
+      cn: 'Chris Hambridge',
+      rhatSocialUrl: ['Github->https://github.com/project-koku']
+    }
+    // extractGithubUsername still returns the first candidate for backward compat,
+    // but entryToPerson flags it for validation
+    expect(extractGithubUsername(entry)).toBe('project-koku')
+  })
+
+  it('returns null when no URLs', () => {
+    expect(extractGithubUsername({})).toBeNull()
   })
 })
