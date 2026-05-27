@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 
+const apiPort = process.env.API_PORT || '3001'
+const apiTarget = 'http://localhost:' + apiPort
+
 export default defineConfig({
   plugins: [
     vue()
@@ -13,13 +16,15 @@ export default defineConfig({
     }
   },
   server: {
+    host: '0.0.0.0',
+    port: parseInt(process.env.VITE_PORT || '5173'),
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: apiTarget,
         changeOrigin: true
       },
       '/modules': {
-        target: 'http://localhost:3001',
+        target: apiTarget,
         changeOrigin: true,
         // Only proxy requests for git-static module content (HTML, assets).
         // Let Vite serve source files from the modules/ directory (for import.meta.glob).
