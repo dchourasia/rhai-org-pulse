@@ -275,8 +275,8 @@ const buildReleaseLabels = [
 ]
 
 const buildReleaseLearnLinks = [
-  { label: 'Enablement Recording', icon: Play, url: '#tbd' },
-  { label: 'Enablement Slides', icon: FileText, url: '#tbd' },
+  { label: 'Enablement Recording', icon: Play, url: '#' },
+  { label: 'Enablement Slides', icon: FileText, url: '#' },
 ]
 
 const buildReleaseToolLinks = [
