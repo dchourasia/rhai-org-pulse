@@ -1839,7 +1839,6 @@ function labelColorClasses(color) {
         </div>
       </div>
     </div>
-
     <!-- ─── Coming Soon Detail ─── -->
     <div v-else class="flex-1 overflow-auto p-6 lg:p-8">
       <div class="max-w-3xl mx-auto">
