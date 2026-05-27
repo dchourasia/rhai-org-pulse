@@ -50,8 +50,8 @@ export const enablementCategories = [
     section: 'ai-sdlc',
     slackChannel: { name: '#forum-rhai-ai-first', url: 'https://app.slack.com/client/E030G10V24F/C0APP9DDB2R' },
     links: [
-      { label: 'Enablement Recording', icon: 'Video', url: 'TBD' },
-      { label: 'Enablement Slides', icon: 'Presentation', url: 'TBD' },
+      { label: 'Enablement Recording', icon: 'Video', url: 'javascript:void(0)' },
+      { label: 'Enablement Slides', icon: 'Presentation', url: 'javascript:void(0)' },
     ],
   },
   {

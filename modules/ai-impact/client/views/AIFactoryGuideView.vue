@@ -263,8 +263,8 @@ const buildReleaseLabels = [
 ]
 
 const buildReleaseLearnLinks = [
-  { label: 'Enablement Recording', icon: Play, url: 'TBD' },
-  { label: 'Enablement Slides', icon: FileText, url: 'TBD' },
+  { label: 'Enablement Recording', icon: Play, url: 'javascript:void(0)' },
+  { label: 'Enablement Slides', icon: FileText, url: 'javascript:void(0)' },
 ]
 
 const buildReleaseToolLinks = [
@@ -1455,8 +1455,8 @@ function labelColorClasses(color) {
               v-for="link in buildReleaseLearnLinks"
               :key="link.label"
               :href="link.url"
-              target="_blank"
-              rel="noopener"
+              :target="link.url.startsWith('http') ? '_blank' : undefined"
+              :rel="link.url.startsWith('http') ? 'noopener' : undefined"
               class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-xs text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
             >
               <component :is="link.icon" :size="14" class="text-gray-400 dark:text-gray-500" />
