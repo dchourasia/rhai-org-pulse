@@ -186,6 +186,42 @@
             <Scatter :key="`scatter-${chartKey}`" :data="scatterChartData" :options="scatterChartOptions" />
           </div>
           <p v-else class="text-sm text-gray-400 py-8 text-center">No volatile exceptions for this release</p>
+
+          <!-- Actionable exceptions list (shown when actionableOnly is toggled) -->
+          <div v-if="actionableOnly && actionableExceptions.length" class="mt-4 border-t border-gray-100 dark:border-gray-700/60 pt-3">
+            <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
+              {{ actionableExceptions.length }} actionable exception{{ actionableExceptions.length === 1 ? '' : 's' }}
+            </h4>
+            <div class="divide-y divide-gray-100 dark:divide-gray-700/40">
+              <div
+                v-for="(ex, idx) in actionableExceptions"
+                :key="idx"
+                class="flex items-center gap-3 py-2 text-xs"
+              >
+                <span
+                  :class="CATEGORY_BADGE[ex.category] || CATEGORY_BADGE.other"
+                  class="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap"
+                >{{ ex.category }}</span>
+                <span
+                  class="flex-1 truncate text-gray-700 dark:text-gray-300"
+                  :title="ex.value"
+                >{{ ex.value }}</span>
+                <span class="text-gray-400 dark:text-gray-500 whitespace-nowrap">{{ ex.policyFile === 'fbc' ? 'FBC' : 'Components' }}</span>
+                <span
+                  :class="ex.daysAfterGa <= 0
+                    ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
+                    : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'"
+                  class="px-1.5 py-0.5 rounded font-medium whitespace-nowrap"
+                >{{ new Date(ex.effectiveUntil).toISOString().slice(0, 10) }} ({{ ex.daysAfterGa }}d)</span>
+                <a
+                  :href="ex.extensionJiraUrl || EXTENSION_JIRA_TEMPLATE_URL"
+                  target="_blank"
+                  rel="noopener"
+                  class="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-medium whitespace-nowrap transition-colors"
+                >{{ ex.extensionJiraKey || 'Create Jira' }}</a>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -615,6 +651,12 @@ const volatileExceptions = computed(() =>
 
 const actionableCount = computed(() =>
   flatExceptions.value.filter(e => e.isActionable).length
+)
+
+const actionableExceptions = computed(() =>
+  flatExceptions.value
+    .filter(e => e.isActionable)
+    .sort((a, b) => (a.daysAfterGa ?? 0) - (b.daysAfterGa ?? 0))
 )
 
 // ─── Table: search / filter / sort state ────────────────────────────────────
