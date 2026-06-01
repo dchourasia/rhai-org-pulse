@@ -154,11 +154,26 @@
         <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 p-5">
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Volatile Exception Expiry Timeline</h3>
-            <ConformaHelpText
-              good="All dots are green (expire >60 days after GA)"
-              attention="Amber/red dots expire near or before GA — these need immediate extension"
-              action="Click actionable dots to create or view Jira extension issues"
-            />
+            <div class="flex items-center gap-3">
+              <label
+                v-if="isLatestUnshipped && actionableCount > 0"
+                class="flex items-center gap-1.5 cursor-pointer select-none"
+              >
+                <input
+                  type="checkbox"
+                  v-model="actionableOnly"
+                  class="w-3.5 h-3.5 rounded border-red-400 text-red-600 focus:ring-red-500 focus:ring-offset-0 cursor-pointer"
+                />
+                <span class="text-xs font-semibold text-red-600 dark:text-red-400">
+                  Actionable only ({{ actionableCount }})
+                </span>
+              </label>
+              <ConformaHelpText
+                good="All dots are green (expire >60 days after GA)"
+                attention="Amber/red dots expire near or before GA — these need immediate extension"
+                action="Click actionable dots to create or view Jira extension issues"
+              />
+            </div>
           </div>
           <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">
             <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>Expires &gt;60d after GA</span>
@@ -924,10 +939,15 @@ const scatterChartData = computed(() => {
       isActionable: ex.isActionable,
       daysAfterGa: ex.daysAfterGa
     }
-    if (ex.isActionable) actionable.push(point)
-    if (daysAfter < 0) red.push(point)
-    else if (daysAfter <= 60) orange.push(point)
-    else green.push(point)
+    if (ex.isActionable) {
+      actionable.push(point)
+    } else if (daysAfter < 0) {
+      red.push(point)
+    } else if (daysAfter <= 60) {
+      orange.push(point)
+    } else {
+      green.push(point)
+    }
   }
 
   const datasets = [
@@ -996,6 +1016,8 @@ const scatterChartOptions = computed(() => {
     plugins: {
       legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 10 } } },
       tooltip: {
+        maxWidth: 420,
+        bodyFont: { size: 11 },
         callbacks: {
           title: () => '',
           label: ctx => {
