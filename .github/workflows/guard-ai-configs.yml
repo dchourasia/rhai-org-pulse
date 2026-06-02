@@ -23,8 +23,8 @@ jobs:
     env:
       # Space-separated list of GitHub usernames allowed to approve AI config changes
       ALLOWED_APPROVERS: "accorvin saprabhu05 dchourasia"
-      # Space-separated list of files requiring owner approval. Keep THIS workflow file in the list so someone can't merge and update this OR the AI configs w/o approval.
-      SENSITIVE_FILES: ".claude/CLAUDE.md AGENTS.md .github/workflows/guard-ai-configs.yml .github/instructions/review.instructions.md"
+      # Space-separated list of files/directories requiring owner approval. Keep THIS workflow file in the list so someone can't merge and update this OR the AI configs w/o approval.
+      SENSITIVE_FILES: ".claude/ AGENTS.md .github/workflows/guard-ai-configs.yml .github/instructions/review.instructions.md"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
