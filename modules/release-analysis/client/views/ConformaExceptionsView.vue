@@ -185,24 +185,28 @@
           <div v-if="volatileExceptions.length" style="height: 240px; position: relative;">
             <Scatter :key="`scatter-${chartKey}`" :data="scatterChartData" :options="scatterChartOptions" />
 
-            <!-- Persistent floating tooltip for actionable exceptions -->
+            <!-- Hover-triggered persistent tooltip for actionable exceptions -->
             <div
-              v-if="actionableOnly && actionableExceptions.length"
-              class="absolute top-0 right-0 z-10 w-80 max-h-[220px] flex flex-col rounded-lg shadow-lg border border-gray-600/30 bg-gray-800/95 dark:bg-gray-900/95 backdrop-blur text-xs text-gray-200"
+              v-if="hoveredDotTooltip.visible"
+              :style="{
+                left: `${hoveredDotTooltip.x + 14}px`,
+                top: `${Math.max(4, Math.min(hoveredDotTooltip.y - 60, 100))}px`
+              }"
+              class="absolute z-10 w-80 max-h-[200px] flex flex-col rounded-lg shadow-lg border border-gray-600/30 bg-gray-800/95 dark:bg-gray-900/95 backdrop-blur text-xs text-gray-200"
             >
               <div class="flex items-center justify-between px-3 py-2 border-b border-gray-600/30 shrink-0">
                 <span class="font-semibold text-gray-100">
-                  {{ actionableExceptions.length }} Actionable Exception{{ actionableExceptions.length === 1 ? '' : 's' }}
+                  {{ hoveredDotTooltip.exceptions.length }} Exception{{ hoveredDotTooltip.exceptions.length === 1 ? '' : 's' }}
                 </span>
                 <button
-                  @click="actionableOnly = false"
+                  @click="dismissHoveredTooltip"
                   class="text-gray-400 hover:text-white transition-colors leading-none text-base"
                   title="Close"
                 >&times;</button>
               </div>
               <div class="overflow-y-auto divide-y divide-gray-600/30">
                 <div
-                  v-for="(ex, idx) in actionableExceptions"
+                  v-for="(ex, idx) in hoveredDotTooltip.exceptions"
                   :key="idx"
                   class="px-3 py-2 space-y-1"
                 >
@@ -585,6 +589,13 @@ const isLatestUnshipped = computed(() => {
 })
 
 const actionableOnly = ref(false)
+const hoveredDotTooltip = ref({ visible: false, x: 0, y: 0, exceptions: [] })
+
+function dismissHoveredTooltip() {
+  hoveredDotTooltip.value = { visible: false, x: 0, y: 0, exceptions: [] }
+}
+
+watch([actionableOnly, () => selectedVersion.value], dismissHoveredTooltip)
 
 // ─── AI categorization ──────────────────────────────────────────────────────
 
@@ -1032,10 +1043,34 @@ function onScatterClick(_event, elements) {
   if (!ds) return
   const point = ds.data[el.index]
   if (!point) return
+  if (point.isActionable) return
   if (point.extensionJiraUrl) {
     window.open(point.extensionJiraUrl, '_blank', 'noopener')
-  } else if (point.isActionable) {
-    window.open(EXTENSION_JIRA_TEMPLATE_URL, '_blank', 'noopener')
+  }
+}
+
+function onScatterHover(_event, elements, chart) {
+  if (!elements.length) return
+  const el = elements[0]
+  const ds = scatterChartData.value.datasets[el.datasetIndex]
+  if (!ds) return
+  const point = ds.data[el.index]
+  if (!point || !point.isActionable) return
+
+  const matches = actionableExceptions.value.filter(e =>
+    new Date(e.effectiveUntil).getTime() === point.x &&
+    e.category === KNOWN_CATEGORIES[point.y]
+  )
+  if (!matches.length) return
+
+  const meta = chart.getDatasetMeta(el.datasetIndex)
+  const elem = meta.data[el.index]
+
+  hoveredDotTooltip.value = {
+    visible: true,
+    x: elem.x,
+    y: elem.y,
+    exceptions: matches
   }
 }
 
@@ -1069,6 +1104,7 @@ const scatterChartOptions = computed(() => {
     responsive: true,
     maintainAspectRatio: false,
     onClick: onScatterClick,
+    onHover: actionableOnly.value ? onScatterHover : undefined,
     plugins: {
       legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 10 } } },
       tooltip: {
