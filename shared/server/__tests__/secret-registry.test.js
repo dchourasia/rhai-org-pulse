@@ -91,6 +91,7 @@ describe('SecretRegistry', () => {
     it('logs structured status on resolve', () => {
       process.env.JIRA_EMAIL = 'test@test.com'
       process.env.JIRA_TOKEN = 'token123'
+      delete process.env.GITHUB_TOKEN
 
       const registry = new SecretRegistry(PLATFORM_GROUPS)
       registry.registerModuleSecrets('team-tracker', { platform: ['jira', 'github'] })

@@ -215,12 +215,9 @@ OAuth proxy (sidecar on frontend pod) authenticates users and sets `X-Forwarded-
 
 ## API Routes
 
+All routes prefixed with `/api`. Authenticated via OAuth proxy in production.
 Routes are documented via `@openapi` JSDoc annotations on each handler (enforced by CI).
 To discover routes, grep for `@openapi` in the source or check each module's `server/` directory.
-
-**Secrets Admin Routes (added by this PR):**
-- `GET /api/admin/secrets/status` — secret registry status: configured/missing per module (admin)
-- `POST /api/admin/secrets/validate` — run secret validators (admin). Optional body `{ keys: string[] }` to validate specific keys only.
 
 ## Journal Plugin
 
