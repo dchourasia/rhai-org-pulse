@@ -184,44 +184,58 @@
           </p>
           <div v-if="volatileExceptions.length" style="height: 240px; position: relative;">
             <Scatter :key="`scatter-${chartKey}`" :data="scatterChartData" :options="scatterChartOptions" />
-          </div>
-          <p v-else class="text-sm text-gray-400 py-8 text-center">No volatile exceptions for this release</p>
 
-          <!-- Actionable exceptions list (shown when actionableOnly is toggled) -->
-          <div v-if="actionableOnly && actionableExceptions.length" class="mt-4 border-t border-gray-100 dark:border-gray-700/60 pt-3">
-            <h4 class="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
-              {{ actionableExceptions.length }} actionable exception{{ actionableExceptions.length === 1 ? '' : 's' }}
-            </h4>
-            <div class="divide-y divide-gray-100 dark:divide-gray-700/40">
-              <div
-                v-for="(ex, idx) in actionableExceptions"
-                :key="idx"
-                class="flex items-center gap-3 py-2 text-xs"
-              >
-                <span
-                  :class="CATEGORY_BADGE[ex.category] || CATEGORY_BADGE.other"
-                  class="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap"
-                >{{ ex.category }}</span>
-                <span
-                  class="flex-1 truncate text-gray-700 dark:text-gray-300"
-                  :title="ex.value"
-                >{{ ex.value }}</span>
-                <span class="text-gray-400 dark:text-gray-500 whitespace-nowrap">{{ ex.policyFile === 'fbc' ? 'FBC' : 'Components' }}</span>
-                <span
-                  :class="ex.daysAfterGa <= 0
-                    ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
-                    : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'"
-                  class="px-1.5 py-0.5 rounded font-medium whitespace-nowrap"
-                >{{ new Date(ex.effectiveUntil).toISOString().slice(0, 10) }} ({{ ex.daysAfterGa }}d)</span>
-                <a
-                  :href="ex.extensionJiraUrl || EXTENSION_JIRA_TEMPLATE_URL"
-                  target="_blank"
-                  rel="noopener"
-                  class="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 font-medium whitespace-nowrap transition-colors"
-                >{{ ex.extensionJiraKey || 'Create Jira' }}</a>
+            <!-- Persistent floating tooltip for actionable exceptions -->
+            <div
+              v-if="actionableOnly && actionableExceptions.length"
+              class="absolute top-0 right-0 z-10 w-80 max-h-[220px] flex flex-col rounded-lg shadow-lg border border-gray-600/30 bg-gray-800/95 dark:bg-gray-900/95 backdrop-blur text-xs text-gray-200"
+            >
+              <div class="flex items-center justify-between px-3 py-2 border-b border-gray-600/30 shrink-0">
+                <span class="font-semibold text-gray-100">
+                  {{ actionableExceptions.length }} Actionable Exception{{ actionableExceptions.length === 1 ? '' : 's' }}
+                </span>
+                <button
+                  @click="actionableOnly = false"
+                  class="text-gray-400 hover:text-white transition-colors leading-none text-base"
+                  title="Close"
+                >&times;</button>
+              </div>
+              <div class="overflow-y-auto divide-y divide-gray-600/30">
+                <div
+                  v-for="(ex, idx) in actionableExceptions"
+                  :key="idx"
+                  class="px-3 py-2 space-y-1"
+                >
+                  <div class="flex items-start gap-2">
+                    <span
+                      :class="CATEGORY_BADGE[ex.category] || CATEGORY_BADGE.other"
+                      class="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap shrink-0 mt-px"
+                    >{{ ex.category }}</span>
+                    <span class="text-gray-100 break-all leading-snug">{{ ex.value }}</span>
+                  </div>
+                  <div class="flex items-center justify-between pl-0.5">
+                    <span class="text-gray-400">
+                      {{ ex.policyFile === 'fbc' ? 'FBC' : 'Components' }}
+                      &middot; Expires {{ new Date(ex.effectiveUntil).toISOString().slice(0, 10) }}
+                      <span
+                        :class="ex.daysAfterGa <= 0 ? 'text-red-400' : 'text-amber-400'"
+                        class="font-medium"
+                      >({{ ex.daysAfterGa }}d)</span>
+                    </span>
+                    <a
+                      :href="ex.extensionJiraUrl || EXTENSION_JIRA_TEMPLATE_URL"
+                      target="_blank"
+                      rel="noopener"
+                      @click.stop
+                      class="text-blue-400 hover:text-blue-300 font-medium whitespace-nowrap transition-colors"
+                    >{{ ex.extensionJiraKey || 'Create Jira' }} &rarr;</a>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
+          <p v-else class="text-sm text-gray-400 py-8 text-center">No volatile exceptions for this release</p>
+
         </div>
       </div>
 
@@ -1058,6 +1072,7 @@ const scatterChartOptions = computed(() => {
     plugins: {
       legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 10 } } },
       tooltip: {
+        enabled: !actionableOnly.value,
         maxWidth: 420,
         bodyFont: { size: 11 },
         callbacks: {
