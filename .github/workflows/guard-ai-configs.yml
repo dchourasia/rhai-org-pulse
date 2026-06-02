@@ -21,8 +21,8 @@ jobs:
       contents: read        # To checkout code
       pull-requests: write  # To post comments and read reviews
     env:
-      # Space-separated list of GitHub usernames allowed to approve AI config changes
-      ALLOWED_APPROVERS: "accorvin saprabhu05 dchourasia"
+      # GitHub team allowed to approve AI config changes (format: org/team-slug)
+      ALLOWED_APPROVER_TEAM: "red-hat-data-services/org-pulse-maintainers"
       # Space-separated list of files/directories requiring owner approval. Keep THIS workflow file in the list so someone can't merge and update this OR the AI configs w/o approval.
       SENSITIVE_FILES: ".claude/ AGENTS.md .github/workflows/guard-ai-configs.yml .github/instructions/review.instructions.md"
     steps:
@@ -84,7 +84,7 @@ jobs:
           # Check if we've already commented on this PR to avoid spam
           COMMENT_EXISTS=$(gh pr view "$PR_NUMBER" --json comments -q '.comments[] | select(.author.login=="github-actions") | select(.body | contains("AI Configuration Guard")) | .id' | head -1)
           if [ -z "$COMMENT_EXISTS" ]; then
-            COMMENT_BODY=$(printf "⚠️ **AI Configuration Guard**\n\nThis PR modifies sensitive AI configuration files or workflows that require approval from: **%s**\n\nThe following sensitive files were detected:\n%s\nAn approval from one of the authorized users is required before this PR can be merged." "${ALLOWED_APPROVERS}" "${MODIFIED_FILES_LIST}")
+            COMMENT_BODY=$(printf "⚠️ **AI Configuration Guard**\n\nThis PR modifies sensitive AI configuration files or workflows that require approval from a member of: **@%s**\n\nThe following sensitive files were detected:\n%s\nAn approval from an authorized team member is required before this PR can be merged." "${ALLOWED_APPROVER_TEAM}" "${MODIFIED_FILES_LIST}")
             gh pr comment "$PR_NUMBER" --body "$COMMENT_BODY"
           else
             echo "ℹ️ Comment already exists (ID: $COMMENT_EXISTS), skipping duplicate comment."
@@ -96,19 +96,22 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.metadata.outputs.pr_number }}
         run: |
-          # Use `gh` CLI to see who approved the PR.
+          # Use `gh` CLI to see who approved the PR
           REVIEWS=$(gh pr view "$PR_NUMBER" --json reviews -q '.reviews[] | select(.state=="APPROVED") | .author.login')
 
+          # Get team members from the allowed approver team
+          TEAM_MEMBERS=$(gh api "/orgs/red-hat-data-services/teams/org-pulse-maintainers/members" -q '.[].login')
+
           APPROVED=false
-          for approver in $ALLOWED_APPROVERS; do
-            if echo "$REVIEWS" | grep -qx "$approver"; then
-              echo "✅ Approved by @$approver. This PR can be merged to main."
+          while IFS= read -r approver; do
+            if echo "$TEAM_MEMBERS" | grep -qx "$approver"; then
+              echo "✅ Approved by @$approver (member of ${ALLOWED_APPROVER_TEAM}). This PR can be merged to main."
               APPROVED=true
               break
             fi
-          done
+          done <<< "$REVIEWS"
 
           if [ "$APPROVED" = false ]; then
-            echo "❌ CRITICAL: Modifications to CLAUDE.md, AGENTS.md, or this workflow require a manual review and approval from one of the following users: $ALLOWED_APPROVERS"
+            echo "❌ CRITICAL: Modifications to sensitive AI config files require a manual review and approval from a member of the ${ALLOWED_APPROVER_TEAM} team."
             exit 1
           fi
