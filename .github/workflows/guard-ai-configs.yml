@@ -33,13 +33,16 @@ jobs:
 
       - name: Check if sensitive AI configs or workflows changed
         id: check_sensitive_files
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           # Check if any sensitive files were modified (without loading all changed files into memory)
           SENSITIVE_FILES_UPDATED=false
           MODIFIED_FILES=""
           for file in $SENSITIVE_FILES; do
             # git diff --quiet exits with 1 if there are changes, 0 if no changes
-            if ! git diff --quiet origin/${{ github.base_ref }}...origin/${{ github.head_ref }} -- "$file"; then
+            if ! git diff --quiet "origin/${BASE_REF}...origin/${HEAD_REF}" -- "$file"; then
               echo "⚠️ Sensitive file detected: $file"
               SENSITIVE_FILES_UPDATED=true
               MODIFIED_FILES="${MODIFIED_FILES}- \`${file}\`"$'\n'
