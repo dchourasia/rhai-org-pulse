@@ -227,12 +227,18 @@
                       >({{ ex.daysAfterGa }}d)</span>
                     </span>
                     <a
-                      :href="ex.extensionJiraUrl || EXTENSION_JIRA_TEMPLATE_URL"
+                      v-if="ex.extensionJiraUrl"
+                      :href="ex.extensionJiraUrl"
                       target="_blank"
                       rel="noopener"
                       @click.stop
                       class="text-blue-400 hover:text-blue-300 font-medium whitespace-nowrap transition-colors"
-                    >{{ ex.extensionJiraKey || 'Create Jira' }} &rarr;</a>
+                    >{{ ex.extensionJiraKey }} &rarr;</a>
+                    <button
+                      v-else
+                      @click.stop="handleCreateJira"
+                      class="text-blue-400 hover:text-blue-300 font-medium whitespace-nowrap transition-colors"
+                    >Create Jira &rarr;</button>
                   </div>
                 </div>
               </div>
@@ -494,17 +500,15 @@
                       <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                       {{ ex.extensionJiraKey }}
                     </a>
-                    <a
+                    <button
                       v-else
-                      :href="EXTENSION_JIRA_TEMPLATE_URL"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors"
+                      @click="handleCreateJira"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors cursor-pointer"
                       title="Create extension Jira issue"
                     >
                       <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
                       Extend
-                    </a>
+                    </button>
                   </template>
                   <span v-else class="text-gray-300 dark:text-gray-600">—</span>
                 </td>
@@ -545,6 +549,59 @@
     <!-- Empty state when no releases at all -->
     <div v-else-if="!state.loading && !state.error && !allReleases.length" class="rounded-lg border border-gray-200 dark:border-gray-700 px-6 py-10 text-center">
       <p class="text-sm text-gray-500 dark:text-gray-400">No shipped releases found. Run the ingestion pipeline to populate.</p>
+    </div>
+  </div>
+
+  <!-- Security Policy Compliance Warning Dialog -->
+  <div
+    v-if="showJiraWarning"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+    @click.self="showJiraWarning = false"
+  >
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden" role="alertdialog" aria-modal="true">
+      <div class="flex items-start gap-3 px-6 pt-5 pb-3">
+        <div class="shrink-0 mt-0.5 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+          <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Security Policy Compliance Notice</h3>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Per Chris Wright's directive (May 2026)</p>
+        </div>
+      </div>
+
+      <div class="px-6 pb-4 space-y-3 text-sm text-gray-700 dark:text-gray-300">
+        <ul class="space-y-2">
+          <li class="flex items-start gap-2">
+            <span class="shrink-0 mt-1 w-1.5 h-1.5 rounded-full bg-red-500"></span>
+            <span><strong class="text-gray-900 dark:text-gray-100">ProdSec no longer grants exceptions.</strong> Products not meeting security requirements do not ship.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="shrink-0 mt-1 w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+            <span><strong class="text-gray-900 dark:text-gray-100">VP-level sign-off required.</strong> Exceptions must be tracked as risks in the <strong>PRODSECRM</strong> Jira project (not PSX).</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="shrink-0 mt-1 w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+            <span>Engage your <strong>Product Security representative</strong> first. Clearly articulate the risk, impact, and mitigations.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="shrink-0 mt-1 w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span>Existing exceptions valid until expiration. Exceptions expiring before <strong>Jun 12, 2026</strong> are auto-extended 2 weeks.</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 dark:bg-gray-800/80 border-t border-gray-200 dark:border-gray-700">
+        <button
+          @click="showJiraWarning = false"
+          class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+        >Cancel</button>
+        <button
+          @click="confirmCreateJira"
+          class="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors"
+        >Continue to Jira</button>
+      </div>
     </div>
   </div>
 </template>
@@ -611,10 +668,10 @@ const allReleases = computed(() => {
   const shipped = releases
     .filter(r => r.gaDate <= todayStr)
     .sort((a, b) => b.gaDate.localeCompare(a.gaDate))
-  const nextUpcoming = releases
+  const upcoming = releases
     .filter(r => r.gaDate > todayStr)
-    .sort((a, b) => a.gaDate.localeCompare(b.gaDate))[0]
-  return nextUpcoming ? [nextUpcoming, ...shipped] : shipped
+    .sort((a, b) => a.gaDate.localeCompare(b.gaDate))
+  return [...upcoming, ...shipped]
 })
 
 watch(allReleases, (list) => {
@@ -636,6 +693,16 @@ const isLatestUnshipped = computed(() => {
 
 const actionableOnly = ref(false)
 const hoveredDotTooltip = ref({ visible: false, x: 0, y: 0, exceptions: [] })
+const showJiraWarning = ref(false)
+
+function handleCreateJira() {
+  showJiraWarning.value = true
+}
+
+function confirmCreateJira() {
+  showJiraWarning.value = false
+  window.open(EXTENSION_JIRA_TEMPLATE_URL, '_blank', 'noopener')
+}
 
 function dismissHoveredTooltip() {
   hoveredDotTooltip.value = { visible: false, x: 0, y: 0, exceptions: [] }
