@@ -109,82 +109,89 @@ def load_guidance_docs() -> str:
     return "\n\n---\n\n".join(docs)
 
 
-def build_prompt(exceptions: list[dict], version: str, all_versions: list[str]) -> str:
-    exceptions_json = json.dumps(exceptions, indent=2)
-    guidance_text = load_guidance_docs()
+def summarize_guidance(guidance_text: str) -> str:
+    """Use Claude to summarize guidance docs into a compact reference for categorization."""
+    prompt = f"""Summarize the following RHOAI security compliance guidance documents into a compact reference (under 3000 chars) for use by an AI categorizing Conforma EC policy exceptions.
+
+Focus on:
+- Category definitions and resolution paths (partner_permanent, platform_adoption, package_onboarding, component_update, risk_accepted, resolved)
+- Target release timelines (which versions map to which resolution effort)
+- Which ProdSec policies are compliance-blocking vs non-blocking
+- Specific packages/images mentioned and their status
+- Key decisions and rules
+
+Output plain text, no markdown fences. Be dense and factual — this will be embedded in another prompt.
+
+---
+
+{guidance_text}"""
+
+    prompt_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", prefix="claude-summarize-", delete=False
+        ) as pf:
+            pf.write(prompt)
+            prompt_path = pf.name
+
+        result = subprocess.run(
+            ["bash", "-c",
+             f'cat "{prompt_path}" | claude'
+             " --model claude-sonnet-4-6"
+             " --output-format text"
+             " --max-turns 1"
+             " --dangerously-skip-permissions"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            print(f"  WARNING: Summarization failed (exit {result.returncode}), using raw docs", file=sys.stderr)
+            return guidance_text
+        return result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        print(f"  WARNING: Summarization failed ({exc}), using raw docs", file=sys.stderr)
+        return guidance_text
+    finally:
+        if prompt_path and os.path.exists(prompt_path):
+            os.unlink(prompt_path)
+
+
+def build_prompt(exceptions: list[dict], version: str, all_versions: list[str], guidance_summary: str) -> str:
+    compact = []
+    for i, ex in enumerate(exceptions):
+        entry = {"i": i, "n": ex["fullName"], "p": ex["policyFile"], "t": ex["type"][0].upper()}
+        if ex.get("reference"):
+            entry["ref"] = ex["reference"]
+        if ex.get("comment"):
+            entry["c"] = ex["comment"]
+        compact.append(entry)
+    exceptions_json = json.dumps(compact, separators=(",", ":"))
 
     target_release_options = " | ".join(all_versions + ["permanent"])
-    target_release_list = "\n".join(f"- **{v}**" for v in all_versions)
 
-    return f"""You are an expert in Red Hat OpenShift AI (RHOAI) release engineering, Enterprise Contract (EC) policies, and the Security Policy Compliance Directive (May 2026).
+    return f"""Categorize {len(exceptions)} EC policy exceptions for RHOAI {version}.
 
-Analyze these EC policy exceptions for RHOAI release {version} and categorize each one by resolution path, target release, and ProdSec policy mapping.
+Input fields: i=index, n=fullName, p=policyFile, t=type(P=permanent,V=volatile), ref=Jira, c=comment.
 
-## Context
+Guidance:
+{guidance_summary}
 
-Enterprise Contract policies enforce compliance rules on container images before release.
-Exceptions (exclusions) bypass specific rules:
-- **Permanent (config)**: Always-on exclusions in the policy config
-- **Volatile**: Time-bounded exclusions with an effectiveUntil date, often with Jira references
+Categories: partner_permanent (partner binaries, no source), platform_adoption (AIPCC migration fixes FIPS/SBOM/hermetic/RPM), package_onboarding (build from source, bazel/haskell/C), component_update (bump pins/constraints), risk_accepted (PRODSECRM VP sign-off), resolved (stale, removable).
 
-Per Chris Wright's mandate (May 2026), ProdSec will no longer grant exceptions. Products not meeting security requirements don't ship. Only Conforma exceptions mapping to ProdSec Policies are compliance-blocking (Decision #2). VP-level sign-off is required for genuinely unavoidable exceptions, tracked in PRODSECRM risk register.
+Target releases (use exact version strings): {target_release_options}
+Pick the nearest realistic version. EA releases for items already resolved or with straightforward fixes. Later releases for significant effort. "permanent" only for partner binaries and formally accepted risks.
 
-## Guidance Documents
+ProdSec mapped: true=CVE/hermetic/RPM-sig/FIPS/SBOM/source/build-from-source. false=step_image_registries/schedule/non-security.
 
-Use the following guidance documents to inform your categorization decisions — they contain the latest policy decisions, resolution paths, package triage, and compliance strategy:
-
-{guidance_text}
-
-## Resolution Path Categories
-
-Classify each exception into exactly one category:
-
-- **partner_permanent**: Binary content from hardware partners (NVIDIA, Intel, AWS, Google) — no source code available. These are permanent exceptions requiring recurring ProdSec review. Partner agreements cover redistribution rights.
-- **platform_adoption**: Resolvable by migrating images to AIPCC base containers and packages. Active rollout across RHOAI python images is in progress. Includes FIPS, SBOM, base image, and hermetic build issues fixable through platform migration.
-- **package_onboarding**: Requires building new packages from source or resolving complex build dependencies (bazel, haskell, C extensions). Involves cross-team coordination with AIPCC Ecosystems team.
-- **component_update**: Component team needs to bump version pins, relax constraints, or make a straightforward Containerfile change (e.g., registry migration). Low complexity, single-team ownership.
-- **risk_accepted**: Fundamental engineering limitation formally accepted via PRODSECRM risk register with VP sign-off. Cannot be resolved through engineering work alone (e.g., CVE triage process deviations, FBC images not shipping source containers).
-- **resolved**: Root cause has been addressed (merged fix, signed RPMs available, upstream update). Exception entry is stale and can be removed from the policy YAML.
-
-## Target Release
-
-Estimate the earliest release in which each exception can realistically be resolved. Use one of these actual release versions or "permanent":
-
-{target_release_list}
-- **permanent**: Partner content, formally accepted risks. Will never be fully resolved.
-
-Pick the nearest realistic version. Earlier EA releases are for items already resolved or with straightforward fixes. Later releases are for items requiring significant effort (complex builds, cross-team coordination). Use "permanent" only for partner binaries and formally accepted risks.
-
-## ProdSec Policy Mapping
-
-Determine whether each exception maps to a ProdSec Security Policy (compliance-blocking):
-
-- **true** for: CVE/vulnerability rules, hermetic build requirements, RPM signature validation, FIPS compliance, SBOM completeness, source image requirements, build-from-source requirements.
-- **false** for: step_image_registries (internal tooling), schedule/weekday restrictions, task-level exceptions not tied to security policy.
-
-## Exceptions to Analyze
-
-```json
+Input:
 {exceptions_json}
-```
 
-## Required Output Format
+Return ONLY valid JSON, no markdown. Use index-based compact format:
+{{"e":[{{"i":0,"cat":"platform_adoption","tr":"{all_versions[0] if all_versions else 'permanent'}","pm":true,"r":"short reason"}}]}}
 
-Return ONLY valid JSON with this exact structure — no markdown, no explanation, no code fences:
-
-{{"exceptions": [
-  {{
-    "fullName": "<exact fullName from input>",
-    "policyFile": "<fbc or registry>",
-    "type": "<permanent or volatile>",
-    "category": "<partner_permanent|platform_adoption|package_onboarding|component_update|risk_accepted|resolved>",
-    "targetRelease": "<{target_release_options}>",
-    "policyMapped": true,
-    "reasoning": "<1-2 sentence explanation>"
-  }}
-]}}
-
-Include ALL {len(exceptions)} exceptions from the input. Do not skip any."""
+Fields: i=input index, cat=category, tr=targetRelease, pm=policyMapped(bool), r=reasoning(under 15 words).
+Include ALL {len(exceptions)} items."""
 
 
 def check_claude_env() -> None:
@@ -414,11 +421,37 @@ def run_claude(prompt: str) -> dict:
 
     try:
         return json.loads(text)
-    except json.JSONDecodeError as exc:
-        print(f"ERROR: Could not parse Claude response as JSON: {exc}", file=sys.stderr)
-        print(f"  Response text (first 200 chars): {text[:200]}", file=sys.stderr)
-        print(f"  Response text (last 200 chars): {text[-200:]}", file=sys.stderr)
-        sys.exit(1)
+    except json.JSONDecodeError:
+        pass
+
+    # Large responses may be split across multiple assistant text blocks,
+    # producing concatenated JSON objects: {"e":[...]}{"e":[...]}.
+    # Try to parse each object separately and merge the "e" arrays.
+    merged_items = []
+    decoder = json.JSONDecoder()
+    pos = 0
+    while pos < len(text):
+        # Skip whitespace between JSON objects
+        while pos < len(text) and text[pos] in ' \t\n\r':
+            pos += 1
+        if pos >= len(text):
+            break
+        try:
+            obj, end = decoder.raw_decode(text, pos)
+            items = obj.get("e") or obj.get("exceptions", [])
+            merged_items.extend(items)
+            pos = end
+        except json.JSONDecodeError:
+            break
+
+    if merged_items:
+        print(f"  Merged {len(merged_items)} items from split JSON response")
+        return {"e": merged_items}
+
+    print(f"ERROR: Could not parse Claude response as JSON", file=sys.stderr)
+    print(f"  Response text (first 200 chars): {text[:200]}", file=sys.stderr)
+    print(f"  Response text (last 200 chars): {text[-200:]}", file=sys.stderr)
+    sys.exit(1)
 
 
 def push_ai_categorization(
@@ -449,6 +482,38 @@ VALID_CATEGORIES = {
     "partner_permanent", "platform_adoption", "package_onboarding",
     "component_update", "risk_accepted", "resolved",
 }
+
+
+def expand_ai_response(raw: dict, exceptions: list[dict]) -> dict:
+    """Expand compact AI response back to the full format expected downstream."""
+    items = raw.get("e") or raw.get("exceptions", [])
+    expanded = []
+    for item in items:
+        idx = item.get("i")
+        if idx is not None and 0 <= idx < len(exceptions):
+            src = exceptions[idx]
+            expanded.append({
+                "fullName": src["fullName"],
+                "policyFile": src["policyFile"],
+                "type": src["type"],
+                "category": item.get("cat", item.get("category", "")),
+                "targetRelease": item.get("tr", item.get("targetRelease", "")),
+                "policyMapped": item.get("pm", item.get("policyMapped", True)),
+                "reasoning": item.get("r", item.get("reasoning", "")),
+            })
+        else:
+            expanded.append({
+                "fullName": item.get("fullName", f"(unknown index {idx})"),
+                "policyFile": item.get("policyFile", ""),
+                "type": item.get("type", ""),
+                "category": item.get("cat", item.get("category", "")),
+                "targetRelease": item.get("tr", item.get("targetRelease", "")),
+                "policyMapped": item.get("pm", item.get("policyMapped", True)),
+                "reasoning": item.get("r", item.get("reasoning", "")),
+            })
+    return {"exceptions": expanded}
+
+
 def validate_ai_response(ai_data: dict, expected_count: int, valid_versions: set[str]) -> list[str]:
     """Return a list of warnings about the AI response."""
     warnings = []
@@ -485,11 +550,11 @@ def main() -> None:
     print(f"Backend: {backend_url}")
     print()
 
-    print("[1/4] Fetching releases from API…")
+    print("[1/5] Fetching releases from API…")
     releases = fetch_releases(backend_url, api_token)
     print(f"  Found {len(releases)} releases")
 
-    print("\n[2/4] Finding latest unshipped release…")
+    print("\n[2/5] Finding latest unshipped release…")
     release = find_next_upcoming(releases)
     if not release:
         print("  No unshipped release found. Nothing to categorize.")
@@ -511,12 +576,19 @@ def main() -> None:
     )
     print(f"  Available versions for targetRelease: {all_versions}")
 
-    print(f"\n[3/4] Running AI categorization via Claude CLI…")
+    print(f"\n[3/5] Summarizing guidance documents…")
     check_claude_env()
     check_claude_health()
-    prompt = build_prompt(exceptions, version, all_versions)
+    guidance_text = load_guidance_docs()
+    print(f"  Raw guidance size: {len(guidance_text)} chars")
+    guidance_summary = summarize_guidance(guidance_text)
+    print(f"  Summary size: {len(guidance_summary)} chars")
+
+    print(f"\n[4/5] Running AI categorization via Claude CLI…")
+    prompt = build_prompt(exceptions, version, all_versions, guidance_summary)
     print(f"  Prompt size: {len(prompt)} chars")
-    ai_data = run_claude(prompt)
+    raw_data = run_claude(prompt)
+    ai_data = expand_ai_response(raw_data, exceptions)
 
     warnings = validate_ai_response(ai_data, len(exceptions), set(all_versions))
     if warnings:
@@ -533,7 +605,7 @@ def main() -> None:
     for cat, count in sorted(by_cat.items()):
         print(f"    {cat}: {count}")
 
-    print(f"\n[4/4] Pushing AI categorization to API…")
+    print(f"\n[5/5] Pushing AI categorization to API…")
     push_ai_categorization(backend_url, api_token, releases, version, ai_data)
 
     print("\n=== Done ===")
