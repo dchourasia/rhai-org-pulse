@@ -253,6 +253,7 @@
       <ConformaAiCategoryChart
         v-if="hasAiData"
         :exceptions="flatExceptions"
+        :releases="allReleases"
         :chart-key="chartKey"
       />
 
@@ -735,9 +736,14 @@ const availableTargetReleases = computed(() => {
   for (const ex of flatExceptions.value) {
     if (ex.targetRelease) targets.add(ex.targetRelease)
   }
-  const sorted = [...targets].filter(t => t !== PERMANENT_TARGET).sort()
-  if (targets.has(PERMANENT_TARGET)) sorted.push(PERMANENT_TARGET)
-  return sorted
+  const gaDateMap = {}
+  for (const r of allReleases.value) {
+    if (r.version && r.gaDate) gaDateMap[r.version] = r.gaDate
+  }
+  const nonPermanent = [...targets].filter(t => t !== PERMANENT_TARGET)
+  nonPermanent.sort((a, b) => (gaDateMap[a] || a).localeCompare(gaDateMap[b] || b))
+  if (targets.has(PERMANENT_TARGET)) nonPermanent.push(PERMANENT_TARGET)
+  return nonPermanent
 })
 
 // ─── Flat exception list (all, used by charts) ───────────────────────────────

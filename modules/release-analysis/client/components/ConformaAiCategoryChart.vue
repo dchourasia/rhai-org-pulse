@@ -6,6 +6,7 @@ import ConformaHelpText from './ConformaHelpText.vue'
 
 const props = defineProps({
   exceptions: { type: Array, default: () => [] },
+  releases: { type: Array, default: () => [] },
   chartKey: { type: Number, default: 0 }
 })
 
@@ -86,9 +87,20 @@ const targetReleases = computed(() => {
   for (const ex of props.exceptions) {
     if (ex.targetRelease) targets.add(ex.targetRelease)
   }
-  const sorted = [...targets].filter(t => t !== PERMANENT_TARGET).sort()
-  if (targets.has(PERMANENT_TARGET)) sorted.push(PERMANENT_TARGET)
-  return sorted
+
+  const gaDateMap = {}
+  for (const r of props.releases) {
+    if (r.version && r.gaDate) gaDateMap[r.version] = r.gaDate
+  }
+
+  const nonPermanent = [...targets].filter(t => t !== PERMANENT_TARGET)
+  nonPermanent.sort((a, b) => {
+    const da = gaDateMap[a] || a
+    const db = gaDateMap[b] || b
+    return da.localeCompare(db)
+  })
+  if (targets.has(PERMANENT_TARGET)) nonPermanent.push(PERMANENT_TARGET)
+  return nonPermanent
 })
 
 const burndownData = computed(() => {
@@ -176,7 +188,7 @@ const hasBurndownData = computed(() =>
     <div class="grid gap-6" :class="hasBurndownData ? 'grid-cols-1 lg:grid-cols-2' : ''">
       <!-- Resolution Path Distribution -->
       <div>
-        <h4 class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Resolution Path Distribution</h4>
+        <h4 class="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Resolution Path Distribution</h4>
         <div style="height: 240px; position: relative;">
           <Bar :key="`ai-cat-${chartKey}`" :data="categoryChartData" :options="categoryChartOptions" />
         </div>
@@ -184,7 +196,7 @@ const hasBurndownData = computed(() =>
 
       <!-- Release Burndown Forecast -->
       <div v-if="hasBurndownData">
-        <h4 class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Release Burndown Forecast</h4>
+        <h4 class="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Release Burndown Forecast</h4>
         <div style="height: 240px; position: relative;">
           <Bar :key="`burndown-${chartKey}`" :data="burndownData" :options="burndownOptions" />
         </div>

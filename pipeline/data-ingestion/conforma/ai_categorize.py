@@ -91,6 +91,7 @@ def collect_exceptions(release: dict) -> list[dict]:
                 "reference": ex.get("reference"),
                 "comment": ex.get("comment"),
                 "imageUrl": image or None,
+                "effectiveUntil": ex.get("effectiveUntil"),
             })
 
     return result
@@ -157,7 +158,8 @@ Output plain text, no markdown fences. Be dense and factual — this will be emb
             os.unlink(prompt_path)
 
 
-def build_prompt(exceptions: list[dict], version: str, all_versions: list[str], guidance_summary: str) -> str:
+def build_prompt(exceptions: list[dict], version: str, all_versions: list[str],
+                 guidance_summary: str, release_schedule: list[dict]) -> str:
     compact = []
     for i, ex in enumerate(exceptions):
         entry = {"i": i, "n": ex["fullName"], "p": ex["policyFile"], "t": ex["type"][0].upper()}
@@ -165,22 +167,37 @@ def build_prompt(exceptions: list[dict], version: str, all_versions: list[str], 
             entry["ref"] = ex["reference"]
         if ex.get("comment"):
             entry["c"] = ex["comment"]
+        if ex.get("effectiveUntil"):
+            entry["exp"] = ex["effectiveUntil"][:10]
         compact.append(entry)
     exceptions_json = json.dumps(compact, separators=(",", ":"))
 
     target_release_options = " | ".join(all_versions + ["permanent"])
+    schedule_lines = "\n".join(
+        f"- {r['version']} (GA: {r['gaDate']})" for r in release_schedule
+    )
 
     return f"""Categorize {len(exceptions)} EC policy exceptions for RHOAI {version}.
 
-Input fields: i=index, n=fullName, p=policyFile, t=type(P=permanent,V=volatile), ref=Jira, c=comment.
+Input fields: i=index, n=fullName, p=policyFile, t=type(P=permanent,V=volatile), ref=Jira, c=comment, exp=effectiveUntil(YYYY-MM-DD).
 
 Guidance:
 {guidance_summary}
 
 Categories: partner_permanent (partner binaries, no source), platform_adoption (AIPCC migration fixes FIPS/SBOM/hermetic/RPM), package_onboarding (build from source, bazel/haskell/C), component_update (bump pins/constraints), risk_accepted (PRODSECRM VP sign-off), resolved (stale, removable).
 
+Upcoming release schedule:
+{schedule_lines}
+
 Target releases (use exact version strings): {target_release_options}
-Pick the nearest realistic version. EA releases for items already resolved or with straightforward fixes. Later releases for significant effort. "permanent" only for partner binaries and formally accepted risks.
+
+CRITICAL — Target release assignment rules:
+1. EXPIRY-DRIVEN PRIORITY: If a volatile exception has an "exp" (effectiveUntil) date, it MUST be resolved BEFORE that date or it will block the release. Assign it to the nearest release whose GA date is ON or BEFORE the expiry date. This is the highest-priority signal.
+2. FRONT-LOAD AGGRESSIVELY: Per the Security Policy Compliance Directive, resolve as many exceptions as possible in the EARLIEST upcoming releases:
+   - Assign to the nearest EA release for: platform_adoption (AIPCC migration is actively rolling out), component_update (version bumps are low effort), resolved (just need exception removal).
+   - Only defer to GA for items that genuinely require multi-sprint effort or cross-team dependencies not yet started.
+3. HARD ITEMS GO LATER: Only defer to the next major release (e.g., 3.6) for genuinely complex work — C extension builds (bazel/haskell), accelerator-specific packages, or items explicitly blocked on external dependencies not yet available.
+4. PERMANENT: Use only for partner binaries (NVIDIA, Intel, AMD, etc.) and formally accepted risks that will never be resolved.
 
 ProdSec mapped: true=CVE/hermetic/RPM-sig/FIPS/SBOM/source/build-from-source. false=step_image_registries/schedule/non-security.
 
@@ -570,11 +587,19 @@ def main() -> None:
         print("  No exceptions to categorize.")
         return
 
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     all_versions = sorted(
         {r.get("version", "") for r in releases if r.get("version")},
         key=lambda v: (v.replace("rhoai-", ""), v),
     )
     print(f"  Available versions for targetRelease: {all_versions}")
+
+    release_schedule = sorted(
+        [{"version": r["version"], "gaDate": r["gaDate"]}
+         for r in releases if r.get("version") and r.get("gaDate", "") >= today],
+        key=lambda r: r["gaDate"],
+    )
+    print(f"  Upcoming release schedule: {[(r['version'], r['gaDate']) for r in release_schedule]}")
 
     print(f"\n[3/5] Summarizing guidance documents…")
     check_claude_env()
@@ -585,7 +610,7 @@ def main() -> None:
     print(f"  Summary size: {len(guidance_summary)} chars")
 
     print(f"\n[4/5] Running AI categorization via Claude CLI…")
-    prompt = build_prompt(exceptions, version, all_versions, guidance_summary)
+    prompt = build_prompt(exceptions, version, all_versions, guidance_summary, release_schedule)
     print(f"  Prompt size: {len(prompt)} chars")
     raw_data = run_claude(prompt)
     ai_data = expand_ai_response(raw_data, exceptions)
