@@ -127,6 +127,23 @@ function extractVersionNamesFromField(fields, fieldId) {
   return n ? [n] : []
 }
 
+/**
+ * Build regex patterns for phase-aware version matching.
+ * Match base version OR phase-specific version, but NOT other phases or z-stream.
+ * Examples for "3.4 EA1":
+ *   MATCH: rhoai-3.4, rhoai-3.4.EA1, RHAII-3.4 EA1
+ *   NO MATCH: rhoai-3.4.EA2, rhoai-3.4.1, RHAII-3.4 EA2
+ */
+function buildPhaseVersionPatterns(version, phase) {
+  const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const escapedPhase = phase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return [
+    new RegExp(`-${escaped}$`),                    // Pattern 1: base version (e.g., "rhoai-3.4")
+    new RegExp(`-${escaped}\\.${escapedPhase}$`),  // Pattern 2: dot-separated phase (e.g., "rhoai-3.4.EA1")
+    new RegExp(`-${escaped}\\s+${escapedPhase}$`)  // Pattern 3: space-separated phase (e.g., "RHAII-3.4 EA1")
+  ]
+}
+
 function extractFixVersions(issue) {
   const versions = extractVersionNamesFromField(issue.fields || {}, FIX_VERSION_FIELD_KEY)
   // Also check Target Version custom field (customfield_10855) - used by RHAISTRAT Features
@@ -1333,9 +1350,8 @@ module.exports = function registerRoutes(router, context) {
         { maxResults: 100 }
       )
 
-      // Filter to features matching this version
-      const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const versionPattern = new RegExp(`\\b${escaped}\\b`)
+      // Filter to features matching this version + phase
+      const [basePattern, dotPhasePattern, spacePhasePattern] = buildPhaseVersionPatterns(version, phase)
 
       const deliveryIssues = []
       const seenKeys = new Set()
@@ -1344,7 +1360,7 @@ module.exports = function registerRoutes(router, context) {
         const targetVersions = issue.fields?.customfield_10855 || []
         const hasMatchingVersion = targetVersions.some(v => {
           const val = v?.name || v?.value || ''
-          return versionPattern.test(val)
+          return basePattern.test(val) || dotPhasePattern.test(val) || spacePhasePattern.test(val)
         })
 
         if (hasMatchingVersion && !seenKeys.has(issue.key)) {
@@ -1612,9 +1628,8 @@ module.exports = function registerRoutes(router, context) {
 
       console.log(`[releases/delivery] Found ${allFeatures.length} total features`)
 
-      // Filter to features matching this version (via Target Version field cf[10855])
-      const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const versionPattern = new RegExp(`\\b${escaped}\\b`)
+      // Filter to features matching this version + phase (via Target Version field cf[10855])
+      const [basePattern, dotPhasePattern, spacePhasePattern] = buildPhaseVersionPatterns(version, phase)
 
       const features = []
       const seenKeys = new Set()
@@ -1624,7 +1639,7 @@ module.exports = function registerRoutes(router, context) {
         const hasMatchingVersion = targetVersions.some(v => {
           // Target Version field returns Jira version objects with 'name' property
           const val = v?.name || v?.value || ''
-          return versionPattern.test(val)
+          return basePattern.test(val) || dotPhasePattern.test(val) || spacePhasePattern.test(val)
         })
 
         if (hasMatchingVersion && !seenKeys.has(issue.key)) {
