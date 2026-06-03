@@ -192,10 +192,13 @@ Upcoming release schedule:
 Target releases (use exact version strings): {target_release_options}
 
 CRITICAL — Target release assignment rules:
-1. EXPIRY-DRIVEN PRIORITY: If a volatile exception has an "exp" (effectiveUntil) date, it MUST be resolved BEFORE that date or it will block the release. Assign it to the nearest release whose GA date is ON or BEFORE the expiry date. This is the highest-priority signal.
-2. FRONT-LOAD AGGRESSIVELY: Per the Security Policy Compliance Directive, resolve as many exceptions as possible in the EARLIEST upcoming releases:
-   - Assign to the nearest EA release for: platform_adoption (AIPCC migration is actively rolling out), component_update (version bumps are low effort), resolved (just need exception removal).
-   - Only defer to GA for items that genuinely require multi-sprint effort or cross-team dependencies not yet started.
+1. REALISTIC FEASIBILITY: The targetRelease should be the release where the fix can realistically ship, not just when the exception expires. Exceptions can be renewed/extended if the fix isn't ready yet — expiry does NOT mean "must be done by then." Spread work across upcoming releases based on what's achievable:
+   - If many exceptions share the same resolution path (e.g., 40+ hermetic builds all need AIPCC migration), split them across EA1, EA2, and GA proportionally — don't dump everything into one release.
+   - Consider dependencies: if image A depends on image B being migrated first, assign B to an earlier release than A.
+   - Simple items (resolved, component_update, already-in-progress platform fixes) → nearest EA release.
+   - Medium items (standard platform_adoption, straightforward hermetic builds) → spread across EA1 and EA2.
+   - Complex items (cross-team dependencies, multi-sprint work, complex builds) → GA or later.
+2. EXPIRY AS A SIGNAL: If a volatile exception has an "exp" (effectiveUntil) date that falls BEFORE the next release's GA, it signals urgency — prioritize it for the nearest release. But if dozens of exceptions all expire at the same date, that's an extension batch, not a realistic deadline for fixing all of them.
 3. HARD ITEMS GO LATER: Only defer to the next major release (e.g., 3.6) for genuinely complex work — C extension builds (bazel/haskell), accelerator-specific packages, or items explicitly blocked on external dependencies not yet available.
 4. PERMANENT: Use only for partner binaries (NVIDIA, Intel, AMD, etc.) and formally accepted risks that will never be resolved.
 
@@ -346,7 +349,7 @@ def run_claude(prompt: str) -> dict:
         last_size = 0
         assistant_texts: list[str] = []
         result_event = None
-        deadline = time.monotonic() + 600
+        deadline = time.monotonic() + 900
 
         def process_event(event: dict) -> None:
             nonlocal result_event
@@ -382,7 +385,7 @@ def run_claude(prompt: str) -> dict:
             if time.monotonic() > deadline:
                 proc.kill()
                 proc.wait()
-                print("ERROR: Claude CLI timed out after 600s", file=sys.stderr)
+                print("ERROR: Claude CLI timed out after 900s", file=sys.stderr)
                 try:
                     with open(result_path, "r") as rf:
                         print(f"  Partial output:\n{rf.read()[:2000]}", file=sys.stderr)
@@ -588,17 +591,13 @@ def main() -> None:
         return
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    all_versions = sorted(
-        {r.get("version", "") for r in releases if r.get("version")},
-        key=lambda v: (v.replace("rhoai-", ""), v),
-    )
-    print(f"  Available versions for targetRelease: {all_versions}")
-
     release_schedule = sorted(
         [{"version": r["version"], "gaDate": r["gaDate"]}
          for r in releases if r.get("version") and r.get("gaDate", "") >= today],
         key=lambda r: r["gaDate"],
     )
+    all_versions = [r["version"] for r in release_schedule]
+    print(f"  Available versions for targetRelease: {all_versions}")
     print(f"  Upcoming release schedule: {[(r['version'], r['gaDate']) for r in release_schedule]}")
 
     print(f"\n[3/5] Summarizing guidance documents…")

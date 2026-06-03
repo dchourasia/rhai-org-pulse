@@ -95,8 +95,8 @@ const targetReleases = computed(() => {
 
   const nonPermanent = [...targets].filter(t => t !== PERMANENT_TARGET)
   nonPermanent.sort((a, b) => {
-    const da = gaDateMap[a] || a
-    const db = gaDateMap[b] || b
+    const da = gaDateMap[a] || '9999-' + a
+    const db = gaDateMap[b] || '9999-' + b
     return da.localeCompare(db)
   })
   if (targets.has(PERMANENT_TARGET)) nonPermanent.push(PERMANENT_TARGET)
