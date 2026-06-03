@@ -447,7 +447,7 @@ def run_claude(prompt: str) -> dict:
     # Large responses may be split across multiple assistant text blocks,
     # producing concatenated JSON objects: {"e":[...]}{"e":[...]}.
     # Try to parse each object separately and merge the "e" arrays.
-    merged_items = []
+    parsed_objects = []
     decoder = json.JSONDecoder()
     pos = 0
     while pos < len(text):
@@ -458,15 +458,22 @@ def run_claude(prompt: str) -> dict:
             break
         try:
             obj, end = decoder.raw_decode(text, pos)
-            items = obj.get("e") or obj.get("exceptions", [])
-            merged_items.extend(items)
+            parsed_objects.append(obj)
             pos = end
         except json.JSONDecodeError:
-            break
+            # Skip ahead to the next '{' and try again (handles truncated blocks)
+            next_brace = text.find('{', pos + 1)
+            if next_brace == -1:
+                break
+            pos = next_brace
 
-    if merged_items:
-        print(f"  Merged {len(merged_items)} items from split JSON response")
-        return {"e": merged_items}
+    if parsed_objects:
+        # Prefer the object with the most items (handles duplicated/truncated blocks)
+        best = max(parsed_objects, key=lambda o: len(o.get("e") or o.get("exceptions", [])))
+        items = best.get("e") or best.get("exceptions", [])
+        if len(parsed_objects) > 1:
+            print(f"  Parsed {len(parsed_objects)} JSON objects, using best with {len(items)} items")
+        return {"e": items} if "e" in best else best
 
     print(f"ERROR: Could not parse Claude response as JSON", file=sys.stderr)
     print(f"  Response text (first 200 chars): {text[:200]}", file=sys.stderr)
