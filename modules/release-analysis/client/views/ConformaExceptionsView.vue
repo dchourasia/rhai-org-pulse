@@ -347,7 +347,7 @@
               class="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">All Targets</option>
-              <option v-for="t in TARGET_RELEASES" :key="t" :value="t">{{ TARGET_RELEASE_LABELS[t]?.label || t }}</option>
+              <option v-for="t in availableTargetReleases" :key="t" :value="t">{{ targetReleaseLabel(t) }}</option>
             </select>
 
             <!-- ProdSec policy filter -->
@@ -441,10 +441,10 @@
                 <!-- Target Release -->
                 <td class="px-4 py-3 whitespace-nowrap">
                   <span
-                    v-if="ex.targetRelease && TARGET_RELEASE_LABELS[ex.targetRelease]"
+                    v-if="ex.targetRelease"
                     class="px-1.5 py-0.5 rounded text-[10px] font-medium"
-                    :class="TARGET_RELEASE_LABELS[ex.targetRelease].badgeCls"
-                  >{{ TARGET_RELEASE_LABELS[ex.targetRelease].label }}</span>
+                    :class="targetReleaseBadgeCls(ex.targetRelease)"
+                  >{{ targetReleaseLabel(ex.targetRelease) }}</span>
                   <span v-else class="text-gray-300 dark:text-gray-600">—</span>
                 </td>
                 <!-- ProdSec Policy Mapped -->
@@ -627,7 +627,7 @@ import ConformaHelpText from '../components/ConformaHelpText.vue'
 import ConformaAiCategoryChart from '../components/ConformaAiCategoryChart.vue'
 import {
   KNOWN_CATEGORIES, CATEGORY_BADGE, CATEGORY_DOCS,
-  AI_CATEGORIES, TARGET_RELEASES, TARGET_RELEASE_LABELS,
+  AI_CATEGORIES, PERMANENT_TARGET, targetReleaseBadgeCls, targetReleaseLabel,
   EXTENSION_JIRA_TEMPLATE_URL, ACTIONABLE_DAYS_THRESHOLD,
   extractCategory
 } from '../constants/conforma'
@@ -729,6 +729,16 @@ const aiCategoryMap = computed(() => {
 const hasAiData = computed(() =>
   Object.keys(aiCategoryMap.value).length > 0
 )
+
+const availableTargetReleases = computed(() => {
+  const targets = new Set()
+  for (const ex of flatExceptions.value) {
+    if (ex.targetRelease) targets.add(ex.targetRelease)
+  }
+  const sorted = [...targets].filter(t => t !== PERMANENT_TARGET).sort()
+  if (targets.has(PERMANENT_TARGET)) sorted.push(PERMANENT_TARGET)
+  return sorted
+})
 
 // ─── Flat exception list (all, used by charts) ───────────────────────────────
 

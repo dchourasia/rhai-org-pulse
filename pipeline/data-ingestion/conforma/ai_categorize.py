@@ -109,9 +109,12 @@ def load_guidance_docs() -> str:
     return "\n\n---\n\n".join(docs)
 
 
-def build_prompt(exceptions: list[dict], version: str) -> str:
+def build_prompt(exceptions: list[dict], version: str, all_versions: list[str]) -> str:
     exceptions_json = json.dumps(exceptions, indent=2)
     guidance_text = load_guidance_docs()
+
+    target_release_options = " | ".join(all_versions + ["permanent"])
+    target_release_list = "\n".join(f"- **{v}**" for v in all_versions)
 
     return f"""You are an expert in Red Hat OpenShift AI (RHOAI) release engineering, Enterprise Contract (EC) policies, and the Security Policy Compliance Directive (May 2026).
 
@@ -145,12 +148,12 @@ Classify each exception into exactly one category:
 
 ## Target Release
 
-Estimate when each exception can realistically be resolved:
+Estimate the earliest release in which each exception can realistically be resolved. Use one of these actual release versions or "permanent":
 
-- **3.5-EA**: Already resolved or auto-extended per Decision #4. Straightforward fixes already in flight.
-- **3.5-GA**: Platform adoption rollout, pure Python package onboarding, component team version bumps. Near-term.
-- **3.6**: C extension packages, accelerator-specific packages, complex builds (bazel, haskell). H2 2026.
+{target_release_list}
 - **permanent**: Partner content, formally accepted risks. Will never be fully resolved.
+
+Pick the nearest realistic version. Earlier EA releases are for items already resolved or with straightforward fixes. Later releases are for items requiring significant effort (complex builds, cross-team coordination). Use "permanent" only for partner binaries and formally accepted risks.
 
 ## ProdSec Policy Mapping
 
@@ -175,7 +178,7 @@ Return ONLY valid JSON with this exact structure — no markdown, no explanation
     "policyFile": "<fbc or registry>",
     "type": "<permanent or volatile>",
     "category": "<partner_permanent|platform_adoption|package_onboarding|component_update|risk_accepted|resolved>",
-    "targetRelease": "<3.5-EA|3.5-GA|3.6|permanent>",
+    "targetRelease": "<{target_release_options}>",
     "policyMapped": true,
     "reasoning": "<1-2 sentence explanation>"
   }}
@@ -446,13 +449,11 @@ VALID_CATEGORIES = {
     "partner_permanent", "platform_adoption", "package_onboarding",
     "component_update", "risk_accepted", "resolved",
 }
-VALID_TARGET_RELEASES = {"3.5-EA", "3.5-GA", "3.6", "permanent"}
-
-
-def validate_ai_response(ai_data: dict, expected_count: int) -> list[str]:
+def validate_ai_response(ai_data: dict, expected_count: int, valid_versions: set[str]) -> list[str]:
     """Return a list of warnings about the AI response."""
     warnings = []
     exceptions = ai_data.get("exceptions", [])
+    valid_targets = valid_versions | {"permanent"}
 
     if len(exceptions) != expected_count:
         warnings.append(
@@ -464,8 +465,8 @@ def validate_ai_response(ai_data: dict, expected_count: int) -> list[str]:
         if cat not in VALID_CATEGORIES:
             warnings.append(f"  [{i}] Invalid category: {cat!r}")
         target = ex.get("targetRelease", "")
-        if target not in VALID_TARGET_RELEASES:
-            warnings.append(f"  [{i}] Invalid targetRelease: {target!r}")
+        if target not in valid_targets:
+            warnings.append(f"  [{i}] Invalid targetRelease: {target!r} (valid: {sorted(valid_targets)})")
         if not isinstance(ex.get("policyMapped"), bool):
             warnings.append(f"  [{i}] policyMapped must be boolean, got: {type(ex.get('policyMapped')).__name__}")
         if not ex.get("reasoning"):
@@ -504,14 +505,20 @@ def main() -> None:
         print("  No exceptions to categorize.")
         return
 
+    all_versions = sorted(
+        {r.get("version", "") for r in releases if r.get("version")},
+        key=lambda v: (v.replace("rhoai-", ""), v),
+    )
+    print(f"  Available versions for targetRelease: {all_versions}")
+
     print(f"\n[3/4] Running AI categorization via Claude CLI…")
     check_claude_env()
     check_claude_health()
-    prompt = build_prompt(exceptions, version)
+    prompt = build_prompt(exceptions, version, all_versions)
     print(f"  Prompt size: {len(prompt)} chars")
     ai_data = run_claude(prompt)
 
-    warnings = validate_ai_response(ai_data, len(exceptions))
+    warnings = validate_ai_response(ai_data, len(exceptions), set(all_versions))
     if warnings:
         print("  Validation warnings:")
         for w in warnings:

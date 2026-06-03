@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { Bar } from 'vue-chartjs'
-import { AI_CATEGORIES, TARGET_RELEASES, TARGET_RELEASE_LABELS } from '../constants/conforma'
+import { AI_CATEGORIES, PERMANENT_TARGET, targetReleaseLabel } from '../constants/conforma'
 import ConformaHelpText from './ConformaHelpText.vue'
 
 const props = defineProps({
@@ -81,9 +81,20 @@ const categoryChartOptions = {
   }
 }
 
+const targetReleases = computed(() => {
+  const targets = new Set()
+  for (const ex of props.exceptions) {
+    if (ex.targetRelease) targets.add(ex.targetRelease)
+  }
+  const sorted = [...targets].filter(t => t !== PERMANENT_TARGET).sort()
+  if (targets.has(PERMANENT_TARGET)) sorted.push(PERMANENT_TARGET)
+  return sorted
+})
+
 const burndownData = computed(() => {
+  const releases = targetReleases.value
   const byRelease = {}
-  for (const t of TARGET_RELEASES) {
+  for (const t of releases) {
     byRelease[t] = {}
     for (const key of Object.keys(AI_CATEGORIES)) {
       byRelease[t][key] = 0
@@ -96,10 +107,10 @@ const burndownData = computed(() => {
   }
   const catEntries = Object.entries(AI_CATEGORIES)
   return {
-    labels: TARGET_RELEASES.map(t => TARGET_RELEASE_LABELS[t]?.label || t),
+    labels: releases.map(t => targetReleaseLabel(t)),
     datasets: catEntries.map(([key, info]) => ({
       label: info.label,
-      data: TARGET_RELEASES.map(t => byRelease[t][key] || 0),
+      data: releases.map(t => byRelease[t][key] || 0),
       backgroundColor: info.color,
       borderColor: info.borderColor,
       borderWidth: 1,

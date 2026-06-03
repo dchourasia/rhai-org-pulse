@@ -146,7 +146,7 @@
             "policyFile": "fbc",
             "type": "permanent",
             "category": "platform_adoption",
-            "targetRelease": "3.5-GA",
+            "targetRelease": "rhoai-3.5",
             "policyMapped": false,
             "reasoning": "FBC builds use internal step images from registries not on the default allowlist. Will be resolved when AIPCC base images are added to the allowed list."
           },
@@ -164,7 +164,7 @@
             "policyFile": "fbc",
             "type": "volatile",
             "category": "platform_adoption",
-            "targetRelease": "3.5-GA",
+            "targetRelease": "rhoai-3.5",
             "policyMapped": true,
             "reasoning": "FIPS check failures tied to Konflux bug KONFLUX-10393. Requires platform changes to support FIPS checks without x86 image variants. Blocking for compliance."
           },
@@ -173,7 +173,7 @@
             "policyFile": "fbc",
             "type": "volatile",
             "category": "platform_adoption",
-            "targetRelease": "3.5-GA",
+            "targetRelease": "rhoai-3.5",
             "policyMapped": true,
             "reasoning": "Same root cause as FIPS erred tests — Konflux platform needs to support FIPS validation for non-x86 architectures."
           },
@@ -182,7 +182,7 @@
             "policyFile": "fbc",
             "type": "volatile",
             "category": "component_update",
-            "targetRelease": "3.5-EA",
+            "targetRelease": "rhoai-3.5-ea1",
             "policyMapped": false,
             "reasoning": "The FIPS check task can be added to the pipeline definition. Straightforward pipeline config change once KONFLUX-10393 lands."
           },
@@ -218,7 +218,7 @@
             "policyFile": "registry",
             "type": "volatile",
             "category": "platform_adoption",
-            "targetRelease": "3.5-GA",
+            "targetRelease": "rhoai-3.5",
             "policyMapped": true,
             "reasoning": "Deprecated nodejs-18 base image needs migration to nodejs-20. Part of AIPCC platform adoption rollout. Tracked in RHOAIENG-16260."
           },
@@ -227,7 +227,7 @@
             "policyFile": "registry",
             "type": "volatile",
             "category": "package_onboarding",
-            "targetRelease": "3.6",
+            "targetRelease": "rhoai-3.6",
             "policyMapped": true,
             "reasoning": "MLMD gRPC server has network dependencies during build. Requires upstream changes to vendored dependencies (RHOAIENG-31398). C extension complexity."
           },
@@ -236,7 +236,7 @@
             "policyFile": "registry",
             "type": "volatile",
             "category": "package_onboarding",
-            "targetRelease": "3.6",
+            "targetRelease": "rhoai-3.6",
             "policyMapped": true,
             "reasoning": "Llama Stack downloads model artifacts during build. AIPCC team working on pre-caching approach (KONFLUX-7552). Significant build pipeline changes needed."
           },
@@ -245,7 +245,7 @@
             "policyFile": "registry",
             "type": "volatile",
             "category": "component_update",
-            "targetRelease": "3.5-EA",
+            "targetRelease": "rhoai-3.5-ea1",
             "policyMapped": true,
             "reasoning": "Source reference needs updating from quay.io to registry.redhat.io. Simple Containerfile change tracked in RHOAIENG-28098."
           },
@@ -254,7 +254,7 @@
             "policyFile": "registry",
             "type": "volatile",
             "category": "resolved",
-            "targetRelease": "3.5-EA",
+            "targetRelease": "rhoai-3.5-ea1",
             "policyMapped": true,
             "reasoning": "Gaudi team documented EPEL RPM usage per PSX-1042. Signed RPMs are now available — exception can be removed."
           },
@@ -263,7 +263,7 @@
             "policyFile": "registry",
             "type": "volatile",
             "category": "component_update",
-            "targetRelease": "3.5-GA",
+            "targetRelease": "rhoai-3.5",
             "policyMapped": true,
             "reasoning": "Non-hermetic dependency is the registry migration. Component team needs to update Containerfile to use registry.redhat.io. Tracked in RHOAIENG-28098."
           },
@@ -272,7 +272,7 @@
             "policyFile": "registry",
             "type": "volatile",
             "category": "component_update",
-            "targetRelease": "3.5-GA",
+            "targetRelease": "rhoai-3.5",
             "policyMapped": true,
             "reasoning": "Same registry migration as kserve controller. Component team Containerfile change to reference registry.redhat.io."
           }

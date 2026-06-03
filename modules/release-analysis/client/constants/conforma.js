@@ -80,13 +80,19 @@ export const AI_CATEGORIES = {
   }
 }
 
-export const TARGET_RELEASES = ['3.5-EA', '3.5-GA', '3.6', 'permanent']
+export const PERMANENT_TARGET = 'permanent'
 
-export const TARGET_RELEASE_LABELS = {
-  '3.5-EA': { label: '3.5 EA', badgeCls: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' },
-  '3.5-GA': { label: '3.5 GA', badgeCls: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' },
-  '3.6': { label: '3.6', badgeCls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' },
-  'permanent': { label: 'Permanent', badgeCls: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300' }
+export function targetReleaseBadgeCls(target) {
+  if (!target) return ''
+  if (target === PERMANENT_TARGET) return 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+  if (target.includes('-ea')) return 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+  return 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+}
+
+export function targetReleaseLabel(target) {
+  if (!target) return ''
+  if (target === PERMANENT_TARGET) return 'Permanent'
+  return target.replace('rhoai-', '')
 }
 
 export function extractCategory(value) {
