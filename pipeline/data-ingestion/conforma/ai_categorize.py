@@ -14,6 +14,7 @@ Categories:
   - resolved: root cause addressed, exception removable
 """
 
+import glob
 import json
 import os
 import re
@@ -95,8 +96,22 @@ def collect_exceptions(release: dict) -> list[dict]:
     return result
 
 
+def load_guidance_docs() -> str:
+    """Read all markdown files from the guidance/ directory next to this script."""
+    guidance_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "guidance")
+    docs = []
+    for path in sorted(glob.glob(os.path.join(guidance_dir, "*.md"))):
+        name = os.path.basename(path)
+        with open(path, encoding="utf-8") as f:
+            content = f.read().strip()
+        if content:
+            docs.append(f"### {name}\n\n{content}")
+    return "\n\n---\n\n".join(docs)
+
+
 def build_prompt(exceptions: list[dict], version: str) -> str:
     exceptions_json = json.dumps(exceptions, indent=2)
+    guidance_text = load_guidance_docs()
 
     return f"""You are an expert in Red Hat OpenShift AI (RHOAI) release engineering, Enterprise Contract (EC) policies, and the Security Policy Compliance Directive (May 2026).
 
@@ -110,6 +125,12 @@ Exceptions (exclusions) bypass specific rules:
 - **Volatile**: Time-bounded exclusions with an effectiveUntil date, often with Jira references
 
 Per Chris Wright's mandate (May 2026), ProdSec will no longer grant exceptions. Products not meeting security requirements don't ship. Only Conforma exceptions mapping to ProdSec Policies are compliance-blocking (Decision #2). VP-level sign-off is required for genuinely unavoidable exceptions, tracked in PRODSECRM risk register.
+
+## Guidance Documents
+
+Use the following guidance documents to inform your categorization decisions — they contain the latest policy decisions, resolution paths, package triage, and compliance strategy:
+
+{guidance_text}
 
 ## Resolution Path Categories
 
