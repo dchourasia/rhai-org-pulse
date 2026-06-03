@@ -130,119 +130,151 @@
         }
       },
       "aiCategorization": {
-        "analyzedAt": "2026-05-15T10:00:00Z",
+        "analyzedAt": "2026-06-03T10:00:00Z",
         "exceptions": [
           {
             "fullName": "cve",
             "policyFile": "fbc",
             "type": "permanent",
-            "category": "always_expected",
-            "reasoning": "CVE checks are permanently excluded for FBC images as they are managed separately through Red Hat's vulnerability management process."
+            "category": "risk_accepted",
+            "targetRelease": "permanent",
+            "policyMapped": true,
+            "reasoning": "CVE checks for FBC images are managed separately through Red Hat's vulnerability management process. Tracked in PRODSECRM risk register."
           },
           {
             "fullName": "step_image_registries",
             "policyFile": "fbc",
             "type": "permanent",
-            "category": "always_expected",
-            "reasoning": "FBC builds use internal step images from registries not on the default allowlist. This is by design for the RHOAI FBC pipeline."
+            "category": "platform_adoption",
+            "targetRelease": "3.5-GA",
+            "policyMapped": false,
+            "reasoning": "FBC builds use internal step images from registries not on the default allowlist. Will be resolved when AIPCC base images are added to the allowed list."
           },
           {
             "fullName": "source_image.exists",
             "policyFile": "fbc",
             "type": "permanent",
-            "category": "always_expected",
-            "reasoning": "FBC catalog images do not ship source containers. This is standard for all FBC-based products."
+            "category": "risk_accepted",
+            "targetRelease": "permanent",
+            "policyMapped": true,
+            "reasoning": "FBC catalog images do not ship source containers. Standard for all FBC-based products. Accepted risk with ProdSec understanding."
           },
           {
             "fullName": "test.no_erred_tests:fbc-fips-check-oci-ta",
             "policyFile": "fbc",
             "type": "volatile",
-            "category": "long_term_fix",
-            "reasoning": "FIPS check failures are tied to Konflux bug KONFLUX-10393. The fix requires Konflux platform changes to support FIPS checks without x86 image variants."
+            "category": "platform_adoption",
+            "targetRelease": "3.5-GA",
+            "policyMapped": true,
+            "reasoning": "FIPS check failures tied to Konflux bug KONFLUX-10393. Requires platform changes to support FIPS checks without x86 image variants. Blocking for compliance."
           },
           {
             "fullName": "test.no_failed_tests:fbc-fips-check-oci-ta",
             "policyFile": "fbc",
             "type": "volatile",
-            "category": "long_term_fix",
+            "category": "platform_adoption",
+            "targetRelease": "3.5-GA",
+            "policyMapped": true,
             "reasoning": "Same root cause as FIPS erred tests — Konflux platform needs to support FIPS validation for non-x86 architectures."
           },
           {
             "fullName": "tasks.required_tasks_found:fbc-fips-check-oci-ta",
             "policyFile": "fbc",
             "type": "volatile",
-            "category": "quick_fix",
-            "reasoning": "The FIPS check task can be added to the pipeline definition. Once KONFLUX-10393 lands, the required_tasks check can include the FIPS task."
+            "category": "component_update",
+            "targetRelease": "3.5-EA",
+            "policyMapped": false,
+            "reasoning": "The FIPS check task can be added to the pipeline definition. Straightforward pipeline config change once KONFLUX-10393 lands."
           },
           {
             "fullName": "schedule.weekday_restriction",
             "policyFile": "fbc",
             "type": "volatile",
-            "category": "always_expected",
-            "reasoning": "Weekend releases occasionally require this exception. It is a standard operational override used for time-sensitive releases."
+            "category": "risk_accepted",
+            "targetRelease": "permanent",
+            "policyMapped": false,
+            "reasoning": "Weekend releases occasionally require this exception. Standard operational override used for time-sensitive releases."
           },
           {
             "fullName": "cve.cve_blockers",
             "policyFile": "registry",
             "type": "permanent",
-            "category": "always_expected",
-            "reasoning": "CVE blocker checks are managed by Red Hat's security response team through a separate process. The exception allows shipping while CVEs are being triaged."
+            "category": "risk_accepted",
+            "targetRelease": "permanent",
+            "policyMapped": true,
+            "reasoning": "CVE blocker checks managed by Red Hat's security response team. Accepted risk tracked in PRODSECRM. Ships while CVEs are being triaged."
           },
           {
             "fullName": "rpm_signature.allowed:9cd0a493d42d0685",
             "policyFile": "registry",
             "type": "permanent",
-            "category": "always_expected",
-            "reasoning": "This RPM signing key is used by internal builds that haven't migrated to the standard signing infrastructure. Expected to remain permanent."
+            "category": "partner_permanent",
+            "targetRelease": "permanent",
+            "policyMapped": true,
+            "reasoning": "RPM signing key used by partner-provided internal builds (NVIDIA/Intel). Partner content has no source — permanent exception with recurring ProdSec review."
           },
           {
             "fullName": "sbom_spdx.disallowed_package_attributes",
             "policyFile": "registry",
             "type": "volatile",
-            "category": "long_term_fix",
-            "reasoning": "The deprecated nodejs-18 base image needs migration to nodejs-20. Tracked in RHOAIENG-16260 but requires dashboard component rebuild and testing."
+            "category": "platform_adoption",
+            "targetRelease": "3.5-GA",
+            "policyMapped": true,
+            "reasoning": "Deprecated nodejs-18 base image needs migration to nodejs-20. Part of AIPCC platform adoption rollout. Tracked in RHOAIENG-16260."
           },
           {
             "fullName": "hermetic_task.hermetic:quay.io/rhoai/odh-mlmd-grpc-server-rhel9",
             "policyFile": "registry",
             "type": "volatile",
-            "category": "long_term_fix",
-            "reasoning": "MLMD gRPC server has network dependencies during build that prevent hermetic builds. Requires upstream changes to vendored dependencies (RHOAIENG-31398)."
+            "category": "package_onboarding",
+            "targetRelease": "3.6",
+            "policyMapped": true,
+            "reasoning": "MLMD gRPC server has network dependencies during build. Requires upstream changes to vendored dependencies (RHOAIENG-31398). C extension complexity."
           },
           {
             "fullName": "hermetic_task:quay.io/rhoai/odh-llama-stack-core-rhel9",
             "policyFile": "registry",
             "type": "volatile",
-            "category": "long_term_fix",
-            "reasoning": "Llama Stack downloads model artifacts during build. AIPCC team is working on pre-caching approach (KONFLUX-7552) but requires significant build pipeline changes."
+            "category": "package_onboarding",
+            "targetRelease": "3.6",
+            "policyMapped": true,
+            "reasoning": "Llama Stack downloads model artifacts during build. AIPCC team working on pre-caching approach (KONFLUX-7552). Significant build pipeline changes needed."
           },
           {
             "fullName": "sbom_spdx.allowed_package_sources:pkg:generic/libtokenizers",
             "policyFile": "registry",
             "type": "volatile",
-            "category": "quick_fix",
-            "reasoning": "The tokenizers library needs its source reference updated from quay.io to registry.redhat.io. A simple Containerfile change tracked in RHOAIENG-28098."
+            "category": "component_update",
+            "targetRelease": "3.5-EA",
+            "policyMapped": true,
+            "reasoning": "Source reference needs updating from quay.io to registry.redhat.io. Simple Containerfile change tracked in RHOAIENG-28098."
           },
           {
             "fullName": "rpm_signature.allowed:8a3872bf3228467c",
             "policyFile": "registry",
             "type": "volatile",
-            "category": "already_fixed",
-            "reasoning": "The Gaudi team has documented their EPEL RPM usage per PSX-1042. The exception can be removed once the current release ships and the signed RPMs are available."
+            "category": "resolved",
+            "targetRelease": "3.5-EA",
+            "policyMapped": true,
+            "reasoning": "Gaudi team documented EPEL RPM usage per PSX-1042. Signed RPMs are now available — exception can be removed."
           },
           {
             "fullName": "hermetic_task.hermetic:quay.io/rhoai/odh-kserve-controller-rhel9",
             "policyFile": "registry",
             "type": "volatile",
-            "category": "quick_fix",
-            "reasoning": "The kserve controller's non-hermetic dependency is the registry migration tracked in RHOAIENG-28098. A straightforward Containerfile fix to use registry.redhat.io."
+            "category": "component_update",
+            "targetRelease": "3.5-GA",
+            "policyMapped": true,
+            "reasoning": "Non-hermetic dependency is the registry migration. Component team needs to update Containerfile to use registry.redhat.io. Tracked in RHOAIENG-28098."
           },
           {
             "fullName": "hermetic_task.hermetic:quay.io/rhoai/odh-kserve-storage-initializer-rhel9",
             "policyFile": "registry",
             "type": "volatile",
-            "category": "quick_fix",
-            "reasoning": "Same registry migration as kserve controller. A Containerfile change to reference registry.redhat.io instead of quay.io."
+            "category": "component_update",
+            "targetRelease": "3.5-GA",
+            "policyMapped": true,
+            "reasoning": "Same registry migration as kserve controller. Component team Containerfile change to reference registry.redhat.io."
           }
         ]
       }

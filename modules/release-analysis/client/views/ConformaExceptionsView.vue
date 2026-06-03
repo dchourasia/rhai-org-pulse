@@ -334,6 +334,27 @@
               <option v-for="(info, key) in AI_CATEGORIES" :key="key" :value="key">{{ info.label }}</option>
             </select>
 
+            <!-- Target release filter -->
+            <select
+              v-if="hasAiData"
+              v-model="tableFilterTargetRelease"
+              class="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Targets</option>
+              <option v-for="t in TARGET_RELEASES" :key="t" :value="t">{{ TARGET_RELEASE_LABELS[t]?.label || t }}</option>
+            </select>
+
+            <!-- ProdSec policy filter -->
+            <select
+              v-if="hasAiData"
+              v-model="tableFilterPolicyMapped"
+              class="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All ProdSec</option>
+              <option value="yes">Policy Mapped</option>
+              <option value="no">Not Mapped</option>
+            </select>
+
             <!-- Clear filters -->
             <button
               v-if="hasActiveFilters"
@@ -409,6 +430,28 @@
                     :class="AI_CATEGORIES[ex.aiCategory].badgeCls"
                     :title="ex.aiCategoryReasoning || ''"
                   >{{ AI_CATEGORIES[ex.aiCategory].label }}</span>
+                  <span v-else class="text-gray-300 dark:text-gray-600">—</span>
+                </td>
+                <!-- Target Release -->
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <span
+                    v-if="ex.targetRelease && TARGET_RELEASE_LABELS[ex.targetRelease]"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                    :class="TARGET_RELEASE_LABELS[ex.targetRelease].badgeCls"
+                  >{{ TARGET_RELEASE_LABELS[ex.targetRelease].label }}</span>
+                  <span v-else class="text-gray-300 dark:text-gray-600">—</span>
+                </td>
+                <!-- ProdSec Policy Mapped -->
+                <td class="px-4 py-3 whitespace-nowrap text-center">
+                  <span
+                    v-if="ex.policyMapped === true"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"
+                    title="Maps to ProdSec policy — compliance blocking"
+                  >Yes</span>
+                  <span
+                    v-else-if="ex.policyMapped === false"
+                    class="text-gray-400 dark:text-gray-500 text-[10px]"
+                  >No</span>
                   <span v-else class="text-gray-300 dark:text-gray-600">—</span>
                 </td>
                 <!-- Image -->
@@ -527,7 +570,8 @@ import ConformaHelpText from '../components/ConformaHelpText.vue'
 import ConformaAiCategoryChart from '../components/ConformaAiCategoryChart.vue'
 import {
   KNOWN_CATEGORIES, CATEGORY_BADGE, CATEGORY_DOCS,
-  AI_CATEGORIES, EXTENSION_JIRA_TEMPLATE_URL, ACTIONABLE_DAYS_THRESHOLD,
+  AI_CATEGORIES, TARGET_RELEASES, TARGET_RELEASE_LABELS,
+  EXTENSION_JIRA_TEMPLATE_URL, ACTIONABLE_DAYS_THRESHOLD,
   extractCategory
 } from '../constants/conforma'
 
@@ -545,6 +589,8 @@ const TABLE_COLUMNS = [
   { key: 'value',         label: 'Rule Value',     sortable: true },
   { key: 'category',      label: 'Category',       sortable: true },
   { key: 'aiCategory',    label: 'AI Assessment',  sortable: true },
+  { key: 'targetRelease', label: 'Target',         sortable: true },
+  { key: 'policyMapped',  label: 'ProdSec',        sortable: true, width: 'w-16' },
   { key: 'imageUrl',      label: 'Image',          sortable: false },
   { key: 'effectiveUntil',label: 'Effective Until',sortable: true },
   { key: 'daysAfterGa',   label: 'Days After GA',  sortable: true, width: 'w-20' },
@@ -603,7 +649,12 @@ const aiCategoryMap = computed(() => {
   const map = {}
   const aiData = selectedRelease.value?.aiCategorization?.exceptions || []
   for (const entry of aiData) {
-    map[entry.fullName] = { category: entry.category, reasoning: entry.reasoning }
+    map[entry.fullName] = {
+      category: entry.category,
+      reasoning: entry.reasoning,
+      targetRelease: entry.targetRelease || null,
+      policyMapped: entry.policyMapped ?? null
+    }
   }
   return map
 })
@@ -637,7 +688,9 @@ const flatExceptions = computed(() => {
         extensionJiraKey: null, extensionJiraUrl: null,
         isActionable: false,
         aiCategory: aiInfo?.category || null,
-        aiCategoryReasoning: aiInfo?.reasoning || null
+        aiCategoryReasoning: aiInfo?.reasoning || null,
+        targetRelease: aiInfo?.targetRelease || null,
+        policyMapped: aiInfo?.policyMapped ?? null
       })
     }
 
@@ -663,7 +716,9 @@ const flatExceptions = computed(() => {
         extensionJiraUrl: ex.extensionJiraUrl || null,
         isActionable,
         aiCategory: aiInfo?.category || null,
-        aiCategoryReasoning: aiInfo?.reasoning || null
+        aiCategoryReasoning: aiInfo?.reasoning || null,
+        targetRelease: aiInfo?.targetRelease || null,
+        policyMapped: aiInfo?.policyMapped ?? null
       })
     }
   }
@@ -691,6 +746,8 @@ const tableFilterPolicy = ref('')
 const tableFilterType = ref('')
 const tableFilterCategory = ref('')
 const tableFilterAiCategory = ref('')
+const tableFilterTargetRelease = ref('')
+const tableFilterPolicyMapped = ref('')
 const tableSortKey = ref('')
 const tableSortDir = ref('asc')
 
@@ -701,6 +758,8 @@ watch(selectedVersion, async () => {
   tableFilterType.value = ''
   tableFilterCategory.value = ''
   tableFilterAiCategory.value = ''
+  tableFilterTargetRelease.value = ''
+  tableFilterPolicyMapped.value = ''
   tableSortKey.value = ''
   tableSortDir.value = 'asc'
   actionableOnly.value = false
@@ -714,6 +773,8 @@ const hasActiveFilters = computed(() =>
   tableFilterType.value !== '' ||
   tableFilterCategory.value !== '' ||
   tableFilterAiCategory.value !== '' ||
+  tableFilterTargetRelease.value !== '' ||
+  tableFilterPolicyMapped.value !== '' ||
   actionableOnly.value
 )
 
@@ -723,6 +784,8 @@ function clearTableFilters() {
   tableFilterType.value = ''
   tableFilterCategory.value = ''
   tableFilterAiCategory.value = ''
+  tableFilterTargetRelease.value = ''
+  tableFilterPolicyMapped.value = ''
   actionableOnly.value = false
 }
 
@@ -753,6 +816,8 @@ const filteredSortedExceptions = computed(() => {
   if (tableFilterType.value)   rows = rows.filter(e => e.type === tableFilterType.value)
   if (tableFilterCategory.value) rows = rows.filter(e => e.category === tableFilterCategory.value)
   if (tableFilterAiCategory.value) rows = rows.filter(e => e.aiCategory === tableFilterAiCategory.value)
+  if (tableFilterTargetRelease.value) rows = rows.filter(e => e.targetRelease === tableFilterTargetRelease.value)
+  if (tableFilterPolicyMapped.value) rows = rows.filter(e => tableFilterPolicyMapped.value === 'yes' ? e.policyMapped : e.policyMapped === false)
 
   if (needle) {
     rows = rows.filter(e =>

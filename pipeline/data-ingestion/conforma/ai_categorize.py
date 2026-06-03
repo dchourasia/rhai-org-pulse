@@ -1,14 +1,17 @@
 """AI-powered categorization of conforma exceptions using Claude CLI.
 
 Fetches the latest unshipped release from the org-pulse API, sends all its
-exceptions to Claude for classification into four categories, and pushes the
-enriched aiCategorization block back to the API.
+exceptions to Claude for classification into resolution-path categories aligned
+with the Security Policy Compliance Directive, and pushes the enriched
+aiCategorization block back to the API.
 
 Categories:
-  - always_expected: inherently needed, cannot be resolved
-  - long_term_fix: known resolution path but requires significant effort
-  - quick_fix: straightforward fix that could be done quickly
-  - already_fixed: root cause addressed, exception likely removable
+  - partner_permanent: binary content from hardware partners, no source available
+  - platform_adoption: resolvable by migrating to AIPCC base containers/packages
+  - package_onboarding: requires building new packages from source
+  - component_update: component team needs to bump version pins
+  - risk_accepted: formally accepted via PRODSECRM risk register with VP sign-off
+  - resolved: root cause addressed, exception removable
 """
 
 import json
@@ -95,9 +98,9 @@ def collect_exceptions(release: dict) -> list[dict]:
 def build_prompt(exceptions: list[dict], version: str) -> str:
     exceptions_json = json.dumps(exceptions, indent=2)
 
-    return f"""You are an expert in Red Hat OpenShift AI (RHOAI) release engineering and Enterprise Contract (EC) policies.
+    return f"""You are an expert in Red Hat OpenShift AI (RHOAI) release engineering, Enterprise Contract (EC) policies, and the Security Policy Compliance Directive (May 2026).
 
-Analyze these EC policy exceptions for RHOAI release {version} and categorize each one.
+Analyze these EC policy exceptions for RHOAI release {version} and categorize each one by resolution path, target release, and ProdSec policy mapping.
 
 ## Context
 
@@ -106,22 +109,34 @@ Exceptions (exclusions) bypass specific rules:
 - **Permanent (config)**: Always-on exclusions in the policy config
 - **Volatile**: Time-bounded exclusions with an effectiveUntil date, often with Jira references
 
-## Categories
+Per Chris Wright's mandate (May 2026), ProdSec will no longer grant exceptions. Products not meeting security requirements don't ship. Only Conforma exceptions mapping to ProdSec Policies are compliance-blocking (Decision #2). VP-level sign-off is required for genuinely unavoidable exceptions, tracked in PRODSECRM risk register.
+
+## Resolution Path Categories
 
 Classify each exception into exactly one category:
 
-- **always_expected**: This exception is inherently needed and cannot be resolved. Common for rules that don't apply to RHOAI's build/release model (e.g., hermetic build requirements for certain image types, FIPS waivers for non-cryptographic components).
-- **long_term_fix**: There is a known resolution path but it requires significant engineering effort (multi-sprint or cross-team coordination). The Jira reference often points to an epic or long-running tracker.
-- **quick_fix**: A straightforward fix exists — updating a label, fixing test config, adding a missing annotation. Could be resolved in days, not weeks.
-- **already_fixed**: The underlying issue has been addressed (merged fix, upstream update). The exception entry itself is stale and can likely be removed from the policy YAML.
+- **partner_permanent**: Binary content from hardware partners (NVIDIA, Intel, AWS, Google) — no source code available. These are permanent exceptions requiring recurring ProdSec review. Partner agreements cover redistribution rights.
+- **platform_adoption**: Resolvable by migrating images to AIPCC base containers and packages. Active rollout across RHOAI python images is in progress. Includes FIPS, SBOM, base image, and hermetic build issues fixable through platform migration.
+- **package_onboarding**: Requires building new packages from source or resolving complex build dependencies (bazel, haskell, C extensions). Involves cross-team coordination with AIPCC Ecosystems team.
+- **component_update**: Component team needs to bump version pins, relax constraints, or make a straightforward Containerfile change (e.g., registry migration). Low complexity, single-team ownership.
+- **risk_accepted**: Fundamental engineering limitation formally accepted via PRODSECRM risk register with VP sign-off. Cannot be resolved through engineering work alone (e.g., CVE triage process deviations, FBC images not shipping source containers).
+- **resolved**: Root cause has been addressed (merged fix, signed RPMs available, upstream update). Exception entry is stale and can be removed from the policy YAML.
 
-## Guidelines
+## Target Release
 
-- Permanent exceptions without Jira references are usually **always_expected** — they represent known, accepted deviations.
-- Volatile exceptions with Jira references to closed/resolved issues are likely **already_fixed**.
-- Test-related exceptions (test.no_erred_tests, test.required_tests) often have clear fixes in CI configuration.
-- FIPS-related exceptions may be always_expected (non-crypto components) or long_term_fix (components that need FIPS certification).
-- Exceptions mentioning specific container images should be evaluated based on whether the image is still actively built.
+Estimate when each exception can realistically be resolved:
+
+- **3.5-EA**: Already resolved or auto-extended per Decision #4. Straightforward fixes already in flight.
+- **3.5-GA**: Platform adoption rollout, pure Python package onboarding, component team version bumps. Near-term.
+- **3.6**: C extension packages, accelerator-specific packages, complex builds (bazel, haskell). H2 2026.
+- **permanent**: Partner content, formally accepted risks. Will never be fully resolved.
+
+## ProdSec Policy Mapping
+
+Determine whether each exception maps to a ProdSec Security Policy (compliance-blocking):
+
+- **true** for: CVE/vulnerability rules, hermetic build requirements, RPM signature validation, FIPS compliance, SBOM completeness, source image requirements, build-from-source requirements.
+- **false** for: step_image_registries (internal tooling), schedule/weekday restrictions, task-level exceptions not tied to security policy.
 
 ## Exceptions to Analyze
 
@@ -138,7 +153,9 @@ Return ONLY valid JSON with this exact structure — no markdown, no explanation
     "fullName": "<exact fullName from input>",
     "policyFile": "<fbc or registry>",
     "type": "<permanent or volatile>",
-    "category": "<always_expected|long_term_fix|quick_fix|already_fixed>",
+    "category": "<partner_permanent|platform_adoption|package_onboarding|component_update|risk_accepted|resolved>",
+    "targetRelease": "<3.5-EA|3.5-GA|3.6|permanent>",
+    "policyMapped": true,
     "reasoning": "<1-2 sentence explanation>"
   }}
 ]}}
@@ -404,7 +421,11 @@ def push_ai_categorization(
     print(f"  Pushed {len(all_releases)} releases with AI categorization (HTTP {resp.status_code})")
 
 
-VALID_CATEGORIES = {"always_expected", "long_term_fix", "quick_fix", "already_fixed"}
+VALID_CATEGORIES = {
+    "partner_permanent", "platform_adoption", "package_onboarding",
+    "component_update", "risk_accepted", "resolved",
+}
+VALID_TARGET_RELEASES = {"3.5-EA", "3.5-GA", "3.6", "permanent"}
 
 
 def validate_ai_response(ai_data: dict, expected_count: int) -> list[str]:
@@ -421,6 +442,11 @@ def validate_ai_response(ai_data: dict, expected_count: int) -> list[str]:
         cat = ex.get("category", "")
         if cat not in VALID_CATEGORIES:
             warnings.append(f"  [{i}] Invalid category: {cat!r}")
+        target = ex.get("targetRelease", "")
+        if target not in VALID_TARGET_RELEASES:
+            warnings.append(f"  [{i}] Invalid targetRelease: {target!r}")
+        if not isinstance(ex.get("policyMapped"), bool):
+            warnings.append(f"  [{i}] policyMapped must be boolean, got: {type(ex.get('policyMapped')).__name__}")
         if not ex.get("reasoning"):
             warnings.append(f"  [{i}] Missing reasoning")
         if not ex.get("fullName"):

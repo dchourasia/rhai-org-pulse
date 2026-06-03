@@ -36,34 +36,57 @@ export const EXTENSION_JIRA_TEMPLATE_URL = 'https://redhat.atlassian.net/browse/
 export const ACTIONABLE_DAYS_THRESHOLD = 7
 
 export const AI_CATEGORIES = {
-  always_expected: {
-    label: 'Always Expected',
-    description: 'Cannot be resolved; inherently needed',
-    badgeCls: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
-    color: 'rgba(107,114,128,0.8)',
-    borderColor: 'rgb(107,114,128)'
+  partner_permanent: {
+    label: 'Partner Content',
+    description: 'Binary content from hardware partners — no source available. Permanent exception with recurring ProdSec review.',
+    badgeCls: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300',
+    color: 'rgba(100,116,139,0.8)',
+    borderColor: 'rgb(100,116,139)'
   },
-  long_term_fix: {
-    label: 'Long-term Fix',
-    description: 'Known resolution path, requires significant effort',
+  platform_adoption: {
+    label: 'Platform Adoption',
+    description: 'Resolvable by migrating images to AIPCC base containers and packages.',
     badgeCls: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
     color: 'rgba(59,130,246,0.8)',
     borderColor: 'rgb(59,130,246)'
   },
-  quick_fix: {
-    label: 'Quick Fix',
-    description: 'Straightforward fix available',
-    badgeCls: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
-    color: 'rgba(16,185,129,0.8)',
-    borderColor: 'rgb(16,185,129)'
+  package_onboarding: {
+    label: 'Package Build',
+    description: 'Requires building new packages from source or resolving complex build dependencies.',
+    badgeCls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
+    color: 'rgba(245,158,11,0.8)',
+    borderColor: 'rgb(245,158,11)'
   },
-  already_fixed: {
-    label: 'Already Fixed',
-    description: 'Root cause addressed; exception likely removable',
+  component_update: {
+    label: 'Component Update',
+    description: 'Component team needs to bump version pins or relax constraints to use AIPCC-provided versions.',
+    badgeCls: 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300',
+    color: 'rgba(6,182,212,0.8)',
+    borderColor: 'rgb(6,182,212)'
+  },
+  risk_accepted: {
+    label: 'Risk Accepted',
+    description: 'Formally accepted via PRODSECRM risk register with VP sign-off.',
     badgeCls: 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300',
     color: 'rgba(139,92,246,0.8)',
     borderColor: 'rgb(139,92,246)'
+  },
+  resolved: {
+    label: 'Resolved',
+    description: 'Root cause addressed or exception removable.',
+    badgeCls: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
+    color: 'rgba(16,185,129,0.8)',
+    borderColor: 'rgb(16,185,129)'
   }
+}
+
+export const TARGET_RELEASES = ['3.5-EA', '3.5-GA', '3.6', 'permanent']
+
+export const TARGET_RELEASE_LABELS = {
+  '3.5-EA': { label: '3.5 EA', badgeCls: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' },
+  '3.5-GA': { label: '3.5 GA', badgeCls: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' },
+  '3.6': { label: '3.6', badgeCls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' },
+  'permanent': { label: 'Permanent', badgeCls: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300' }
 }
 
 export function extractCategory(value) {

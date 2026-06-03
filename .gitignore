@@ -40,3 +40,5 @@ data
 rhelai.json
 rhoai.json
 scripts/fetch-releases.sh
+
+pipeline/*

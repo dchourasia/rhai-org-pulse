@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { Bar } from 'vue-chartjs'
-import { AI_CATEGORIES } from '../constants/conforma'
+import { AI_CATEGORIES, TARGET_RELEASES, TARGET_RELEASE_LABELS } from '../constants/conforma'
 import ConformaHelpText from './ConformaHelpText.vue'
 
 const props = defineProps({
@@ -23,17 +23,26 @@ const categorized = computed(() => {
   return cats
 })
 
-const quickFixCount = computed(() => {
-  const c = categorized.value.quick_fix
+const resolvedCount = computed(() => {
+  const c = categorized.value.resolved
   return c ? c.fbc + c.registry : 0
 })
 
-const alreadyFixedCount = computed(() => {
-  const c = categorized.value.already_fixed
+const componentUpdateCount = computed(() => {
+  const c = categorized.value.component_update
   return c ? c.fbc + c.registry : 0
 })
 
-const chartData = computed(() => {
+const policyMappedCount = computed(() =>
+  props.exceptions.filter(e => e.policyMapped === true).length
+)
+
+const permanentCount = computed(() => {
+  const c = categorized.value.partner_permanent
+  return c ? c.fbc + c.registry : 0
+})
+
+const categoryChartData = computed(() => {
   const entries = Object.entries(AI_CATEGORIES)
   return {
     labels: entries.map(([, info]) => info.label),
@@ -58,7 +67,7 @@ const chartData = computed(() => {
   }
 })
 
-const chartOptions = {
+const categoryChartOptions = {
   indexAxis: 'y',
   responsive: true,
   maintainAspectRatio: false,
@@ -72,8 +81,52 @@ const chartOptions = {
   }
 }
 
+const burndownData = computed(() => {
+  const byRelease = {}
+  for (const t of TARGET_RELEASES) {
+    byRelease[t] = {}
+    for (const key of Object.keys(AI_CATEGORIES)) {
+      byRelease[t][key] = 0
+    }
+  }
+  for (const ex of props.exceptions) {
+    if (ex.aiCategory && ex.targetRelease && byRelease[ex.targetRelease]) {
+      byRelease[ex.targetRelease][ex.aiCategory]++
+    }
+  }
+  const catEntries = Object.entries(AI_CATEGORIES)
+  return {
+    labels: TARGET_RELEASES.map(t => TARGET_RELEASE_LABELS[t]?.label || t),
+    datasets: catEntries.map(([key, info]) => ({
+      label: info.label,
+      data: TARGET_RELEASES.map(t => byRelease[t][key] || 0),
+      backgroundColor: info.color,
+      borderColor: info.borderColor,
+      borderWidth: 1,
+      borderRadius: 3
+    }))
+  }
+})
+
+const burndownOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 10 } } },
+    tooltip: { mode: 'index' }
+  },
+  scales: {
+    x: { stacked: true, grid: { display: false } },
+    y: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: 'rgba(156,163,175,0.15)' } }
+  }
+}
+
 const hasCategorizedData = computed(() =>
   props.exceptions.some(e => e.aiCategory)
+)
+
+const hasBurndownData = computed(() =>
+  props.exceptions.some(e => e.targetRelease)
 )
 </script>
 
@@ -82,26 +135,49 @@ const hasCategorizedData = computed(() =>
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">AI Exception Analysis</h3>
       <ConformaHelpText
-        good="Many exceptions are 'Always Expected' with few quick fixes remaining"
-        attention="'Quick Fix' and 'Already Fixed' exceptions should be resolved to reduce exception count"
-        action="Review quick fixes first — they are the easiest path to reducing exceptions"
+        good="'Resolved' and 'Component Update' exceptions are quick wins that reduce exception count"
+        attention="'Policy Mapped' exceptions are compliance-blocking and need PRODSECRM risk tickets"
+        action="Prioritize platform adoption and component updates to maximize exception reduction by 3.5 GA"
       />
     </div>
 
-    <!-- Quick Wins summary -->
+    <!-- Summary cards -->
     <div class="flex flex-wrap gap-3 mb-4">
-      <div v-if="quickFixCount > 0" class="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg px-4 py-2">
-        <span class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{{ quickFixCount }}</span>
-        <span class="text-xs text-emerald-700 dark:text-emerald-300">Quick Fixes available</span>
+      <div v-if="policyMappedCount > 0" class="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 rounded-lg px-4 py-2">
+        <span class="text-2xl font-bold text-red-600 dark:text-red-400">{{ policyMappedCount }}</span>
+        <span class="text-xs text-red-700 dark:text-red-300">Policy Mapped (blocking)</span>
       </div>
-      <div v-if="alreadyFixedCount > 0" class="flex items-center gap-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg px-4 py-2">
-        <span class="text-2xl font-bold text-purple-600 dark:text-purple-400">{{ alreadyFixedCount }}</span>
-        <span class="text-xs text-purple-700 dark:text-purple-300">Already Fixed (removable)</span>
+      <div v-if="resolvedCount > 0" class="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg px-4 py-2">
+        <span class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{{ resolvedCount }}</span>
+        <span class="text-xs text-emerald-700 dark:text-emerald-300">Resolved (removable)</span>
+      </div>
+      <div v-if="componentUpdateCount > 0" class="flex items-center gap-2 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg px-4 py-2">
+        <span class="text-2xl font-bold text-cyan-600 dark:text-cyan-400">{{ componentUpdateCount }}</span>
+        <span class="text-xs text-cyan-700 dark:text-cyan-300">Component Updates</span>
+      </div>
+      <div v-if="permanentCount > 0" class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/40 rounded-lg px-4 py-2">
+        <span class="text-2xl font-bold text-slate-600 dark:text-slate-400">{{ permanentCount }}</span>
+        <span class="text-xs text-slate-600 dark:text-slate-400">Permanent (partner)</span>
       </div>
     </div>
 
-    <div style="height: 200px; position: relative;">
-      <Bar :key="`ai-cat-${chartKey}`" :data="chartData" :options="chartOptions" />
+    <!-- Charts side by side -->
+    <div class="grid gap-6" :class="hasBurndownData ? 'grid-cols-1 lg:grid-cols-2' : ''">
+      <!-- Resolution Path Distribution -->
+      <div>
+        <h4 class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Resolution Path Distribution</h4>
+        <div style="height: 240px; position: relative;">
+          <Bar :key="`ai-cat-${chartKey}`" :data="categoryChartData" :options="categoryChartOptions" />
+        </div>
+      </div>
+
+      <!-- Release Burndown Forecast -->
+      <div v-if="hasBurndownData">
+        <h4 class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Release Burndown Forecast</h4>
+        <div style="height: 240px; position: relative;">
+          <Bar :key="`burndown-${chartKey}`" :data="burndownData" :options="burndownOptions" />
+        </div>
+      </div>
     </div>
   </div>
 </template>
