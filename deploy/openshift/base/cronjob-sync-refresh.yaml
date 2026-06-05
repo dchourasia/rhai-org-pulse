@@ -1,0 +1,116 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: team-tracker-sync-refresh
+  labels:
+    app: team-tracker
+    component: sync-refresh
+spec:
+  schedule: "0 6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 1800
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: team-tracker
+            component: sync-refresh
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sync-refresh
+              image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+              envFrom:
+                - configMapRef:
+                    name: team-tracker-config
+              env:
+                - name: PROXY_AUTH_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: proxy-auth-secret
+                      key: secret
+                      optional: true
+                - name: AWS_BACKUP_BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-backup-credentials
+                      key: AWS_BACKUP_BUCKET
+                      optional: true
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  BACKEND="http://backend:3001"
+                  AUTH_HEADER="X-Forwarded-Email: ${CRON_ADMIN_EMAIL}"
+                  PROXY_SECRET_HEADER="X-Proxy-Secret: ${PROXY_AUTH_SECRET}"
+
+                  # Step 0: Trigger module content sync (git-static modules)
+                  echo "=== Triggering module sync ==="
+                  curl -sf -X POST "$BACKEND/api/admin/modules/sync" \
+                    -H "$AUTH_HEADER" -H "$PROXY_SECRET_HEADER" || echo "Module sync skipped (no modules configured)"
+
+                  # Step 1: Trigger unified refresh (all registered handlers, ordered)
+                  echo "=== Triggering unified refresh-all ==="
+                  RESP=$(curl -sf -o /dev/null -w "%{http_code}" -X POST "$BACKEND/api/admin/refresh-all" \
+                    -H "$AUTH_HEADER" -H "$PROXY_SECRET_HEADER")
+                  if [ "$RESP" = "409" ]; then
+                    echo "ERROR: A refresh is already running"
+                    exit 1
+                  fi
+                  if [ "$RESP" != "202" ]; then
+                    echo "ERROR: Unexpected response code: $RESP"
+                    exit 1
+                  fi
+                  echo "Refresh started (HTTP $RESP)"
+
+                  # Poll refresh status until complete
+                  echo "=== Waiting for refresh to complete ==="
+                  ATTEMPTS=0
+                  MAX_ATTEMPTS=120
+                  while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+                    sleep 15
+                    ATTEMPTS=$((ATTEMPTS + 1))
+                    STATUS=$(curl -sf "$BACKEND/api/admin/refresh/status" \
+                      -H "$AUTH_HEADER" -H "$PROXY_SECRET_HEADER")
+                    RUNNING=$(echo "$STATUS" | grep -o '"running":true' || true)
+                    if [ -z "$RUNNING" ]; then
+                      echo "Refresh complete after $ATTEMPTS checks"
+                      # Check for failures
+                      FAILED=$(echo "$STATUS" | grep -o '"state":"failed"' | wc -l | tr -d ' ')
+                      if [ "$FAILED" -gt 0 ]; then
+                        echo "WARNING: $FAILED handler(s) failed (see admin UI for details)"
+                      fi
+                      break
+                    fi
+                    echo "Still refreshing... (attempt $ATTEMPTS/$MAX_ATTEMPTS)"
+                  done
+
+                  if [ $ATTEMPTS -ge $MAX_ATTEMPTS ]; then
+                    echo "ERROR: Refresh timed out after $MAX_ATTEMPTS checks"
+                    exit 1
+                  fi
+
+                  # Step 2: Trigger data backup (only if AWS_BACKUP_BUCKET is configured)
+                  if [ -n "${AWS_BACKUP_BUCKET}" ]; then
+                    echo "=== Triggering data backup ==="
+                    BACKUP_RESP=$(curl -sf -X POST "$BACKEND/api/admin/backup" \
+                      -H "$AUTH_HEADER" -H "$PROXY_SECRET_HEADER" -H "Content-Type: application/json" \
+                      --max-time 120) || echo "WARNING: Backup failed (non-fatal)"
+                    echo "Backup response: $BACKUP_RESP"
+                  else
+                    echo "=== Skipping backup (AWS_BACKUP_BUCKET not configured) ==="
+                  fi
+
+                  echo "=== Sync and refresh completed successfully ==="
+              resources:
+                requests:
+                  memory: "32Mi"
+                  cpu: "10m"
+                limits:
+                  memory: "64Mi"
+                  cpu: "50m"

@@ -96,6 +96,17 @@ export const enablementCategories = [
       { label: 'Lessons Learned Notes', icon: 'StickyNote', url: 'https://docs.google.com/document/d/1glUr8WhghdDmri1KKSCJutMjfzxnueoZuYGFjg2OwxI/edit?tab=t.q557l4ag5zjk' },
     ],
   },
+  {
+    id: 'adlc-putting-pieces-together',
+    title: 'ADLC - Putting the Pieces Together',
+    section: 'other',
+    links: [
+      { label: 'Enablement Recording', icon: 'Video', url: 'https://drive.google.com/file/d/1jL4H4HNIxZoJ0EQUycvk80tQ3F_-NTw0/view' },
+      { label: 'Enablement Slides', icon: 'Presentation', url: 'https://docs.google.com/presentation/d/1C8bVcKE2818wwGKogDBa-yrRJ4C3t8vx_j65uSNu8qg/edit?slide=id.g3e77d255e42_0_9#slide=id.g3e77d255e42_0_9' },
+      { label: 'Enablement Chat', icon: 'MessageSquare', url: 'https://drive.google.com/file/d/1dp0hHyP6uM9ClxWSXmyq8Tikvu7gItuv/view' },
+      { label: 'Enablement Notes', icon: 'StickyNote', url: 'https://docs.google.com/document/d/11yTvpFIl4IRct_ds2HJiBjzIlOxPqS_OLMtSso4pQ_U/edit?tab=t.542hs4xvrwe3' },
+    ],
+  },
 ]
 
 export const enablementSections = [

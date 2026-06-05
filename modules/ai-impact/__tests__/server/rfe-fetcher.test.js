@@ -24,6 +24,7 @@ function makeIssue(overrides = {}) {
       creator: { name: 'testuser', displayName: 'Test User', emailAddress: 'test@example.com' },
       labels: [],
       issuelinks: [],
+      components: [],
       ...overrides
     }
   };
@@ -174,6 +175,19 @@ describe('processIssue', () => {
     const issue = makeIssue({ labels: ['rfe-creator-auto-created', 'customer-request'] });
     const result = processIssue(issue, DEFAULT_CONFIG);
     expect(result.labels).toEqual(['rfe-creator-auto-created', 'customer-request']);
+  });
+
+  it('extracts components from Jira format', () => {
+    const issue = makeIssue({ components: [{ name: 'Platform Core' }, { name: 'ML Models' }] });
+    const result = processIssue(issue, DEFAULT_CONFIG);
+    expect(result.components).toEqual(['Platform Core', 'ML Models']);
+  });
+
+  it('defaults components to empty array when missing', () => {
+    const issue = makeIssue();
+    delete issue.fields.components;
+    const result = processIssue(issue, DEFAULT_CONFIG);
+    expect(result.components).toEqual([]);
   });
 
   it('populates createdLabelDate from changelog when label is present', () => {

@@ -430,6 +430,7 @@ import {
   PieChart,
   Milestone,
   Bug,
+  MessageSquare,
   MessageSquarePlus,
   FileCode2,
   DatabaseBackup
@@ -508,7 +509,7 @@ const issueTemplates = [
   { label: 'Bug Report', icon: Bug, url: repoBase + '/issues/new?template=bug-report.yml' }
 ]
 
-const iconMap = { Video, Presentation, StickyNote, Play }
+const iconMap = { Video, Presentation, StickyNote, Play, MessageSquare }
 
 function resolveIcon(name) {
   return iconMap[name] || Video

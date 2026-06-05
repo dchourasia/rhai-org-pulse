@@ -121,6 +121,7 @@ function getLatestProjection(data) {
       scores: entry.latest.scores,
       reviewers: entry.latest.reviewers,
       reviewedAt: entry.latest.reviewedAt,
+      components: entry.latest.components || [],
       approvedBy: entry.latest.approvedBy || null,
       approvedAt: entry.latest.approvedAt || null
     };

@@ -12,7 +12,7 @@
  */
 
 const { readRegistry } = require('../registry')
-const { fetchProductsByShortname } = require('../delivery/product-pages')
+const { fetchFeatureFreezeDatesFromSchedule } = require('../delivery/product-pages')
 const { CUSTOM_FIELDS, transformIssue } = require('../hygiene/jira-fetch')
 
 const PP_CACHE_FILE = 'releases/delivery/product-pages-releases-cache.json'
@@ -474,8 +474,8 @@ module.exports = function registerFeatureTrackingRoutes(router, context) {
   // GET /tracking/data — query Jira by fixVersion
   router.get('/tracking/data', requireAuth, requireScope('releases:read'), async function (req, res) {
     const version = req.query.version
-    if (!version) {
-      return res.status(400).json({ error: 'version query parameter is required' })
+    if (typeof version !== 'string' || !version.trim()) {
+      return res.status(400).json({ error: 'version query parameter must be a non-empty string' })
     }
 
     const forceRefresh = req.query.refresh === 'true'
@@ -497,31 +497,38 @@ module.exports = function registerFeatureTrackingRoutes(router, context) {
 
       const productVersions = await resolveProductVersionsFromJira(version, jiraRequest)
       const freezeDates = getFeatureFreezeDatesFromCache(version, storage.readFromStorage)
+      const cacheDates = Object.assign({}, freezeDates.byProduct)
 
-      if (!freezeDates.earliest) {
-        try {
-          const ppConfig = {
-            productPagesBaseUrl: process.env.PRODUCT_PAGES_BASE_URL || 'https://productpages.redhat.com',
-            productPagesProductShortnames: DEFAULT_PRODUCTS
-          }
-          const livePPReleases = await fetchProductsByShortname(ppConfig.productPagesProductShortnames, ppConfig)
-          const normalizedPV = normalizeVersionName(version)
-          for (let pri = 0; pri < livePPReleases.length; pri++) {
-            const pr = livePPReleases[pri]
-            const prVersion = normalizeVersionName(pr.releaseNumber || '').replace(/^[a-z]+-/, '')
-            if (prVersion === normalizedPV && pr.featureFreezeDate) {
-              const key = normalizeVersionName(pr.releaseNumber || '')
-              if (!freezeDates.byProduct[key] || pr.featureFreezeDate < freezeDates.byProduct[key]) {
-                freezeDates.byProduct[key] = pr.featureFreezeDate
-              }
-              if (!freezeDates.earliest || pr.featureFreezeDate < freezeDates.earliest) {
-                freezeDates.earliest = pr.featureFreezeDate
-              }
-            }
-          }
-        } catch {
-          // PP API not available — continue without freeze dates
+      // Always try the schedule API — it returns EA-specific freeze dates
+      // that the releases list endpoint and cache often lack.
+      // Schedule API dates unconditionally override cache dates (more granular).
+      let scheduleSource = 'none'
+      try {
+        const ppConfig = {
+          productPagesBaseUrl: process.env.PRODUCT_PAGES_BASE_URL || 'https://productpages.redhat.com'
         }
+        const scheduleDates = await fetchFeatureFreezeDatesFromSchedule(version, DEFAULT_PRODUCTS, ppConfig)
+        const schedEntries = Object.entries(scheduleDates.byProduct)
+        if (schedEntries.length > 0) {
+          scheduleSource = 'schedule-api'
+          console.log('[feature-tracking] Schedule API returned freeze dates:', JSON.stringify(scheduleDates.byProduct))
+          for (const [key, date] of schedEntries) {
+            const normKey = normalizeVersionName(key)
+            freezeDates.byProduct[normKey] = date
+          }
+          // Recalculate earliest from final merged dates — unconditional
+          // overrides may have replaced the entry that was previously earliest
+          freezeDates.earliest = null
+          for (const d of Object.values(freezeDates.byProduct)) {
+            if (!freezeDates.earliest || d < freezeDates.earliest) freezeDates.earliest = d
+          }
+        } else {
+          scheduleSource = 'cache-only (schedule returned empty)'
+          console.warn('[feature-tracking] Schedule API returned no freeze dates for version:', version)
+        }
+      } catch (schedErr) {
+        scheduleSource = 'cache-only (' + schedErr.message + ')'
+        console.error('[feature-tracking] Schedule API failed for version:', version, schedErr.message)
       }
 
       const groups = []
@@ -583,7 +590,10 @@ module.exports = function registerFeatureTrackingRoutes(router, context) {
         portfolioVersion: version,
         featureFreezeDate: freezeDates.earliest,
         fetchedAt: new Date().toISOString(),
-        groups: groups
+        groups: groups,
+        _freezeDateSource: scheduleSource,
+        _freezeDatesCache: cacheDates,
+        _freezeDatesFinal: Object.assign({}, freezeDates.byProduct)
       }
 
       storage.writeToStorage(cacheKey(version), responseData)

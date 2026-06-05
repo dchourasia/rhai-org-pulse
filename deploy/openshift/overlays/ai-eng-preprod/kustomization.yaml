@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ambient-code--team-tracker
+
+resources:
+- ../ai-eng
+
+patches:
+- path: route-patch.yaml
+- path: api-route-patch.yaml
+
+images:
+- name: quay.io/org-pulse/team-tracker-backend
+  newTag: c7a04793fc049240c0736837a565632b686d570d
+- name: quay.io/org-pulse/team-tracker-frontend
+  newTag: ef384e2ff0bcbb641d7dfb0e96d47d638c846c11

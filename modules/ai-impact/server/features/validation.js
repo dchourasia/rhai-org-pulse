@@ -122,6 +122,13 @@ function validateFeature(body) {
     errors.push('labels must have at most 50 items');
   }
 
+  // components: optional array of strings
+  if (body.components !== undefined && body.components !== null) {
+    if (!Array.isArray(body.components) || !body.components.every(s => typeof s === 'string')) {
+      errors.push('components must be an array of strings');
+    }
+  }
+
   // runId: optional string
   if (body.runId !== undefined && typeof body.runId !== 'string') {
     errors.push('runId must be a string');
@@ -171,6 +178,7 @@ function validateFeature(body) {
         scope: body.reviewers.scope,
         architecture: body.reviewers.architecture
       },
+      components: Array.isArray(body.components) ? body.components : [],
       labels: body.labels,
       runId: body.runId || undefined,
       runTimestamp: body.runTimestamp || undefined,

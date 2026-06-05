@@ -76,7 +76,7 @@ async function syncFeatureData(data, fetchFn) {
     const jql = `key in (${batch.join(',')})`;
     let issues;
     try {
-      issues = await doFetch(jiraRequest, jql, 'summary,status,priority,labels', { expand: 'changelog' });
+      issues = await doFetch(jiraRequest, jql, 'summary,status,priority,labels,components', { expand: 'changelog' });
     } catch (err) {
       errors.push(`Batch ${i + 1}/${batches.length} failed: ${err.message}`);
       continue;
@@ -149,6 +149,7 @@ function applyJiraFields(data, issue) {
   const rawPriority = fields.priority?.name || latest.priority;
   const priority = PRIORITIES.includes(rawPriority) ? rawPriority : 'Undefined';
   const labels = Array.isArray(fields.labels) ? fields.labels : latest.labels;
+  const components = Array.isArray(fields.components) ? fields.components.map(c => c.name) : (latest.components || []);
 
   // Extract sign-off info from changelog
   const signOffInfo = extractSignOffInfo(issue.changelog);
@@ -158,9 +159,10 @@ function applyJiraFields(data, issue) {
   const statusChanged = status !== latest.status;
   const priorityChanged = priority !== latest.priority;
   const labelsChanged = JSON.stringify([...labels].sort()) !== JSON.stringify([...(latest.labels || [])].sort());
+  const componentsChanged = JSON.stringify([...components].sort()) !== JSON.stringify([...(latest.components || [])].sort());
   const approvalChanged = (signOffInfo?.approvedBy || null) !== (latest.approvedBy || null);
 
-  if (!titleChanged && !statusChanged && !priorityChanged && !labelsChanged && !approvalChanged) {
+  if (!titleChanged && !statusChanged && !priorityChanged && !labelsChanged && !componentsChanged && !approvalChanged) {
     return 'unchanged';
   }
 
@@ -179,6 +181,7 @@ function applyJiraFields(data, issue) {
   latest.status = status;
   latest.priority = priority;
   latest.labels = labels;
+  latest.components = components;
   latest.humanReviewStatus = newHumanReviewStatus;
 
   // Update approval info

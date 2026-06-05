@@ -103,6 +103,8 @@ Non-secret config (e.g. `JIRA_HOST`, `DEMO_MODE`) is exempt. See
 - **Validation**: `npm run validate:modules` for module manifests
 - Run `npm test` before committing
 
+**Integration test enforcement:** PRs that modify files in `modules/` (views, components, server routes, server logic) **require** corresponding integration test updates. This is enforced during code review. See `.github/instructions/review.instructions.md` for the full policy and exceptions.
+
 ## Code Review
 
 Review criteria are defined in
@@ -124,7 +126,8 @@ npm run validate:modules      # Validate module manifests
 npm run validate:openapi      # Validate OpenAPI annotations
 
 # Container-based tests (requires Docker/Podman)
-make smoke-test               # Run smoke tests against containers
+make smoke-test-core            # Run smoke tests against core images
+make smoke-test                 # Run smoke tests against AI Eng images
 make test-module MODULE=<name>  # Run integration tests for a module
 ```
 

@@ -64,6 +64,7 @@
       "teamIds": ["team_a1b2c3"],
       "_appFields": {
         "field_x1y2z3": "backend",
+        "field_d4e5f6": ["ML Models", "Platform Dashboard"],
         "field_mv0001": ["Go", "Rust"],
         "field_rq0001": "Backend"
       }

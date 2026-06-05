@@ -37,7 +37,7 @@ jobs:
 
       - name: Setup Socket Security
         if: steps.changes.outputs.app == 'true'
-        uses: SocketDev/action@2d3f25590c6ed6ba11a9a14c064d962a3a04698f # v1.3.1
+        uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
         with:
           mode: firewall-free
 
@@ -90,8 +90,8 @@ jobs:
             kustomize build "$overlay" > /dev/null
           done
 
-  smoke-test:
-    name: Smoke Tests
+  smoke-test-core:
+    name: Core Smoke Tests
     runs-on: ubuntu-latest
     needs: test
     if: needs.test.outputs.app == 'true'
@@ -104,11 +104,72 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Build backend image
-        run: make build-backend-image
+      - name: Build core backend image
+        run: make build-core-backend-image
 
-      - name: Build frontend image
-        run: make build-frontend-image
+      - name: Build core frontend image
+        run: make build-core-frontend-image
 
-      - name: Run smoke tests
+      - name: Run core smoke tests
+        run: make smoke-test-core
+
+  smoke-test-ai-eng:
+    name: AI Eng Smoke Tests
+    runs-on: ubuntu-latest
+    needs: test
+    if: needs.test.outputs.app == 'true'
+    permissions:
+      contents: read
+    env:
+      CONTAINER_RUNTIME: docker
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build core base images (needed for AI Eng FROM)
+        run: make build-core-base-images
+
+      - name: Build AI Eng images
+        run: |
+          make build-backend-image
+          make build-frontend-image
+
+      - name: Run AI Eng smoke tests
         run: make smoke-test
+
+  smoke-test-status:
+    name: Smoke Test Status
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [test, smoke-test-core, smoke-test-ai-eng]
+    permissions:
+      statuses: write
+    steps:
+      - name: Set commit status
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "${{ needs.test.outputs.app }}" != "true" ]; then
+            STATE="success"
+            DESC="No code changes — smoke tests skipped"
+          elif [ "${{ needs.test.result }}" != "success" ]; then
+            STATE="failure"
+            DESC="Test & Build failed — smoke tests did not run"
+          elif [ "${{ needs.smoke-test-core.result }}" = "success" ] && \
+               [ "${{ needs.smoke-test-ai-eng.result }}" = "success" ]; then
+            STATE="success"
+            DESC="All smoke tests passed"
+          else
+            STATE="failure"
+            DESC="Smoke tests failed"
+          fi
+
+          gh api "repos/${REPO}/statuses/${HEAD_SHA}" \
+            -f state="$STATE" \
+            -f context="Smoke Tests" \
+            -f description="$DESC" \
+            -f target_url="$RUN_URL"

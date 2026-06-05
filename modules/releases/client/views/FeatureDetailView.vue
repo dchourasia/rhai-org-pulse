@@ -149,9 +149,12 @@ const fromFeatureReview = computed(() => nav.params.value.fromFeatureReview)
 const fromPlan = computed(() => nav.params.value.from === 'plan')
 const fromFeatureStatus = computed(() => nav.params.value.from === 'feature-status')
 const fromHygieneReport = computed(() => nav.params.value.from === 'hygiene-report')
+const fromForYou = computed(() => nav.params.value.from === 'state-of-the-union')
 
 function goBack() {
-  if (fromRfe.value) {
+  if (fromForYou.value) {
+    crossNavigate('ai-impact', 'state-of-the-union')
+  } else if (fromRfe.value) {
     crossNavigate('ai-impact', 'rfe-review', { select: fromRfe.value })
   } else if (fromFeatureReview.value) {
     crossNavigate('ai-impact', 'feature-review')
@@ -359,7 +362,7 @@ onMounted(() => {
       class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white flex items-center gap-1"
       @click="goBack"
     >
-      &larr; {{ fromRfe ? 'Back to RFE Review' : fromFeatureReview ? 'Back to Feature Review' : fromPlan ? 'Back to Plan' : fromHygieneReport ? 'Back to Hygiene Report' : fromFeatureStatus ? 'Back to Feature Status' : 'Back to Execute' }}
+      &larr; {{ fromForYou ? 'Back to State of the Union' : fromRfe ? 'Back to RFE Review' : fromFeatureReview ? 'Back to Feature Review' : fromPlan ? 'Back to Plan' : fromHygieneReport ? 'Back to Hygiene Report' : fromFeatureStatus ? 'Back to Feature Status' : 'Back to Execute' }}
     </button>
 
     <!-- Loading -->

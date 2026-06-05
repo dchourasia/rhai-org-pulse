@@ -270,7 +270,8 @@ import {
   History,
   Hospital,
   LayoutDashboard,
-  Rocket
+  Rocket,
+  UserCircle
 } from 'lucide-vue-next'
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 
@@ -320,6 +321,7 @@ const ICON_MAP = {
   'hospital': Hospital,
   LayoutDashboard,
   Rocket,
+  UserCircle,
   'rocket': Rocket
 }
 

@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ambient-code--team-tracker
+
+resources:
+- ../ai-eng
+
+configMapGenerator:
+- behavior: merge
+  literals:
+  - API_PUBLIC_URL=https://api-team-tracker.apps.int.spoke.prod.us-west-2.aws.paas.redhat.com
+  - AUTH_EMAIL_DOMAIN=cluster.local
+  name: team-tracker-config
+
+patches:
+- path: route-patch.yaml
+- path: api-route-patch.yaml
+
+images:
+- name: quay.io/org-pulse/team-tracker-backend
+  newTag: f9d4da1ab0c48b02d0de6da49fce8172e94d83b5
+- name: quay.io/org-pulse/team-tracker-frontend
+  newTag: 24596ed6e2852c08704164dbdb57679bccad06ee

@@ -591,6 +591,7 @@ Cached RFE issues fetched from Jira. The module's primary data file.
       "revisedLabelDate": "2026-03-27T09:15:00.000+0000",
       "creator": "schen",
       "creatorDisplayName": "Sarah Chen",
+      "components": ["Platform Core", "ML Models"],
       "labels": ["rfe-creator-auto-created", "rfe-creator-auto-revised", "customer-request"],
       "aiInvolvement": "both",
       "linkedFeature": {
@@ -608,6 +609,7 @@ Cached RFE issues fetched from Jira. The module's primary data file.
 - `aiInvolvement` is one of: `"both"`, `"created"`, `"revised"`, `"none"` — derived from exact label matching at fetch time
 - `createdLabelDate`: ISO timestamp of the most recent changelog addition of the created label. Set only when `aiInvolvement` is `"created"` or `"both"`. Falls back to `created` if the label was present since issue creation (no changelog entry). `null` when the created label is not present.
 - `revisedLabelDate`: ISO timestamp of the most recent changelog addition of the revised label. Same logic as `createdLabelDate`. `null` when the revised label is not present.
+- `components` is an array of Jira component names (strings). Empty array if the issue has no components.
 - `linkedFeature` is resolved from Jira issue links (type = "Cloners", outward to RHAISTRAT project). Can be `null` if no link exists.
 - `labels` is the raw Jira label array, preserved for reference
 
@@ -676,9 +678,10 @@ Feature review data pushed from the strat creator pipeline. Stores the latest re
         "size": "L",
         "recommendation": "approve",
         "needsAttention": false,
-        "humanReviewStatus": "reviewed",
+        "humanReviewStatus": "approved",
         "scores": { "feasibility": 2, "testability": 1, "scope": 2, "architecture": 2, "total": 7 },
         "reviewers": { "feasibility": "approve", "testability": "revise", "scope": "approve", "architecture": "approve" },
+        "components": ["Platform Core"],
         "labels": ["strat-creator-auto-created", "tech-reviewed"],
         "runId": "20260419-013035",
         "runTimestamp": "2026-04-19T01:30:35Z",
@@ -689,7 +692,7 @@ Feature review data pushed from the strat creator pipeline. Stores the latest re
           "scores": { "feasibility": 1, "testability": 1, "scope": 2, "architecture": 1, "total": 5 },
           "recommendation": "revise",
           "needsAttention": true,
-          "humanReviewStatus": "pending",
+          "humanReviewStatus": "awaiting-review",
           "reviewedAt": "2026-04-12T01:30:00Z"
         }
       ]
@@ -705,7 +708,8 @@ Feature review data pushed from the strat creator pipeline. Stores the latest re
 - `lastSyncedAt` and `totalFeatures` are updated on every write (PUT single or POST bulk).
 - `scores`: each dimension (`feasibility`, `testability`, `scope`, `architecture`) is an integer 0-2. `total` is the sum (0-8).
 - `recommendation` is one of `"approve"`, `"revise"`, `"reject"`.
-- `humanReviewStatus` is derived from `labels`: `"reviewed"` if labels contain `tech-reviewed`, `"pending"` if `needs-tech-review`, otherwise `"not-required"`.
+- `humanReviewStatus` is derived from `labels`: `"approved"` if labels contain `strat-creator-human-sign-off`, `"needs-review"` if `strat-creator-needs-attention`, otherwise `"awaiting-review"`.
+- `components` is an array of Jira component names (strings). Empty array if the feature has no components.
 - The API accepts both camelCase and snake_case field names (from `summary.json` pipeline output). Normalization happens in validation.
 - Upsert is idempotent: if `latest.reviewedAt` matches the incoming `reviewedAt`, the write is skipped and returns `"unchanged"`.
 - The file is written atomically (write-to-temp-then-rename) to prevent corruption.

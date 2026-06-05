@@ -101,7 +101,8 @@ function handleSelectRFE(rfe) {
 
 function handleCloseModal() {
   selectedRFE.value = null
-  moduleNav.navigateTo('rfe-review')
+  const params = fromForYou.value ? { from: 'state-of-the-union' } : {}
+  moduleNav.navigateTo('rfe-review', params)
 }
 
 function handleNavigateToFeature(featureKey) {
@@ -113,6 +114,12 @@ function handleNavigateToFeature(featureKey) {
 
 function handleNavigateToTestPlan(sourceKey) {
   moduleNav.navigateTo('test-plan-review', { select: sourceKey })
+}
+
+const fromForYou = computed(() => moduleNav.params.value?.from === 'state-of-the-union')
+
+function goBackToForYou() {
+  moduleNav.navigateTo('state-of-the-union')
 }
 
 // Handle incoming select param (cross-link from Feature Review)
@@ -136,7 +143,16 @@ watch([() => moduleNav.params.value, rfeData], ([params]) => {
 </script>
 
 <template>
-  <div class="flex h-full overflow-hidden bg-gray-50 dark:bg-gray-900">
+  <div class="flex flex-col h-full overflow-hidden bg-gray-50 dark:bg-gray-900">
+    <div v-if="fromForYou" class="px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0">
+      <button
+        @click="goBackToForYou"
+        class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white flex items-center gap-1"
+      >
+        &larr; Back to State of the Union
+      </button>
+    </div>
+    <div class="flex flex-1 overflow-hidden">
     <PhaseContent
       :phase="phase"
       :loading="loading"
@@ -208,6 +224,7 @@ watch([() => moduleNav.params.value, rfeData], ([params]) => {
         </div>
       </Transition>
     </Teleport>
+    </div>
 
     <RFEDetailModal
       :show="!!enrichedSelectedRFE"
