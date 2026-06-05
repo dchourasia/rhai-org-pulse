@@ -257,13 +257,13 @@ module.exports = function registerExecutionRoutes(router, context) {
 
     try {
       const { enrichFeatures } = require('./jira-enrich');
-      const { mergeFeatureData } = require('./feature-store');
+      const { mergeFeatureData, writeFeatures } = require('./feature-store');
 
       const enrichmentMap = await enrichFeatures([key], jira.jiraRequest, jira.fetchAllJqlResults);
       const jiraData = enrichmentMap.get(key) || null;
       const merged = mergeFeatureData(existing, null, jiraData);
 
-      storage.writeToStorage(`${DATA_PREFIX}/features/${key}.json`, merged);
+      await writeFeatures(storage, [merged]);
       perKeyLastRefresh.set(key, Date.now());
 
       res.json(merged);
