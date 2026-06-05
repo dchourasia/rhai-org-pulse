@@ -19,7 +19,7 @@ Core team owns `shared/` via CODEOWNERS. Changes require core team review.
 | Export | Description |
 |--------|-------------|
 | `useRoster()` | Reactive roster data (orgs, teams, members) with fetch/refresh |
-| `useAuth()` | Current user info, admin status, team-admin status, roles. Exports `isAdmin`, `isTeamAdmin`, `roles`, `refresh()`. |
+| `useAuth()` | Current user info, admin status, team-admin status, roles. Exports `isAdmin`, `isTeamAdmin`, `roles`, `apiBaseUrl`, `refresh()`. |
 | `useGithubStats()` | GitHub contribution data with fetch/refresh |
 | `useGitlabStats()` | GitLab contribution data with fetch/refresh. Exports `getProfileUrls(gitlabUsername)` returning `[{ baseUrl, label, url }]` for per-instance profile links. |
 | `usePermissions()` | Reactive permission state: roles, managed UIDs, `isAdmin`, `isTeamAdmin`, `isManager`, `canEdit(uid)`, `canEditTeam(teamId)` |
