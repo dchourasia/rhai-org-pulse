@@ -886,55 +886,111 @@ Stores hashed API tokens for bearer-token authentication. Created on first token
 
 ## Releases — Execution Index (`data/releases/execution/index.json`)
 
-Summary index of all tracked features, produced by the GitLab CI pipeline (formerly Feature Traffic).
+Derived summary index of all features in the unified feature store. Rebuilt automatically after each feature write batch (pipeline ingest, Jira sync, or discovery).
 
 ```json
 {
   "fetchedAt": "2026-04-08T06:00:00Z",
-  "schemaVersion": "1.0",
+  "schemaVersion": "v2",
   "featureCount": 42,
   "features": [
     {
       "key": "RHAISTRAT-123",
       "summary": "Implement model serving autoscaling",
       "status": "In Progress",
-      "health": "green",
+      "statusCategory": "In Progress",
+      "priority": "Normal",
+      "assignee": "Alice Smith",
+      "fixVersions": ["RHOAI 2.16", "RHOAI 2.17"],
+      "labels": ["core"],
       "completionPct": 75,
       "epicCount": 5,
       "issueCount": 30,
       "blockerCount": 1,
-      "fixVersions": ["RHOAI 2.16", "RHOAI 2.17"]
+      "health": "GREEN",
+      "lastUpdated": "2026-06-01T00:00:00Z",
+      "targetVersions": ["3.5"],
+      "pm": "Product Manager",
+      "architect": "Architect Name",
+      "parentKey": "RHAISTRAT-100",
+      "colorStatus": "Green",
+      "ownerStatusColor": "Green"
     }
   ]
 }
 ```
 
+**Notes:**
+- `assignee` is a string in the index (flattened from the detail object shape)
+- `colorStatus` and `ownerStatusColor` are identical (backward compat alias)
+- `pm` is flattened to a string from the detail object shape
+- Metrics fields (`completionPct`, `epicCount`, etc.) are derived from the detail `metrics` object
+
 ## Releases — Execution Feature Detail (`data/releases/execution/features/{KEY}.json`)
 
-Per-feature detail file with epic breakdown.
+Unified per-feature file combining data from pipeline (GitLab CI), Jira enrichment, and tracking data. The `_sources` field tracks when each source last contributed.
 
 ```json
 {
   "key": "RHAISTRAT-123",
   "summary": "Implement model serving autoscaling",
+
+  "_sources": {
+    "pipeline": "2026-06-04T12:00:00Z",
+    "jira": "2026-06-05T08:30:00Z"
+  },
+
   "status": "In Progress",
-  "health": "green",
-  "completionPct": 75,
-  "epicCount": 5,
-  "issueCount": 30,
-  "blockerCount": 1,
-  "fixVersions": ["RHOAI 2.16"],
+  "statusCategory": "In Progress",
+  "colorStatus": "Green",
+  "ownerStatusColor": "Green",
+  "statusNotes": "On track for EA2 delivery",
+  "statusSummary": "<p>On track for EA2 delivery</p>",
+  "priority": "Normal",
+  "assignee": { "displayName": "Alice Smith", "accountId": "5e41b8c03df51b0c937390ec" },
+  "pm": { "displayName": "Jane PM" },
+  "team": "Model Serving",
+  "releaseType": "Feature",
+  "fixVersions": ["rhoai-3.5"],
+  "labels": ["core"],
+  "components": ["Model Serving"],
+  "docsRequired": "Yes",
+  "targetEnd": "2026-07-01",
+  "riceScore": 42,
+  "riceStatus": "complete",
+  "isBlocked": false,
+  "linkedRfeKey": "RHAIRFE-1234",
+
+  "issueLinks": [
+    { "type": "Cloners", "direction": "outward", "linkedKey": "RHAIRFE-1234", "linkedSummary": "...", "linkedStatus": "Approved" }
+  ],
   "epics": [
-    {
-      "key": "RHOAIENG-456",
-      "summary": "Epic: Autoscaling backend",
-      "status": "In Progress",
-      "assignee": "Alice Smith",
-      "accountId": "5e41b8c03df51b0c937390ec"
-    }
-  ]
+    { "key": "RHOAIENG-456", "summary": "Epic: Autoscaling backend", "status": "In Progress" }
+  ],
+  "architect": "Architect Name",
+  "parentKey": "RHAISTRAT-100",
+  "targetVersions": ["3.5"],
+
+  "metrics": {
+    "totalEpics": 5,
+    "totalIssues": 30,
+    "completionPct": 75,
+    "blockerCount": 1,
+    "health": "GREEN"
+  },
+  "topology": { "repos": [] },
+
+  "created": "2026-02-26T14:49:47.944+0000",
+  "updated": "2026-06-05T08:30:00.000+0000"
 }
 ```
+
+**Notes:**
+- `assignee` is an object `{ displayName, accountId }` in the detail (flattened to string in the index)
+- `colorStatus` and `ownerStatusColor` are identical (backward compat alias during migration)
+- `_sources` timestamps indicate data freshness per source; features with only `pipeline` have not been Jira-enriched yet
+- `statusNotes` (pipeline) and `statusSummary` (Jira) are different fields with different formats
+- Jira-owned fields are authoritative when present; pipeline-owned fields (`metrics`, `topology`) are preserved across Jira syncs
 
 **Optional — Traffic Signals (`trafficSignals`):**
 
@@ -979,7 +1035,7 @@ Heuristic narrative signals for the Feature detail **Traffic Signals** panel (bl
 
 ## Releases — Execution Config (`data/releases/execution/config.json`)
 
-Admin-configurable settings for GitLab CI artifact fetching (formerly Feature Traffic config).
+Admin-configurable settings for GitLab CI artifact fetching and Jira enrichment.
 
 ```json
 {
@@ -989,13 +1045,41 @@ Admin-configurable settings for GitLab CI artifact fetching (formerly Feature Tr
   "branch": "main",
   "artifactPath": "output",
   "refreshIntervalHours": 12,
-  "enabled": false
+  "enabled": false,
+  "jiraEnrichment": {
+    "enabled": false,
+    "syncIntervalHours": 6,
+    "discoveryEnabled": false,
+    "discoveryJql": "project = RHAISTRAT AND issuetype IN (Feature, Initiative) AND created >= -365d"
+  }
 }
 ```
 
 **Notes:**
 - `enabled` defaults to `false`. Module does nothing until an admin enables it in Settings.
 - `artifactPath` is the directory prefix stripped from zip entry paths (e.g., `output/index.json` becomes `index.json`).
+- `jiraEnrichment.enabled` enables periodic Jira sync of feature data (6h default cadence).
+- `jiraEnrichment.discoveryEnabled` enables Jira JQL discovery of features not yet in the store.
+- `jiraEnrichment.discoveryJql` is bounded by `created >= -365d` by default to prevent unbounded results.
+
+## Releases — Execution Last Enrichment (`data/releases/execution/last-enrichment.json`)
+
+Metadata from the most recent Jira enrichment sync.
+
+```json
+{
+  "status": "success",
+  "timestamp": "2026-06-05T08:30:00Z",
+  "featureCount": 632,
+  "enrichedCount": 630,
+  "duration": 24500,
+  "lastKey": "RHAISTRAT-1500"
+}
+```
+
+**Notes:**
+- `enrichedCount` may be less than `featureCount` if some Jira lookups failed (partial failure handling).
+- `lastKey` is for diagnostics only.
 
 ## Releases — Execution Last Fetch (`data/releases/execution/last-fetch.json`)
 

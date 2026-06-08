@@ -43,6 +43,12 @@ jobs:
             upstream-pulse:
               - 'modules/upstream-pulse/**'
               - 'tests/integration/upstream-pulse.spec.js'
+            releases:
+              - 'modules/releases/server/execution/**'
+              - 'modules/releases/client/views/FeatureDetailView.vue'
+              - 'modules/releases/client/execute/**'
+              - 'tests/integration/execution-data.spec.js'
+              - 'tests/integration/releases.spec.js'
             tv-fv-delta:
               - 'modules/releases/server/tv-fv-delta/**'
               - 'modules/releases/server/index.js'
@@ -59,7 +65,7 @@ jobs:
         run: |
           # If shared test files changed, then test all modules
           if [ "${{ steps.filter.outputs.shared-test-files }}" == "true" ]; then
-            MODULES='["ai-impact", "system-health", "people-teams", "upstream-pulse", "tv-fv-delta"]'
+            MODULES='["ai-impact", "system-health", "people-teams", "upstream-pulse", "releases", "tv-fv-delta"]'
           else
             # Otherwise, use the modules that have direct changes
             MODULES='${{ steps.filter.outputs.changes }}'

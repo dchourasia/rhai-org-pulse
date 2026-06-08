@@ -122,9 +122,32 @@ function stripZStream(value) {
  *         description: Save result
  */
 
+/**
+ * @openapi
+ * /api/modules/releases/execution/features/{key}/refresh:
+ *   post:
+ *     summary: On-demand single-feature refresh from Jira
+ *     tags: [Releases - Execution]
+ *     parameters:
+ *       - in: path
+ *         name: key
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Refreshed feature
+ *       400:
+ *         description: Invalid key format
+ *       404:
+ *         description: Feature not found
+ *       429:
+ *         description: Per-key cooldown active
+ */
+
 module.exports = function registerExecutionRoutes(router, context) {
-  // Initialize scheduler with secrets
-  if (context.secrets) scheduler.init(context.secrets);
+  // Initialize scheduler with secrets and jira client
+  const jira = context.jira || null;
+  if (context.secrets) scheduler.init(context.secrets, jira);
 
   const { storage, requireAuth, requireScope } = context;
 
@@ -202,6 +225,51 @@ module.exports = function registerExecutionRoutes(router, context) {
     }
 
     res.json(feature);
+  });
+
+  // POST /features/:key/refresh — on-demand single-feature refresh from Jira
+  const perKeyLastRefresh = new Map();
+  const PER_KEY_COOLDOWN_MS = 60 * 1000;
+
+  router.post('/features/:key/refresh', requireAuth, requireScope('releases:read'), async function(req, res) {
+    const key = req.params.key.toUpperCase();
+
+    if (!/^[A-Z][A-Z0-9]+-\d+$/.test(key)) {
+      return res.status(400).json({ error: 'Invalid feature key format' });
+    }
+
+    const existing = readDataFile(`features/${key}.json`);
+    if (!existing) {
+      return res.status(404).json({ error: `Feature ${key} not found` });
+    }
+
+    // Per-key cooldown
+    const lastRefresh = perKeyLastRefresh.get(key) || 0;
+    const elapsed = Date.now() - lastRefresh;
+    if (lastRefresh > 0 && elapsed < PER_KEY_COOLDOWN_MS) {
+      const retryAfter = Math.ceil((PER_KEY_COOLDOWN_MS - elapsed) / 1000);
+      return res.status(429).json({ status: 'cooldown', retryAfter });
+    }
+
+    if (!jira) {
+      return res.status(503).json({ error: 'Jira client not configured' });
+    }
+
+    try {
+      const { enrichFeatures } = require('./jira-enrich');
+      const { mergeFeatureData, writeFeatures } = require('./feature-store');
+
+      const enrichmentMap = await enrichFeatures([key], jira.jiraRequest, jira.fetchAllJqlResults);
+      const jiraData = enrichmentMap.get(key) || null;
+      const merged = mergeFeatureData(existing, null, jiraData);
+
+      await writeFeatures(storage, [merged]);
+      perKeyLastRefresh.set(key, Date.now());
+
+      res.json(merged);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // GET /status — data freshness and sync info
@@ -362,5 +430,52 @@ module.exports = function registerExecutionRoutes(router, context) {
         cadence: newCadenceStr
       });
     });
+
+    // Register Jira enrichment periodic sync (Phase 3)
+    if (jira) {
+      const { syncAllFeatures, discoverFromJira, reconcileTrackingData } = require('./jira-sync');
+
+      const enrichmentConfig = initialConfig.jiraEnrichment || {};
+      const syncIntervalHours = enrichmentConfig.syncIntervalHours || 6;
+
+      const enrichmentHandler = async function() {
+        const config = loadConfig(storage);
+        const jiraEnrichConfig = config.jiraEnrichment || {};
+        if (!jiraEnrichConfig.enabled) {
+          return { status: 'skipped', message: 'Jira enrichment disabled' };
+        }
+
+        const result = await syncAllFeatures(storage, jira.jiraRequest, jira.fetchAllJqlResults);
+
+        // Feature discovery (Phase 4)
+        if (jiraEnrichConfig.discoveryEnabled) {
+          try {
+            const discovery = await discoverFromJira(
+              storage, jira.jiraRequest, jira.fetchAllJqlResults, jiraEnrichConfig
+            );
+            result.discovery = discovery;
+          } catch (err) {
+            console.warn('[execution] Feature discovery failed:', err.message);
+          }
+        }
+
+        // Tracking data reconciliation
+        try {
+          const reconciliation = await reconcileTrackingData(storage);
+          result.reconciliation = reconciliation;
+        } catch (err) {
+          console.warn('[execution] Tracking reconciliation failed:', err.message);
+        }
+
+        return result;
+      };
+
+      context.registerRefresh('jira-enrichment', {
+        order: 75,
+        cadence: syncIntervalHours + 'h',
+        timeout: 120000,
+        handler: enrichmentHandler
+      });
+    }
   }
 };

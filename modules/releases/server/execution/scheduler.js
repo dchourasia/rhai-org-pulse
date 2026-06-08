@@ -26,12 +26,14 @@ const DEFAULT_CONFIG = {
 
 // Module-level secrets, set once via init()
 let _secrets = {};
+let _jira = null;
 
 // Callback invoked when config save changes the cadence
 let _onCadenceChange = null;
 
-function init(secrets) {
+function init(secrets, jira) {
   _secrets = secrets || {};
+  _jira = jira || null;
 }
 
 function getToken() {
@@ -75,7 +77,7 @@ async function runFetch(storage, config) {
 
   fetchInProgress = true;
   try {
-    const result = await _fetchArtifacts(storage, config, token);
+    const result = await _fetchArtifacts(storage, config, token, _jira);
     if (result.status === 'success') {
       lastSuccessfulFetch = Date.now();
     }

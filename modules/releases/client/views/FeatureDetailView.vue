@@ -123,7 +123,7 @@ function renderStatusNotes(notes) {
   return escHtml(String(notes))
 }
 
-const ownerStatusColor = computed(() => feature.value?.ownerStatusColor || null)
+const ownerStatusColor = computed(() => feature.value?.colorStatus || feature.value?.ownerStatusColor || null)
 
 const sourceRfeKey = computed(() => aiReview.value?.latest?.sourceRfe || null)
 
