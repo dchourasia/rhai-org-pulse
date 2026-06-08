@@ -50,6 +50,9 @@ COPY --from=build /git-libs/ /usr/lib64/
 # Copy CA trust bundle (internal CA baked in via update-ca-trust)
 COPY --from=build /etc/pki/ca-trust/extracted /etc/pki/ca-trust/extracted
 COPY --from=build /etc/pki/ca-trust/source/anchors/internal-root-ca.pem /etc/pki/ca-trust/source/anchors/internal-root-ca.pem
+# Symlink ca-bundle.crt where libcurl/git expect it (the target was copied above)
+RUN mkdir -p /etc/pki/tls/certs && \
+    ln -s /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem /etc/pki/tls/certs/ca-bundle.crt
 ENV NODE_EXTRA_CA_CERTS=/etc/pki/ca-trust/source/anchors/internal-root-ca.pem
 
 # Copy node_modules from build stage
