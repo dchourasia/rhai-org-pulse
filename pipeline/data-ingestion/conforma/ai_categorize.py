@@ -160,15 +160,25 @@ Output plain text, no markdown fences. Be dense and factual — this will be emb
 
 def build_prompt(exceptions: list[dict], version: str, all_versions: list[str],
                  guidance_summary: str, release_schedule: list[dict]) -> str:
+    jira_prefix = "https://redhat.atlassian.net/browse/"
+    image_prefix = "quay.io/rhoai/"
     compact = []
     for i, ex in enumerate(exceptions):
-        entry = {"i": i, "n": ex["fullName"], "p": ex["policyFile"], "t": ex["type"][0].upper()}
-        if ex.get("reference"):
-            entry["ref"] = ex["reference"]
-        if ex.get("comment"):
-            entry["c"] = ex["comment"]
+        name = ex["fullName"]
+        if image_prefix in name:
+            name = name.replace(image_prefix, "~")
+        entry = {"i": i, "n": name, "p": ex["policyFile"][0], "t": ex["type"][0].upper()}
+        ref = ex.get("reference") or ""
+        if ref.startswith(jira_prefix):
+            entry["ref"] = ref[len(jira_prefix):]
+        elif ref:
+            entry["ref"] = ref
         if ex.get("effectiveUntil"):
             entry["exp"] = ex["effectiveUntil"][:10]
+        comment = (ex.get("comment") or "").strip()
+        if comment:
+            lines = [l.strip() for l in comment.splitlines() if l.strip()]
+            entry["c"] = " | ".join(lines[-3:])[:120]
         compact.append(entry)
     exceptions_json = json.dumps(compact, separators=(",", ":"))
 
@@ -179,7 +189,7 @@ def build_prompt(exceptions: list[dict], version: str, all_versions: list[str],
 
     return f"""Categorize {len(exceptions)} EC policy exceptions for RHOAI {version}.
 
-Input fields: i=index, n=fullName, p=policyFile, t=type(P=permanent,V=volatile), ref=Jira, c=comment, exp=effectiveUntil(YYYY-MM-DD).
+Input fields: i=index, n=fullName(~ = quay.io/rhoai/), p=policy(f=fbc,r=registry), t=type(P=permanent,V=volatile), ref=Jira key, exp=effectiveUntil(YYYY-MM-DD), c=recent comments.
 
 Guidance:
 {guidance_summary}
@@ -349,7 +359,7 @@ def run_claude(prompt: str) -> dict:
         last_size = 0
         assistant_texts: list[str] = []
         result_event = None
-        deadline = time.monotonic() + 900
+        deadline = time.monotonic() + 1200
 
         def process_event(event: dict) -> None:
             nonlocal result_event
@@ -385,7 +395,7 @@ def run_claude(prompt: str) -> dict:
             if time.monotonic() > deadline:
                 proc.kill()
                 proc.wait()
-                print("ERROR: Claude CLI timed out after 900s", file=sys.stderr)
+                print("ERROR: Claude CLI timed out after 1200s", file=sys.stderr)
                 try:
                     with open(result_path, "r") as rf:
                         print(f"  Partial output:\n{rf.read()[:2000]}", file=sys.stderr)
@@ -433,8 +443,8 @@ def run_claude(prompt: str) -> dict:
         sys.exit(1)
 
     text = text.strip()
-    if text.startswith("```"):
-        text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+    # Strip all markdown code fences (```json ... ``` or ``` ... ```)
+    text = re.sub(r'```(?:json)?\s*\n?', '', text).strip()
 
     # Strip control characters that Claude may inject into JSON string values
     text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)

@@ -12,7 +12,7 @@
         <span v-if="state.fetchedAt" class="text-xs text-gray-400 dark:text-gray-500">
           Updated {{ formatDateTime(state.fetchedAt) }}
         </span>
-        <div v-if="allReleases.length" class="flex items-center gap-2">
+        <div v-if="dropdownReleases.length" class="flex items-center gap-2">
           <label class="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 whitespace-nowrap">
             Release
           </label>
@@ -21,7 +21,7 @@
               v-model="selectedVersion"
               class="appearance-none pl-4 pr-10 py-2.5 text-sm font-semibold rounded-xl border-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm cursor-pointer min-w-[230px]"
             >
-              <option v-for="r in allReleases" :key="r.version" :value="r.version">
+              <option v-for="r in dropdownReleases" :key="r.version" :value="r.version">
                 {{ r.version }} (GA: {{ r.gaDate }})
               </option>
             </select>
@@ -253,7 +253,7 @@
       <ConformaAiCategoryChart
         v-if="hasAiData"
         :exceptions="flatExceptions"
-        :releases="allReleases"
+        :releases="allReleasesRaw"
         :chart-key="chartKey"
       />
 
@@ -548,7 +548,7 @@
     </div>
 
     <!-- Empty state when no releases at all -->
-    <div v-else-if="!state.loading && !state.error && !allReleases.length" class="rounded-lg border border-gray-200 dark:border-gray-700 px-6 py-10 text-center">
+    <div v-else-if="!state.loading && !state.error && !dropdownReleases.length" class="rounded-lg border border-gray-200 dark:border-gray-700 px-6 py-10 text-center">
       <p class="text-sm text-gray-500 dark:text-gray-400">No shipped releases found. Run the ingestion pipeline to populate.</p>
     </div>
   </div>
@@ -664,7 +664,7 @@ const selectedVersion = ref(null)
 const chartKey = ref(0)
 const todayStr = new Date().toLocaleDateString('sv-SE') // YYYY-MM-DD in local time
 
-const allReleases = computed(() => {
+const allReleasesRaw = computed(() => {
   const releases = (state.releases || []).filter(r => r.gaDate)
   const shipped = releases
     .filter(r => r.gaDate <= todayStr)
@@ -675,14 +675,26 @@ const allReleases = computed(() => {
   return [...upcoming, ...shipped]
 })
 
-watch(allReleases, (list) => {
+const dropdownReleases = computed(() => {
+  const releases = (state.releases || []).filter(r => r.gaDate)
+  const shipped = releases
+    .filter(r => r.gaDate <= todayStr)
+    .sort((a, b) => b.gaDate.localeCompare(a.gaDate))
+  const upcoming = releases
+    .filter(r => r.gaDate > todayStr)
+    .sort((a, b) => a.gaDate.localeCompare(b.gaDate))
+  const nextUpcoming = upcoming.length ? [upcoming[0]] : []
+  return [...nextUpcoming, ...shipped]
+})
+
+watch(dropdownReleases, (list) => {
   if (list.length && !selectedVersion.value) {
     selectedVersion.value = list[0].version
   }
 }, { immediate: true })
 
 const selectedRelease = computed(() =>
-  allReleases.value.find(r => r.version === selectedVersion.value) || null
+  allReleasesRaw.value.find(r => r.version === selectedVersion.value) || null
 )
 
 // ─── Actionable exceptions ─────────────────────────────────────────────────
@@ -737,7 +749,7 @@ const availableTargetReleases = computed(() => {
     if (ex.targetRelease) targets.add(ex.targetRelease)
   }
   const gaDateMap = {}
-  for (const r of allReleases.value) {
+  for (const r of allReleasesRaw.value) {
     if (r.version && r.gaDate) gaDateMap[r.version] = r.gaDate
   }
   const nonPermanent = [...targets].filter(t => t !== PERMANENT_TARGET)
@@ -1064,7 +1076,7 @@ const typeDonutData = computed(() => {
 // ─── Trend line chart ────────────────────────────────────────────────────────
 
 const trendChartData = computed(() => {
-  const sorted = [...allReleases.value].sort((a, b) => a.gaDate.localeCompare(b.gaDate))
+  const sorted = [...allReleasesRaw.value].sort((a, b) => a.gaDate.localeCompare(b.gaDate))
   if (sorted.length < 2) return null
 
   const labels = sorted.map(r => r.version.replace('rhoai-', ''))
