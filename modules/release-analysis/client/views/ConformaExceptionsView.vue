@@ -52,7 +52,10 @@
         <div class="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p class="text-xs font-bold uppercase tracking-widest text-blue-200 mb-1">Viewing Release</p>
-            <h3 class="text-3xl font-extrabold tracking-tight leading-none">{{ selectedRelease.version }}</h3>
+            <h3 class="text-3xl font-extrabold tracking-tight leading-none">
+              {{ selectedRelease.version }}
+              <span v-if="tableFilterTeam" class="text-lg font-semibold text-blue-200 ml-2">· {{ tableFilterTeam }}</span>
+            </h3>
           </div>
           <div class="flex flex-wrap gap-3">
             <div class="flex flex-col items-center bg-white/15 backdrop-blur-sm rounded-xl px-5 py-2.5 min-w-[90px]">
@@ -70,6 +73,16 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Team filter banner -->
+      <div v-if="tableFilterTeam" class="flex items-center gap-3 rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700/50 px-5 py-3">
+        <span class="text-sm font-semibold text-violet-700 dark:text-violet-300">
+          Filtered: {{ tableFilterTeam }}
+        </span>
+        <button @click="clearTeamFilter" class="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline">
+          View all teams
+        </button>
       </div>
 
       <!-- Summary cards -->
@@ -165,7 +178,7 @@
                   class="w-3.5 h-3.5 rounded border-red-400 text-red-600 focus:ring-red-500 focus:ring-offset-0 cursor-pointer"
                 />
                 <span class="text-xs font-semibold text-red-600 dark:text-red-400">
-                  Actionable only ({{ actionableCount }})
+                  Immediate Action Needed ({{ actionableCount }})
                 </span>
               </label>
               <ConformaHelpText
@@ -249,6 +262,17 @@
         </div>
       </div>
 
+      <!-- Exceptions by Team chart -->
+      <div v-if="teamChartData && !tableFilterTeam" class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60 p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Exceptions by Team</h3>
+          <span class="text-xs text-gray-400 dark:text-gray-500">Click a bar to filter by team</span>
+        </div>
+        <div :style="{ height: Math.max(200, (teamChartData.labels.length * 28) + 40) + 'px', position: 'relative' }">
+          <Bar :key="`team-bar-${chartKey}`" :data="teamChartData" :options="teamChartOptions()" />
+        </div>
+      </div>
+
       <!-- AI Category Chart (full-width, only for releases with AI data) -->
       <ConformaAiCategoryChart
         v-if="hasAiData"
@@ -286,7 +310,7 @@
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
               </svg>
-              Actionable ({{ actionableCount }})
+              Immediate Action Needed ({{ actionableCount }})
             </button>
 
             <!-- Search -->
@@ -339,6 +363,16 @@
             >
               <option value="">All AI Assessments</option>
               <option v-for="(info, key) in AI_CATEGORIES" :key="key" :value="key">{{ info.label }}</option>
+            </select>
+
+            <!-- Team filter -->
+            <select
+              v-if="activeTeams.length"
+              v-model="tableFilterTeam"
+              class="text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Teams</option>
+              <option v-for="t in activeTeams" :key="t" :value="t">{{ t }}</option>
             </select>
 
             <!-- Target release filter -->
@@ -467,6 +501,10 @@
                     {{ ex.imageUrl ? ex.imageUrl.split('/').pop() : '—' }}
                   </span>
                 </td>
+                <!-- Team -->
+                <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-700 dark:text-gray-300">
+                  {{ ex.team || '—' }}
+                </td>
                 <!-- Effective Until -->
                 <td class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400">
                   {{ ex.effectiveUntil ? ex.effectiveUntil.slice(0, 10) : '—' }}
@@ -475,16 +513,15 @@
                 <td class="px-4 py-3 whitespace-nowrap text-center font-semibold" :class="daysAfterGaCls(ex.daysAfterGa)">
                   {{ ex.daysAfterGa !== null ? ex.daysAfterGa : '—' }}
                 </td>
-                <!-- Reference -->
+                <!-- References -->
                 <td class="px-4 py-3">
-                  <a
-                    v-if="ex.reference"
-                    :href="ex.reference"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="text-blue-600 dark:text-blue-400 hover:underline truncate block max-w-[140px]"
-                    :title="ex.reference"
-                  >{{ refLabel(ex.reference) }}</a>
+                  <div v-if="ex.references && ex.references.length" class="flex flex-wrap gap-1">
+                    <a v-for="(ref, ri) in ex.references" :key="ri"
+                      :href="ref" target="_blank" rel="noopener noreferrer"
+                      class="text-blue-600 dark:text-blue-400 hover:underline text-[10px] px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 rounded"
+                      :title="ref"
+                    >{{ refLabel(ref) }}</a>
+                  </div>
                   <span v-else class="text-gray-400">—</span>
                 </td>
                 <!-- Action -->
@@ -608,7 +645,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, inject, nextTick, ref, watch } from 'vue'
 import { Bar, Doughnut, Line, Scatter } from 'vue-chartjs'
 import {
   Chart as ChartJS,
@@ -650,9 +687,10 @@ const TABLE_COLUMNS = [
   { key: 'targetRelease', label: 'Target',         sortable: true },
   { key: 'policyMapped',  label: 'ProdSec',        sortable: true, width: 'w-16' },
   { key: 'imageUrl',      label: 'Image',          sortable: false },
+  { key: 'team',          label: 'Team',           sortable: true },
   { key: 'effectiveUntil',label: 'Effective Until',sortable: true },
   { key: 'daysAfterGa',   label: 'Days After GA',  sortable: true, width: 'w-20' },
-  { key: 'reference',     label: 'Reference',      sortable: true },
+  { key: 'references',    label: 'Reference',      sortable: false },
   { key: 'action',        label: 'Action',         sortable: false, width: 'w-24' },
   { key: 'docs',          label: 'Docs',           sortable: false, width: 'w-12' }
 ]
@@ -663,6 +701,7 @@ const state = useConformaExceptions()
 const selectedVersion = ref(null)
 const chartKey = ref(0)
 const todayStr = new Date().toLocaleDateString('sv-SE') // YYYY-MM-DD in local time
+const moduleNav = inject('moduleNav', null)
 
 const allReleasesRaw = computed(() => {
   const releases = (state.releases || []).filter(r => r.gaDate)
@@ -779,7 +818,8 @@ const flatExceptions = computed(() => {
         fullName: v,
         category: extractCategory(v),
         imageUrl: null, effectiveUntil: null,
-        reference: null, comment: null, daysAfterGa: null,
+        references: [], team: null,
+        comment: null, daysAfterGa: null,
         extensionJiraKey: null, extensionJiraUrl: null,
         isActionable: false,
         aiCategory: aiInfo?.category || null,
@@ -804,7 +844,10 @@ const flatExceptions = computed(() => {
         category: extractCategory(ex.value),
         imageUrl: ex.imageUrl || null,
         effectiveUntil: ex.effectiveUntil || null,
-        reference: ex.reference || null,
+        references: Array.isArray(ex.references)
+          ? ex.references
+          : (ex.reference ? [ex.reference] : []),
+        team: ex.team || null,
         comment: ex.comment || null,
         daysAfterGa,
         extensionJiraKey: ex.extensionJiraKey || null,
@@ -843,8 +886,17 @@ const tableFilterCategory = ref('')
 const tableFilterAiCategory = ref('')
 const tableFilterTargetRelease = ref('')
 const tableFilterPolicyMapped = ref('')
+const tableFilterTeam = ref('')
 const tableSortKey = ref('')
 const tableSortDir = ref('asc')
+
+const activeTeams = computed(() => {
+  const teams = new Set()
+  for (const ex of flatExceptions.value) {
+    if (ex.team) teams.add(ex.team)
+  }
+  return [...teams].sort()
+})
 
 // Reset table controls and force chart remount whenever the selected release changes
 watch(selectedVersion, async () => {
@@ -855,6 +907,7 @@ watch(selectedVersion, async () => {
   tableFilterAiCategory.value = ''
   tableFilterTargetRelease.value = ''
   tableFilterPolicyMapped.value = ''
+  tableFilterTeam.value = ''
   tableSortKey.value = ''
   tableSortDir.value = 'asc'
   actionableOnly.value = false
@@ -870,6 +923,7 @@ const hasActiveFilters = computed(() =>
   tableFilterAiCategory.value !== '' ||
   tableFilterTargetRelease.value !== '' ||
   tableFilterPolicyMapped.value !== '' ||
+  tableFilterTeam.value !== '' ||
   actionableOnly.value
 )
 
@@ -881,7 +935,13 @@ function clearTableFilters() {
   tableFilterAiCategory.value = ''
   tableFilterTargetRelease.value = ''
   tableFilterPolicyMapped.value = ''
+  tableFilterTeam.value = ''
   actionableOnly.value = false
+}
+
+function clearTeamFilter() {
+  tableFilterTeam.value = ''
+  if (moduleNav) moduleNav.navigateTo('conforma-exceptions', {})
 }
 
 function toggleSort(key) {
@@ -913,14 +973,16 @@ const filteredSortedExceptions = computed(() => {
   if (tableFilterAiCategory.value) rows = rows.filter(e => e.aiCategory === tableFilterAiCategory.value)
   if (tableFilterTargetRelease.value) rows = rows.filter(e => e.targetRelease === tableFilterTargetRelease.value)
   if (tableFilterPolicyMapped.value) rows = rows.filter(e => tableFilterPolicyMapped.value === 'yes' ? e.policyMapped : e.policyMapped === false)
+  if (tableFilterTeam.value) rows = rows.filter(e => e.team === tableFilterTeam.value)
 
   if (needle) {
     rows = rows.filter(e =>
       (e.value || '').toLowerCase().includes(needle) ||
-      (e.reference || '').toLowerCase().includes(needle) ||
+      (e.references || []).join(' ').toLowerCase().includes(needle) ||
       (e.comment || '').toLowerCase().includes(needle) ||
       (e.imageUrl || '').toLowerCase().includes(needle) ||
-      (e.category || '').toLowerCase().includes(needle)
+      (e.category || '').toLowerCase().includes(needle) ||
+      (e.team || '').toLowerCase().includes(needle)
     )
   }
 
@@ -1030,6 +1092,58 @@ const categoryChartOptions = {
     y: { stacked: true, grid: { display: false } }
   }
 }
+
+// ─── Team bar chart ─────────────────────────────────────────────────────────
+
+const teamChartData = computed(() => {
+  const counts = {}
+  for (const e of flatExceptions.value) {
+    if (e.team) counts[e.team] = (counts[e.team] || 0) + 1
+  }
+  const entries = Object.entries(counts)
+  if (!entries.length) return null
+  entries.sort((a, b) => b[1] - a[1])
+  return {
+    labels: entries.map(([t]) => t),
+    datasets: [{
+      label: 'Exceptions',
+      data: entries.map(([, c]) => c),
+      backgroundColor: 'rgba(139,92,246,0.75)',
+      borderColor: 'rgb(139,92,246)',
+      borderWidth: 1,
+      borderRadius: 3
+    }]
+  }
+})
+
+function teamChartOptions() {
+  return {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    onClick(_event, elements) {
+      if (!elements.length) return
+      const idx = elements[0].index
+      const team = teamChartData.value?.labels?.[idx]
+      if (team) {
+        tableFilterTeam.value = team
+        if (moduleNav) moduleNav.navigateTo('conforma-exceptions', { team })
+      }
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: { mode: 'index' }
+    },
+    scales: {
+      x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: 'rgba(156,163,175,0.15)' } },
+      y: { grid: { display: false } }
+    }
+  }
+}
+
+watch(() => moduleNav?.params?.value, (params) => {
+  if (params?.team) tableFilterTeam.value = params.team
+}, { immediate: true })
 
 // ─── Donut charts ────────────────────────────────────────────────────────────
 

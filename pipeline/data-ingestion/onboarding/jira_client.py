@@ -15,14 +15,14 @@ class JiraClient:
             "Content-Type": "application/json",
         }
 
-    def _get(self, path: str, params: dict = None, max_retries: int = 3) -> dict:
+    def _get(self, path: str, params: dict = None, max_retries: int = 6) -> dict:
         url = f"{self.base_url}{path}"
         for attempt in range(max_retries):
             response = requests.get(url, headers=self.headers, params=params, timeout=30)
             if response.status_code == 429:
-                wait = int(response.headers.get("Retry-After", 2 ** attempt))
-                print(f"  Rate limited — waiting {wait}s before retry {attempt + 1}/{max_retries}")
-                time.sleep(wait)
+                backoff = max(int(response.headers.get("Retry-After", 1)), 2 ** attempt)
+                print(f"  Rate limited — waiting {backoff}s before retry {attempt + 1}/{max_retries}")
+                time.sleep(backoff)
                 continue
             response.raise_for_status()
             return response.json()

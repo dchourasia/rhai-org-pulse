@@ -44,12 +44,12 @@ variables:
 
   # --- Org-pulse data ingestion ---
   # ORG_PULSE_API_TOKEN, SMARTSHEET_TOKEN, GITLAB_TOKEN — set as masked CI/CD variables in project settings
-  # ORG_PULSE_OVERRIDE_BACKEND_URL:
-  #   value: ""
-  #   description: "Org-pulse backend URL (override for testing)"
-  # ORG_PULSE_OVERRIDE_API_TOKEN:
-  #   value: ""
-  #   description: "Org-pulse API token (override for testing)"
+  ORG_PULSE_OVERRIDE_BACKEND_URL:
+    value: ""
+    description: "Org-pulse backend URL (override for testing)"
+  ORG_PULSE_OVERRIDE_API_TOKEN:
+    value: ""
+    description: "Org-pulse API token (override for testing)"
   MIN_DATE: "2025-04-01"  # Only process releases with GA date on or after this date
 
   # --- Pipeline selection ---
@@ -60,7 +60,7 @@ variables:
       - "component-onboarding-sync"
       - "conforma-sync"
       - "data-ingestion"
-    description: "onboarding=CI pipeline | component-onboarding-sync=onboarding data only | conforma-sync=Conforma data+AI categorize | data-ingestion=both sync jobs"
+    description: "onboarding=CI pipeline | component-onboarding-sync=onboarding data only | conforma-sync=Conforma data+AI categorize+overrides | data-ingestion=both sync jobs"
 
 workflow:
   rules:
@@ -127,9 +127,14 @@ component-onboarding-sync:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $PIPELINE_MODE != "onboarding" && $PIPELINE_MODE != "conforma-sync"'
     - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "component-onboarding-sync"'
     - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "data-ingestion"'
-  # before_script:
-  #   - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
-  #   - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
+  before_script:
+    - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
+    - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
+    - apt-get update -qq && apt-get install -y -qq ca-certificates curl > /dev/null
+    - curl -sL https://certs.corp.redhat.com/certs/2022-IT-Root-CA.pem -o /usr/local/share/ca-certificates/RH-IT-Root-CA.crt
+    - curl -sL https://certs.corp.redhat.com/certs/2015-IT-Root-CA.pem -o /usr/local/share/ca-certificates/RH-IT-Root-CA-2015.crt
+    - update-ca-certificates
+    - export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
   script:
     - pip install -r data-ingestion/onboarding/requirements.txt -q
     - python data-ingestion/onboarding/fetch_and_push.py
@@ -145,9 +150,9 @@ conforma-sync:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $PIPELINE_MODE != "onboarding" && $PIPELINE_MODE != "component-onboarding-sync"'
     - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "conforma-sync"'
     - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "data-ingestion"'
-  # before_script:
-    # - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
-    # - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
+  before_script:
+    - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
+    - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
     - apt-get update -qq && apt-get install -y -qq ca-certificates curl > /dev/null
     - curl -sL https://certs.corp.redhat.com/certs/2022-IT-Root-CA.pem -o /usr/local/share/ca-certificates/RH-IT-Root-CA.crt
     - curl -sL https://certs.corp.redhat.com/certs/2015-IT-Root-CA.pem -o /usr/local/share/ca-certificates/RH-IT-Root-CA-2015.crt
@@ -161,8 +166,6 @@ conforma-sync:
     when: script_failure
 
 # Run AI-powered categorization of exceptions for the latest unshipped release.
-# Mirrors the onboard-component pattern: Fedora image, setup-claude-ci.sh to
-# install Claude CLI + GCP creds, then run as claude-ci user via run-claude.sh.
 conforma-ai-categorize:
   stage: org-pulse-data-ingestion
   image: quay.io/fedora/fedora:latest
@@ -180,10 +183,10 @@ conforma-ai-categorize:
     ANTHROPIC_VERTEX_PROJECT_ID: "$GCP_PROJECT_ID"
     CLOUD_ML_REGION: "global"
     GOOGLE_APPLICATION_CREDENTIALS: "/tmp/gcp-key.json"
-  # before_script:
-  #   - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
-  #   - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
+  before_script:
     - bash scripts/setup-claude-ci.sh
+    - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
+    - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
   script:
     - pip install -r data-ingestion/conforma/requirements.txt -q
     - |
@@ -198,3 +201,32 @@ conforma-ai-categorize:
         python '"$CI_PROJECT_DIR"'/data-ingestion/conforma/ai_categorize.py
       '
   allow_failure: true
+
+# Apply manual overrides from Google Sheets and map teams to exceptions.
+conforma-apply-overrides:
+  stage: org-pulse-data-ingestion
+  image: python:3.11-slim
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $PIPELINE_MODE != "onboarding" && $PIPELINE_MODE != "component-onboarding-sync"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "conforma-sync"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $PIPELINE_MODE == "data-ingestion"'
+  needs:
+    - job: conforma-ai-categorize
+      optional: true
+  variables:
+    GOOGLE_SERVICE_ACCOUNT_KEY_FILE: "/tmp/gcp-key.json"
+  before_script:
+    - '[ -n "$ORG_PULSE_OVERRIDE_BACKEND_URL" ] && export ORG_PULSE_BACKEND_URL="$ORG_PULSE_OVERRIDE_BACKEND_URL" || true'
+    - '[ -n "$ORG_PULSE_OVERRIDE_API_TOKEN" ] && export ORG_PULSE_API_TOKEN="$ORG_PULSE_OVERRIDE_API_TOKEN" || true'
+    - apt-get update -qq && apt-get install -y -qq ca-certificates curl > /dev/null
+    - curl -sL https://certs.corp.redhat.com/certs/2022-IT-Root-CA.pem -o /usr/local/share/ca-certificates/RH-IT-Root-CA.crt
+    - curl -sL https://certs.corp.redhat.com/certs/2015-IT-Root-CA.pem -o /usr/local/share/ca-certificates/RH-IT-Root-CA-2015.crt
+    - update-ca-certificates
+    - export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+    - echo "$GOOGLE_SERVICE_ACCOUNT_KEY" > /tmp/gcp-key.json
+  script:
+    - pip install -r data-ingestion/conforma/requirements.txt -q
+    - python data-ingestion/conforma/apply_overrides.py
+  retry:
+    max: 2
+    when: script_failure

@@ -18,7 +18,7 @@ JQL_MANUAL    = 'project = RHOAIENG AND labels = "devops-onboarding" ORDER BY cr
 
 # changelog expand is needed to extract validationDate.
 JIRA_FIELDS = [
-    "summary", "status", "labels", "issuelinks",
+    "summary", "status", "resolution", "labels", "issuelinks",
     "created", "resolutiondate", "attachment",
 ]
 JIRA_EXPAND = ["changelog"]
@@ -192,6 +192,7 @@ def build_component(
         "linkedFeatures":   linked_features,
         "featureTitles":    feature_titles,
         "created":          fields.get("created"),
+        "resolution":       (fields.get("resolution") or {}).get("name"),
         "resolved":         fields.get("resolutiondate"),
         "validationDate":   validation_date,
         "firstCommentDate": first_comment_date,

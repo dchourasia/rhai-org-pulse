@@ -22,8 +22,9 @@
             {
               "value": "test.no_erred_tests:fbc-fips-check-oci-ta",
               "effectiveUntil": "2026-06-20T00:00:00Z",
-              "reference": "https://redhat.atlassian.net/browse/OCPEXCEPT-63",
+              "references": ["https://redhat.atlassian.net/browse/OCPEXCEPT-63"],
               "imageUrl": null,
+              "team": null,
               "comment": "Konflux bug that causes fips check to fail when there's no x86 variant of the container image available. Extending the exception by 2 weeks to allow KONFLUX-10393 to be released.",
               "extensionJiraKey": "RHOAIENG-63501",
               "extensionJiraUrl": "https://redhat.atlassian.net/browse/RHOAIENG-63501"
@@ -31,8 +32,9 @@
             {
               "value": "test.no_failed_tests:fbc-fips-check-oci-ta",
               "effectiveUntil": "2026-06-20T00:00:00Z",
-              "reference": "https://redhat.atlassian.net/browse/OCPEXCEPT-63",
+              "references": ["https://redhat.atlassian.net/browse/OCPEXCEPT-63"],
               "imageUrl": null,
+              "team": null,
               "comment": "Konflux bug that causes fips check to fail when there's no x86 variant of the container image available.",
               "extensionJiraKey": "RHOAIENG-63502",
               "extensionJiraUrl": "https://redhat.atlassian.net/browse/RHOAIENG-63502"
@@ -40,8 +42,9 @@
             {
               "value": "tasks.required_tasks_found:fbc-fips-check-oci-ta",
               "effectiveUntil": "2026-06-18T00:00:00Z",
-              "reference": "https://redhat.atlassian.net/browse/OCPEXCEPT-64",
+              "references": ["https://redhat.atlassian.net/browse/OCPEXCEPT-64"],
               "imageUrl": null,
+              "team": null,
               "comment": "Adding exception to skip the fips checks for 2.25.5 dashboard issue release.",
               "extensionJiraKey": null,
               "extensionJiraUrl": null
@@ -49,8 +52,9 @@
             {
               "value": "schedule.weekday_restriction",
               "effectiveUntil": "2026-06-17T00:00:00Z",
-              "reference": "https://redhat.atlassian.net/browse/RHOAIENG-59732",
+              "references": ["https://redhat.atlassian.net/browse/RHOAIENG-59732"],
               "imageUrl": null,
+              "team": null,
               "comment": "Weekday exception to cover 3.4 release.",
               "extensionJiraKey": null,
               "extensionJiraUrl": null
@@ -66,8 +70,9 @@
             {
               "value": "sbom_spdx.disallowed_package_attributes",
               "effectiveUntil": "2026-08-30T00:00:00Z",
-              "reference": "https://issues.redhat.com/browse/RHOAIENG-16260",
+              "references": ["https://issues.redhat.com/browse/RHOAIENG-16260"],
               "imageUrl": null,
+              "team": null,
               "comment": "v2.16 uses deprecated nodejs-18 image. Seeking exception to meet SLA. To be updated in future release.",
               "extensionJiraKey": null,
               "extensionJiraUrl": null
@@ -75,8 +80,9 @@
             {
               "value": "hermetic_task.hermetic",
               "effectiveUntil": "2026-08-30T00:00:00Z",
-              "reference": "https://issues.redhat.com/browse/RHOAIENG-31398",
+              "references": ["https://redhat.atlassian.net/browse/RHOAIENG-55001", "https://issues.redhat.com/browse/RHOAIENG-31398"],
               "imageUrl": "quay.io/rhoai/odh-mlmd-grpc-server-rhel9",
+              "team": "Data Science Pipelines",
               "comment": "MLMD hermetic exception.",
               "extensionJiraKey": null,
               "extensionJiraUrl": null
@@ -84,8 +90,9 @@
             {
               "value": "hermetic_task",
               "effectiveUntil": "2026-08-30T00:00:00Z",
-              "reference": "https://issues.redhat.com/browse/KONFLUX-7552",
+              "references": ["https://issues.redhat.com/browse/KONFLUX-7552"],
               "imageUrl": "quay.io/rhoai/odh-llama-stack-core-rhel9",
+              "team": "Agentic",
               "comment": "llama stack hermetic exclusion. AIPCC team is working on hermetic builds of this image.",
               "extensionJiraKey": null,
               "extensionJiraUrl": null
@@ -93,8 +100,9 @@
             {
               "value": "sbom_spdx.allowed_package_sources:pkg:generic/libtokenizers",
               "effectiveUntil": "2026-08-30T00:00:00Z",
-              "reference": "https://issues.redhat.com/browse/RHOAIENG-28098",
+              "references": ["https://issues.redhat.com/browse/RHOAIENG-28098"],
               "imageUrl": null,
+              "team": null,
               "comment": "quay to registry.redhat.io migration exception for tokenizers library.",
               "extensionJiraKey": null,
               "extensionJiraUrl": null
@@ -102,8 +110,9 @@
             {
               "value": "rpm_signature.allowed:8a3872bf3228467c",
               "effectiveUntil": "2026-06-20T00:00:00Z",
-              "reference": "https://issues.redhat.com/browse/PSX-1042",
+              "references": ["https://issues.redhat.com/browse/PSX-1042"],
               "imageUrl": null,
+              "team": null,
               "comment": "odh-vllm-gaudi was released with EPEL packages in previous rhoai releases. Exception needed while Gaudi team will document their usage of non-RH RPMs.",
               "extensionJiraKey": "RHOAIENG-63503",
               "extensionJiraUrl": "https://redhat.atlassian.net/browse/RHOAIENG-63503"
@@ -111,8 +120,9 @@
             {
               "value": "hermetic_task.hermetic",
               "effectiveUntil": "2026-08-30T00:00:00Z",
-              "reference": "https://issues.redhat.com/browse/RHOAIENG-28098",
+              "references": ["https://issues.redhat.com/browse/RHOAIENG-28098"],
               "imageUrl": "quay.io/rhoai/odh-kserve-controller-rhel9",
+              "team": "Model Serving",
               "comment": "quay to registry.redhat.io migration exception for kserve controller.",
               "extensionJiraKey": null,
               "extensionJiraUrl": null
@@ -120,8 +130,9 @@
             {
               "value": "hermetic_task.hermetic",
               "effectiveUntil": "2026-08-30T00:00:00Z",
-              "reference": "https://issues.redhat.com/browse/RHOAIENG-28098",
+              "references": ["https://issues.redhat.com/browse/RHOAIENG-28098"],
               "imageUrl": "quay.io/rhoai/odh-kserve-storage-initializer-rhel9",
+              "team": "Model Serving",
               "comment": "quay to registry.redhat.io migration exception for kserve storage initializer.",
               "extensionJiraKey": null,
               "extensionJiraUrl": null
@@ -298,15 +309,17 @@
             {
               "value": "test.no_erred_tests:fbc-fips-check-oci-ta",
               "effectiveUntil": "2026-04-15T00:00:00Z",
-              "reference": "https://redhat.atlassian.net/browse/OCPEXCEPT-63",
+              "references": ["https://redhat.atlassian.net/browse/OCPEXCEPT-63"],
               "imageUrl": null,
+              "team": null,
               "comment": "RHOAI FIPS exception extension for 3.3.2 release."
             },
             {
               "value": "test.no_failed_tests:fbc-fips-check-oci-ta",
               "effectiveUntil": "2026-04-15T00:00:00Z",
-              "reference": "https://redhat.atlassian.net/browse/OCPEXCEPT-63",
+              "references": ["https://redhat.atlassian.net/browse/OCPEXCEPT-63"],
               "imageUrl": null,
+              "team": null,
               "comment": "RHOAI FIPS exception extension for 3.3.2 release."
             }
           ]
@@ -320,29 +333,33 @@
             {
               "value": "sbom_spdx.disallowed_package_attributes",
               "effectiveUntil": "2026-06-30T00:00:00Z",
-              "reference": "https://issues.redhat.com/browse/RHOAIENG-16260",
+              "references": ["https://issues.redhat.com/browse/RHOAIENG-16260"],
               "imageUrl": null,
+              "team": null,
               "comment": "nodejs-18 deprecated image exception."
             },
             {
               "value": "hermetic_task.hermetic",
               "effectiveUntil": "2026-06-30T00:00:00Z",
-              "reference": "https://issues.redhat.com/browse/RHOAIENG-31398",
+              "references": ["https://issues.redhat.com/browse/RHOAIENG-31398"],
               "imageUrl": "quay.io/rhoai/odh-mlmd-grpc-server-rhel9",
+              "team": "Data Science Pipelines",
               "comment": "MLMD hermetic exception."
             },
             {
               "value": "hermetic_task.hermetic",
               "effectiveUntil": "2026-06-30T00:00:00Z",
-              "reference": "https://issues.redhat.com/browse/RHOAIENG-28098",
+              "references": ["https://issues.redhat.com/browse/RHOAIENG-28098"],
               "imageUrl": "quay.io/rhoai/odh-must-gather-rhel9",
+              "team": "Platform",
               "comment": "must-gather hermetic exception."
             },
             {
               "value": "rpm_signature.allowed:8a3872bf3228467c",
               "effectiveUntil": "2026-04-30T00:00:00Z",
-              "reference": "https://issues.redhat.com/browse/PSX-1042",
+              "references": ["https://issues.redhat.com/browse/PSX-1042"],
               "imageUrl": null,
+              "team": null,
               "comment": "odh-vllm-gaudi EPEL packages exception."
             }
           ]
@@ -368,8 +385,9 @@
             {
               "value": "test.no_erred_tests:fbc-fips-check-oci-ta",
               "effectiveUntil": "2026-02-28T00:00:00Z",
-              "reference": "https://redhat.atlassian.net/browse/OCPEXCEPT-63",
+              "references": ["https://redhat.atlassian.net/browse/OCPEXCEPT-63"],
               "imageUrl": null,
+              "team": null,
               "comment": "FIPS check exception for initial 3.3 release."
             }
           ]
@@ -383,15 +401,17 @@
             {
               "value": "sbom_spdx.disallowed_package_attributes",
               "effectiveUntil": "2026-06-30T00:00:00Z",
-              "reference": "https://issues.redhat.com/browse/RHOAIENG-16260",
+              "references": ["https://issues.redhat.com/browse/RHOAIENG-16260"],
               "imageUrl": null,
+              "team": null,
               "comment": "nodejs-18 deprecated image exception. To be updated in future release."
             },
             {
               "value": "hermetic_task.hermetic",
               "effectiveUntil": "2026-06-30T00:00:00Z",
-              "reference": "https://issues.redhat.com/browse/RHOAIENG-31398",
+              "references": ["https://issues.redhat.com/browse/RHOAIENG-31398"],
               "imageUrl": "quay.io/rhoai/odh-mlmd-grpc-server-rhel9",
+              "team": "Data Science Pipelines",
               "comment": "MLMD hermetic exception."
             }
           ]
@@ -423,8 +443,9 @@
             {
               "value": "sbom_spdx.disallowed_package_attributes",
               "effectiveUntil": "2025-12-31T00:00:00Z",
-              "reference": "https://issues.redhat.com/browse/RHOAIENG-16260",
+              "references": ["https://issues.redhat.com/browse/RHOAIENG-16260"],
               "imageUrl": null,
+              "team": null,
               "comment": "nodejs-18 deprecated image exception for 2.25 z-stream."
             }
           ]
