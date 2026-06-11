@@ -895,7 +895,7 @@ const availableTargetReleases = computed(() => {
   }
   const gaDateMap = {}
   for (const r of allReleasesRaw.value) {
-    if (r.version && r.gaDate) gaDateMap[r.version] = r.gaDate
+    if (r.version && r.gaDate) gaDateMap[normalizeTargetRelease(r.version)] = r.gaDate
   }
   const nonPermanent = [...targets].filter(t => t !== PERMANENT_TARGET)
   nonPermanent.sort((a, b) => (gaDateMap[a] || '9999-' + a).localeCompare(gaDateMap[b] || '9999-' + b))

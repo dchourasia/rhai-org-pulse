@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { Bar } from 'vue-chartjs'
-import { AI_CATEGORIES, PERMANENT_TARGET, targetReleaseLabel } from '../constants/conforma'
+import { AI_CATEGORIES, PERMANENT_TARGET, targetReleaseLabel, normalizeTargetRelease } from '../constants/conforma'
 import ConformaHelpText from './ConformaHelpText.vue'
 
 const props = defineProps({
@@ -90,7 +90,7 @@ const targetReleases = computed(() => {
 
   const gaDateMap = {}
   for (const r of props.releases) {
-    if (r.version && r.gaDate) gaDateMap[r.version] = r.gaDate
+    if (r.version && r.gaDate) gaDateMap[normalizeTargetRelease(r.version)] = r.gaDate
   }
 
   const nonPermanent = [...targets].filter(t => t !== PERMANENT_TARGET)

@@ -99,10 +99,9 @@ export function normalizeTargetRelease(raw) {
   if (!raw) return null
   const trimmed = raw.trim()
   if (!trimmed) return null
-  const lower = trimmed.toLowerCase()
-  if (lower.includes('permanent')) return PERMANENT_TARGET
-  let v = lower.replace(/^rhoai-/, '').replace(/^v/, '')
-  v = v.replace(/[\s.-]+ea[\s.-]*(\d+)/i, '-ea$1')
+  if (trimmed.toLowerCase().includes('permanent')) return PERMANENT_TARGET
+  let v = trimmed.replace(/^rhoai-/i, '').replace(/^v/i, '')
+  v = v.replace(/[\s.-]+[Ee][Aa][\s.-]*(\d+)/, '.EA$1')
   v = v.replace(/^[\s.-]+|[\s.-]+$/g, '')
   return `rhoai-${v}`
 }

@@ -39,7 +39,7 @@ ASSESSMENT_TO_CATEGORY = {
     "resolved": "resolved",
 }
 
-DEFAULT_TARGET_RELEASE = "rhoai-3.6-ea1"
+DEFAULT_TARGET_RELEASE = "rhoai-3.6.EA1"
 
 TIMEOUT = 30
 
@@ -132,10 +132,10 @@ def normalize_version(raw: str, known_versions: set[str]) -> str | None:
         return None
     if "permanent" in raw.lower():
         return "permanent"
-    v = raw.lower().lstrip("v")
-    v = re.sub(r'^rhoai-', '', v)
-    # Normalize EA variants: "3.5 EA1", "3.5.EA-1", "3.5-ea.1" → "3.5-ea1"
-    v = re.sub(r'[\s.\-]+ea[\s.\-]*(\d+)', r'-ea\1', v)
+    v = raw.lstrip("v").lstrip("V")
+    v = re.sub(r'^rhoai-', '', v, flags=re.IGNORECASE)
+    # Normalize EA variants: "3.5 EA1", "3.5.EA-1", "3.5-ea.1" → "3.5.EA1"
+    v = re.sub(r'[\s.\-]+[Ee][Aa][\s.\-]*(\d+)', r'.EA\1', v)
     candidate = f"rhoai-{v}"
     if candidate in known_versions:
         return candidate
@@ -187,7 +187,10 @@ def parse_override_rows(rows: list[list[str]], known_versions: set[str]) -> list
         if fix_version_raw:
             fix_version = normalize_version(fix_version_raw, known_versions)
             if not fix_version:
-                fix_version = f"rhoai-{fix_version_raw.lstrip('v')}"
+                fv = fix_version_raw.lstrip("v").lstrip("V")
+                fv = re.sub(r'^rhoai-', '', fv, flags=re.IGNORECASE)
+                fv = re.sub(r'[\s.\-]+[Ee][Aa][\s.\-]*(\d+)', r'.EA\1', fv)
+                fix_version = f"rhoai-{fv}"
 
         if not violations:
             continue
