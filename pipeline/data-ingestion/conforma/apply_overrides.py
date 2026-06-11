@@ -39,7 +39,7 @@ ASSESSMENT_TO_CATEGORY = {
     "resolved": "resolved",
 }
 
-DEFAULT_TARGET_RELEASE = "rhoai-3.6"
+DEFAULT_TARGET_RELEASE = "rhoai-3.6-ea1"
 
 TIMEOUT = 30
 
@@ -130,7 +130,12 @@ def normalize_version(raw: str, known_versions: set[str]) -> str | None:
     raw = raw.strip()
     if not raw or raw.lower() == "n/a":
         return None
-    v = raw.lstrip("v")
+    if "permanent" in raw.lower():
+        return "permanent"
+    v = raw.lower().lstrip("v")
+    v = re.sub(r'^rhoai-', '', v)
+    # Normalize EA variants: "3.5 EA1", "3.5.EA-1", "3.5-ea.1" → "3.5-ea1"
+    v = re.sub(r'[\s.\-]+ea[\s.\-]*(\d+)', r'-ea\1', v)
     candidate = f"rhoai-{v}"
     if candidate in known_versions:
         return candidate

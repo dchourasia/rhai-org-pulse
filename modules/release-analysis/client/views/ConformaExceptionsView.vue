@@ -276,7 +276,7 @@
       <!-- AI Category Chart (full-width, only for releases with AI data) -->
       <ConformaAiCategoryChart
         v-if="hasAiData"
-        :exceptions="flatExceptions"
+        :exceptions="displayExceptions"
         :releases="allReleasesRaw"
         :chart-key="chartKey"
       />
@@ -666,7 +666,7 @@ import ConformaAiCategoryChart from '../components/ConformaAiCategoryChart.vue'
 import {
   KNOWN_CATEGORIES, CATEGORY_BADGE, CATEGORY_DOCS,
   AI_CATEGORIES, PERMANENT_TARGET, targetReleaseBadgeCls, targetReleaseLabel,
-  EXTENSION_JIRA_TEMPLATE_URL, ACTIONABLE_DAYS_THRESHOLD,
+  normalizeTargetRelease, EXTENSION_JIRA_TEMPLATE_URL, ACTIONABLE_DAYS_THRESHOLD,
   extractCategory
 } from '../constants/conforma'
 
@@ -771,7 +771,7 @@ const aiCategoryMap = computed(() => {
     map[entry.fullName] = {
       category: entry.category,
       reasoning: entry.reasoning,
-      targetRelease: entry.targetRelease || null,
+      targetRelease: normalizeTargetRelease(entry.targetRelease),
       policyMapped: entry.policyMapped ?? null
     }
   }
@@ -781,21 +781,6 @@ const aiCategoryMap = computed(() => {
 const hasAiData = computed(() =>
   Object.keys(aiCategoryMap.value).length > 0
 )
-
-const availableTargetReleases = computed(() => {
-  const targets = new Set()
-  for (const ex of flatExceptions.value) {
-    if (ex.targetRelease) targets.add(ex.targetRelease)
-  }
-  const gaDateMap = {}
-  for (const r of allReleasesRaw.value) {
-    if (r.version && r.gaDate) gaDateMap[r.version] = r.gaDate
-  }
-  const nonPermanent = [...targets].filter(t => t !== PERMANENT_TARGET)
-  nonPermanent.sort((a, b) => (gaDateMap[a] || '9999-' + a).localeCompare(gaDateMap[b] || '9999-' + b))
-  if (targets.has(PERMANENT_TARGET)) nonPermanent.push(PERMANENT_TARGET)
-  return nonPermanent
-})
 
 // ─── Flat exception list (all, used by charts) ───────────────────────────────
 
@@ -863,20 +848,6 @@ const flatExceptions = computed(() => {
   return result
 })
 
-const volatileExceptions = computed(() =>
-  flatExceptions.value.filter(e => e.type === 'volatile' && e.effectiveUntil)
-)
-
-const actionableCount = computed(() =>
-  flatExceptions.value.filter(e => e.isActionable).length
-)
-
-const actionableExceptions = computed(() =>
-  flatExceptions.value
-    .filter(e => e.isActionable)
-    .sort((a, b) => (a.daysAfterGa ?? 0) - (b.daysAfterGa ?? 0))
-)
-
 // ─── Table: search / filter / sort state ────────────────────────────────────
 
 const tableSearch = ref('')
@@ -890,12 +861,46 @@ const tableFilterTeam = ref('')
 const tableSortKey = ref('')
 const tableSortDir = ref('asc')
 
+const displayExceptions = computed(() => {
+  if (!tableFilterTeam.value) return flatExceptions.value
+  return flatExceptions.value.filter(e => e.team === tableFilterTeam.value)
+})
+
+const volatileExceptions = computed(() =>
+  displayExceptions.value.filter(e => e.type === 'volatile' && e.effectiveUntil)
+)
+
+const actionableCount = computed(() =>
+  displayExceptions.value.filter(e => e.isActionable).length
+)
+
+const actionableExceptions = computed(() =>
+  displayExceptions.value
+    .filter(e => e.isActionable)
+    .sort((a, b) => (a.daysAfterGa ?? 0) - (b.daysAfterGa ?? 0))
+)
+
 const activeTeams = computed(() => {
   const teams = new Set()
   for (const ex of flatExceptions.value) {
     if (ex.team) teams.add(ex.team)
   }
   return [...teams].sort()
+})
+
+const availableTargetReleases = computed(() => {
+  const targets = new Set()
+  for (const ex of displayExceptions.value) {
+    if (ex.targetRelease) targets.add(ex.targetRelease)
+  }
+  const gaDateMap = {}
+  for (const r of allReleasesRaw.value) {
+    if (r.version && r.gaDate) gaDateMap[r.version] = r.gaDate
+  }
+  const nonPermanent = [...targets].filter(t => t !== PERMANENT_TARGET)
+  nonPermanent.sort((a, b) => (gaDateMap[a] || '9999-' + a).localeCompare(gaDateMap[b] || '9999-' + b))
+  if (targets.has(PERMANENT_TARGET)) nonPermanent.push(PERMANENT_TARGET)
+  return nonPermanent
 })
 
 // Reset table controls and force chart remount whenever the selected release changes
@@ -955,13 +960,13 @@ function toggleSort(key) {
 
 // Categories present in the current release (for the filter dropdown)
 const activeCategories = computed(() => {
-  const seen = new Set(flatExceptions.value.map(e => e.category))
+  const seen = new Set(displayExceptions.value.map(e => e.category))
   return KNOWN_CATEGORIES.filter(c => seen.has(c))
 })
 
 const filteredSortedExceptions = computed(() => {
   const needle = tableSearch.value.trim().toLowerCase()
-  let rows = flatExceptions.value
+  let rows = displayExceptions.value
 
   // Actionable filter
   if (actionableOnly.value) rows = rows.filter(e => e.isActionable)
@@ -973,7 +978,6 @@ const filteredSortedExceptions = computed(() => {
   if (tableFilterAiCategory.value) rows = rows.filter(e => e.aiCategory === tableFilterAiCategory.value)
   if (tableFilterTargetRelease.value) rows = rows.filter(e => e.targetRelease === tableFilterTargetRelease.value)
   if (tableFilterPolicyMapped.value) rows = rows.filter(e => tableFilterPolicyMapped.value === 'yes' ? e.policyMapped : e.policyMapped === false)
-  if (tableFilterTeam.value) rows = rows.filter(e => e.team === tableFilterTeam.value)
 
   if (needle) {
     rows = rows.filter(e =>
@@ -1008,7 +1012,7 @@ const filteredSortedExceptions = computed(() => {
 // ─── Summary cards ──────────────────────────────────────────────────────────
 
 const summaryCards = computed(() => {
-  const all = flatExceptions.value
+  const all = displayExceptions.value
   const fbc = all.filter(e => e.policyFile === 'fbc').length
   const registry = all.filter(e => e.policyFile === 'registry').length
   const volatile = all.filter(e => e.type === 'volatile').length
@@ -1044,7 +1048,7 @@ const summaryCards = computed(() => {
 // ─── Category horizontal bar chart ──────────────────────────────────────────
 
 const categoryChartData = computed(() => {
-  const all = flatExceptions.value
+  const all = displayExceptions.value
   if (!all.length) return null
 
   const fbcCounts = {}
@@ -1158,7 +1162,7 @@ const donutOptions = {
 }
 
 const policyFileDonutData = computed(() => {
-  const all = flatExceptions.value
+  const all = displayExceptions.value
   const fbc = all.filter(e => e.policyFile === 'fbc').length
   const reg = all.filter(e => e.policyFile === 'registry').length
   return {
@@ -1173,7 +1177,7 @@ const policyFileDonutData = computed(() => {
 })
 
 const typeDonutData = computed(() => {
-  const all = flatExceptions.value
+  const all = displayExceptions.value
   const vol = all.filter(e => e.type === 'volatile').length
   const perm = all.filter(e => e.type === 'permanent').length
   return {
@@ -1195,13 +1199,14 @@ const trendChartData = computed(() => {
 
   const labels = sorted.map(r => r.version.replace('rhoai-', ''))
   function countFor(r, filter) {
-    const all = []
+    let all = []
     for (const pf of ['fbc', 'registry']) {
       const exc = r.exceptions?.[pf]
       if (!exc) continue
-      for (const v of exc.configExcludes || []) all.push({ type: 'permanent', policyFile: pf, value: v, category: extractCategory(v) })
-      for (const ex of exc.volatileExcludes || []) all.push({ type: 'volatile', policyFile: pf, value: ex.value, category: extractCategory(ex.value) })
+      for (const v of exc.configExcludes || []) all.push({ type: 'permanent', policyFile: pf, value: v, category: extractCategory(v), team: null })
+      for (const ex of exc.volatileExcludes || []) all.push({ type: 'volatile', policyFile: pf, value: ex.value, category: extractCategory(ex.value), team: ex.team || null })
     }
+    if (tableFilterTeam.value) all = all.filter(e => e.team === tableFilterTeam.value)
     return filter ? all.filter(filter).length : all.length
   }
 

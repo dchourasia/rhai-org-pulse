@@ -95,6 +95,18 @@ export function targetReleaseLabel(target) {
   return target.replace('rhoai-', '')
 }
 
+export function normalizeTargetRelease(raw) {
+  if (!raw) return null
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const lower = trimmed.toLowerCase()
+  if (lower.includes('permanent')) return PERMANENT_TARGET
+  let v = lower.replace(/^rhoai-/, '').replace(/^v/, '')
+  v = v.replace(/[\s.-]+ea[\s.-]*(\d+)/i, '-ea$1')
+  v = v.replace(/^[\s.-]+|[\s.-]+$/g, '')
+  return `rhoai-${v}`
+}
+
 export function extractCategory(value) {
   if (!value) return 'other'
   if (value.toLowerCase().includes('fips')) return 'fips'
