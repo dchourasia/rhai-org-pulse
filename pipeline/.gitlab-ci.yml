@@ -223,7 +223,7 @@ conforma-apply-overrides:
     - curl -sL https://certs.corp.redhat.com/certs/2015-IT-Root-CA.pem -o /usr/local/share/ca-certificates/RH-IT-Root-CA-2015.crt
     - update-ca-certificates
     - export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
-    - echo "$GOOGLE_SERVICE_ACCOUNT_KEY" > /tmp/gcp-key.json
+    - echo "$GOOGLE_SERVICE_ACCOUNT_KEY" | base64 -d > /tmp/gcp-key.json
   script:
     - pip install -r data-ingestion/conforma/requirements.txt -q
     - python data-ingestion/conforma/apply_overrides.py

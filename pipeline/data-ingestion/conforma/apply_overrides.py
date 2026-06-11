@@ -273,6 +273,16 @@ def apply_overrides_to_release(release: dict, overrides: list[dict]) -> dict:
         ov_key = make_match_key(ov["value"], ov["imageShort"])
         vol_idx = vol_by_key.get(ov_key)
 
+        # Fallback: override has a specific image but no exact match — look for
+        # the same violation with no image (the override refines it to a specific image)
+        if vol_idx is None and ov["imageShort"]:
+            bare_key = make_match_key(ov["value"], None)
+            vol_idx = vol_by_key.get(bare_key)
+            if vol_idx is not None:
+                # Claim the imageless entry so subsequent overrides with the same
+                # value but different images don't also match it
+                del vol_by_key[bare_key]
+
         full_name = f"{ov['value']}:{IMAGE_PREFIX}{ov['imageShort']}" if ov["imageShort"] else ov["value"]
         ai_fullname_key = full_name.lower()
 
@@ -287,6 +297,8 @@ def apply_overrides_to_release(release: dict, overrides: list[dict]) -> dict:
 
         if vol_idx is not None:
             ex = volatile[vol_idx]
+            if ov["imageShort"] and not ex.get("imageUrl"):
+                ex["imageUrl"] = f"{IMAGE_PREFIX}{ov['imageShort']}"
             migrate_references(ex)
 
             if ov["jiraUrls"]:
@@ -295,8 +307,13 @@ def apply_overrides_to_release(release: dict, overrides: list[dict]) -> dict:
                 ex["references"] = new_refs + ex["references"]
 
             ai_idx = ai_by_fullname.get(ai_fullname_key)
+            if ai_idx is None:
+                bare_ai_key = ov["value"].lower()
+                ai_idx = ai_by_fullname.get(bare_ai_key)
             if ai_idx is not None:
                 ae = ai_exceptions[ai_idx]
+                if ae.get("fullName") and ae["fullName"] != full_name:
+                    ae["fullName"] = full_name
             else:
                 ae = {
                     "fullName": full_name,

@@ -410,13 +410,16 @@ def run_claude(prompt: str) -> dict:
 
         rc = proc.returncode
         if rc != 0:
-            print(f"ERROR: Claude CLI exited with code {rc}", file=sys.stderr)
-            try:
-                with open(result_path, "r") as rf:
-                    print(f"  Full output:\n{rf.read()[:2000]}", file=sys.stderr)
-            except FileNotFoundError:
-                pass
-            sys.exit(1)
+            if assistant_texts:
+                print(f"  WARN: Claude CLI exited with code {rc}, but assistant output was captured — attempting to parse", file=sys.stderr)
+            else:
+                print(f"ERROR: Claude CLI exited with code {rc} and no output was captured", file=sys.stderr)
+                try:
+                    with open(result_path, "r") as rf:
+                        print(f"  Full output:\n{rf.read()[:2000]}", file=sys.stderr)
+                except FileNotFoundError:
+                    pass
+                sys.exit(1)
 
     finally:
         if prompt_path and os.path.exists(prompt_path):
