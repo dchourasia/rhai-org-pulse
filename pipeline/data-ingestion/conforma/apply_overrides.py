@@ -198,13 +198,14 @@ def parse_override_rows(rows: list[list[str]], known_versions: set[str]) -> list
         for violation in violations:
             for image in images:
                 for version in (affects_versions if affects_versions else [None]):
+                    default_fv = "permanent" if category == "partner_permanent" else DEFAULT_TARGET_RELEASE
                     overrides.append({
                         "value": violation,
                         "imageShort": image,
                         "version": version,
                         "context": context,
                         "category": category,
-                        "fixVersion": fix_version or DEFAULT_TARGET_RELEASE,
+                        "fixVersion": fix_version or default_fv,
                         "jiraUrls": jira_urls,
                         "ignore": ignore,
                         "sourceRow": row_idx,
@@ -323,12 +324,13 @@ def apply_overrides_to_release(release: dict, overrides: list[dict]) -> dict:
                 if ae.get("fullName") and ae["fullName"] != full_name:
                     ae["fullName"] = full_name
             else:
+                default_tr = "permanent" if ov["category"] == "partner_permanent" else DEFAULT_TARGET_RELEASE
                 ae = {
                     "fullName": full_name,
                     "policyFile": "registry",
                     "type": "volatile",
                     "category": "",
-                    "targetRelease": DEFAULT_TARGET_RELEASE,
+                    "targetRelease": default_tr,
                     "policyMapped": True,
                     "reasoning": "",
                 }
@@ -339,6 +341,8 @@ def apply_overrides_to_release(release: dict, overrides: list[dict]) -> dict:
                 ae["reasoning"] = ov["context"]
             if ov["category"]:
                 ae["category"] = ov["category"]
+                if ov["category"] == "partner_permanent" and not ov["fixVersion"]:
+                    ae["targetRelease"] = "permanent"
             if ov["fixVersion"]:
                 ae["targetRelease"] = ov["fixVersion"]
 
@@ -363,7 +367,7 @@ def apply_overrides_to_release(release: dict, overrides: list[dict]) -> dict:
                     "policyFile": "registry",
                     "type": "volatile",
                     "category": ov["category"] or "",
-                    "targetRelease": ov["fixVersion"] or DEFAULT_TARGET_RELEASE,
+                    "targetRelease": ov["fixVersion"] or ("permanent" if ov["category"] == "partner_permanent" else DEFAULT_TARGET_RELEASE),
                     "policyMapped": True,
                     "reasoning": ov["context"] or "",
                 }
@@ -396,6 +400,21 @@ def migrate_all_references(releases: list[dict]) -> int:
                     migrate_references(ex)
                     count += 1
     return count
+
+
+def fix_partner_permanent_targets(releases: list[dict]) -> int:
+    """Force targetRelease='permanent' for all partner_permanent AI entries.
+
+    The AI categorize job sometimes assigns a real version instead of
+    'permanent' for partner content. This sweep corrects them all.
+    """
+    fixed = 0
+    for release in releases:
+        for ae in release.get("aiCategorization", {}).get("exceptions", []):
+            if ae.get("category") == "partner_permanent" and ae.get("targetRelease") != "permanent":
+                ae["targetRelease"] = "permanent"
+                fixed += 1
+    return fixed
 
 
 def apply_team_mapping(releases: list[dict], team_map: dict[str, str]) -> dict[str, int]:
@@ -496,6 +515,9 @@ def main() -> None:
 
     ref_count = migrate_all_references(releases)
     print(f"  Migrated reference→references: {ref_count} entries")
+
+    fixed_permanent = fix_partner_permanent_targets(releases)
+    print(f"  Fixed partner_permanent targetRelease: {fixed_permanent} entries")
 
     team_stats = apply_team_mapping(releases, team_map)
     print(f"  Team mapping: matched={team_stats['matched']}, unmatched={team_stats['unmatched']}, no_image={team_stats['no_image']}")
