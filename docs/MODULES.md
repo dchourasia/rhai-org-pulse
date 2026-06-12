@@ -68,6 +68,7 @@ modules/your-module/
 | `client.entry` | No | Path to frontend entry point |
 | `client.navItems` | No | Sidebar navigation items |
 | `client.settingsComponent` | No | Vue component for the Settings page |
+| `client.sotuWidgets` | No | Array of widget declarations for the SOTU dashboard (see below) |
 | `server.entry` | No | Path to backend entry point |
 
 ### navItem Fields
@@ -260,6 +261,49 @@ To add a settings tab for your module, create a Vue component and reference it i
 ```
 
 The component will be rendered as a tab in the shell's Settings page.
+
+## SOTU Widgets
+
+To contribute widgets to the customizable "State of the Union" dashboard, declare them in `module.json`:
+
+```json
+{
+  "client": {
+    "sotuWidgets": [
+      {
+        "id": "my-widget",
+        "name": "My Widget",
+        "description": "Short description for the widget picker",
+        "component": "./client/widgets/MyWidget.vue",
+        "defaultSize": "half",
+        "icon": "BarChart3",
+        "category": "metrics"
+      }
+    ]
+  }
+}
+```
+
+**Widget manifest fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | Yes | Unique within the module. Globally qualified as `{moduleSlug}:{id}` |
+| `name` | Yes | Display name in the widget picker |
+| `description` | Yes | Short description shown in the widget picker |
+| `component` | Yes | Path relative to module dir. Must match `client/widgets/*Widget.vue` |
+| `defaultSize` | No | `"half"` or `"full"` (default: `"half"`). User can override. |
+| `icon` | No | Lucide icon name for the widget picker |
+| `category` | No | Grouping in the widget picker (e.g., `action-items`, `boards`, `metrics`) |
+
+**Requirements:**
+
+1. Widget files must be named `*Widget.vue` and live in `client/widgets/` (enforced by CI via `validate-modules`).
+2. Widgets receive a single prop: `size` (`"half"` or `"full"`) so they can adapt their layout.
+3. Widgets are fully self-contained — they fetch their own data and render their own card chrome (bg, border, rounded, padding).
+4. Use `useModuleLink` (not `moduleNav`) for all outbound navigation, since widgets render on the landing page where `activeModuleSlugRef` is `null`.
+5. Pass `from: 'sotu'` in navigation params so destination views can show a "Back to State of the Union" button that navigates to `#/`.
+6. Users can add, remove, reorder, and resize widgets via the dashboard UI. Layout is persisted to localStorage.
 
 ## Testing
 
