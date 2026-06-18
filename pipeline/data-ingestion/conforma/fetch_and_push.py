@@ -382,7 +382,7 @@ def api_headers(token: str) -> dict:
 
 
 def clear_existing(backend_url: str, token: str) -> None:
-    url = f"{backend_url.rstrip('/')}/api/modules/release-analysis/conforma"
+    url = f"{backend_url.rstrip('/')}/api/modules/releases/delivery/conforma"
     resp = requests.delete(url, headers=api_headers(token), timeout=TIMEOUT)
     if resp.status_code not in (204, 404):
         resp.raise_for_status()
@@ -390,7 +390,7 @@ def clear_existing(backend_url: str, token: str) -> None:
 
 
 def push_bulk(backend_url: str, token: str, releases: list[dict], min_date: str) -> dict:
-    url = f"{backend_url.rstrip('/')}/api/modules/release-analysis/conforma/bulk"
+    url = f"{backend_url.rstrip('/')}/api/modules/releases/delivery/conforma/bulk"
     payload = {"releases": releases, "minDate": min_date}
     resp = requests.post(url, headers=api_headers(token), json=payload, timeout=60)
     resp.raise_for_status()
